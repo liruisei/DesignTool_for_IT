@@ -30,10 +30,22 @@ public sealed class DashboardController : ApiControllerBase
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Take(5)
-            .Select(x => new ProjectDto(
-                x.Id, x.Code, x.Name, x.ClientName, x.Phase, x.Status.ToString(),
-                x.Description, x.OwnerUserId, x.Owner != null ? x.Owner.DisplayName : null,
-                x.CreatedAt))
+            .Select(x => new ProjectDto
+            {
+                Id = x.Id,
+                Code = x.Code,
+                Name = x.Name,
+                ClientName = x.ClientName,
+                Location = x.Location,
+                Phase = x.Phase,
+                StartDate = x.StartDate,
+                EndDate = x.EndDate,
+                Status = x.Status.ToString(),
+                Description = x.Description,
+                OwnerUserId = x.OwnerUserId,
+                OwnerName = x.Owner != null ? x.Owner.DisplayName : null,
+                CreatedAt = x.CreatedAt
+            })
             .ToListAsync(ct);
 
         return Ok(new DashboardDto(userCount, projectCount, dictionaryTypeCount, equipmentCount, recent));

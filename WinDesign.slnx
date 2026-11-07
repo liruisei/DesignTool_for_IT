@@ -6,4 +6,9 @@
     <Project Path="src/WinDesign.Domain/WinDesign.Domain.csproj" />
     <Project Path="src/WinDesign.Infrastructure/WinDesign.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WinDesign.Api.Tests/WinDesign.Api.Tests.csproj" />
+    <Project Path="tests/WinDesign.Client.Tests/WinDesign.Client.Tests.csproj" />
+    <Project Path="tests/WinDesign.UnitTests/WinDesign.UnitTests.csproj" />
+  </Folder>
 </Solution>

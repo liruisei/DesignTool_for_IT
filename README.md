@@ -4,7 +4,7 @@
 
 C/S 架构的工程设计软件骨架：WPF 桌面客户端 + ASP.NET Core 服务端 + PostgreSQL（开发环境可切 SQLite）。
 
-当前为 **v0.2 可运行骨架**：登录、主界面、用户管理、项目管理、编码定义、工厂 PBS、设备索引已打通；设备规格、材料附件、报表输出已进入导航，业务接口下一阶段接入。
+当前为 **v0.4 第一阶段**：项目信息录入、工厂 PBS 搭建、索引表录入已打通；界面按 SmartPlant Instrumentation 的“Explorer + 多文档 + 高密度网格”模式重做；设备规格、材料附件、报表输出作为第二阶段。
 
 ---
 
@@ -28,13 +28,19 @@ WinDesign/
 ├── WinDesign.slnx
 ├── docker-compose.yml              # PostgreSQL 16（可选）
 ├── docs/
-│   └── architecture.md             # 架构、数据模型、接口、路线图
-└── src/
-    ├── WinDesign.Domain/           # 实体、枚举
-    ├── WinDesign.Contracts/        # 客户端/服务端共享 DTO
-    ├── WinDesign.Infrastructure/   # EF Core DbContext、密码哈希、种子数据
-    ├── WinDesign.Api/              # ASP.NET Core Web API
-    └── WinDesign.Client/           # WPF 客户端（MVVM）
+│   ├── architecture.md             # 架构、数据模型、接口、路线图
+│   ├── testing.md                  # 测试分层、运行方式、覆盖率、CI
+│   └── ui-redesign.md              # SPI 参考、布局、视觉规范与交互规则
+├── src/
+│   ├── WinDesign.Domain/           # 实体、枚举
+│   ├── WinDesign.Contracts/        # 客户端/服务端共享 DTO
+│   ├── WinDesign.Infrastructure/   # EF Core DbContext、密码哈希、种子数据
+│   ├── WinDesign.Api/              # ASP.NET Core Web API
+│   └── WinDesign.Client/           # WPF 客户端（MVVM）
+└── tests/
+    ├── WinDesign.UnitTests/        # 密码哈希、JWT
+    ├── WinDesign.Api.Tests/        # WebApplicationFactory + 临时 SQLite
+    └── WinDesign.Client.Tests/     # ViewModel + FakeApiClient
 ```
 
 ## 3. 快速开始
@@ -77,14 +83,14 @@ dotnet run --project src/WinDesign.Client
 | 登录 | ✅ | 服务器地址、账号密码、JWT、错误提示、记住服务器/用户名 |
 | 主界面 | ✅ | 左侧导航、顶部项目选择、刷新、当前用户/角色、退出 |
 | 工作台 | ✅ | 用户/项目/编码类型/设备统计、最近项目 |
-| 项目管理 | ✅ | 列表、搜索、新建、编辑、归档 |
+| 项目信息录入 | ✅ | 项目代号/名称/客户/地点/阶段/开工与完成日期/说明，列表、搜索、编辑、归档 |
 | 编码定义 | ✅ | 编码类型 + 编码项两级维护，系统类型保护 |
 | 用户管理 | ✅ | 列表、搜索、新建、编辑、角色分配、重置密码、启用/停用、管理员保护 |
 | 工厂 PBS | ✅ | 树形维护、区域/装置/系统/子系统、节点编码、设备挂接与设备计数 |
-| 设备索引 | ✅ | 位号查重、专业/状态/PBS 过滤、CRUD、与字典和 PBS 联动 |
-| 设备规格 | 🟡 骨架 | 实体与表已建，模板/版本下一阶段 |
-| 材料附件 | 🟡 骨架 | 实体与表已建，汇总下一阶段 |
-| 报表输出 | 🟡 骨架 | 导航与页面占位，下一阶段接 Excel/Word/PDF |
+| 索引表录入 | ✅ | 位号/回路号/名称/类型/专业/状态/数量/用途/安装位置/PBS/管道设备号/图纸文档/IO/KeyWord/Index/备注/工艺条件/规格书；位号查重与多维过滤 |
+| 设备规格 | 🟡 第二阶段 | 实体与表已建，模板/版本下一阶段 |
+| 材料附件 | 🟡 第二阶段 | 实体与表已建，汇总下一阶段 |
+| 报表输出 | 🟡 第二阶段 | 导航与页面占位，下一阶段接 Excel/Word/PDF |
 
 ## 5. 切换 PostgreSQL
 
@@ -135,7 +141,7 @@ docker compose up -d
 | GET | `/api/projects/{id}/pbs` | 登录 | PBS 节点（平铺，含设备数） |
 | POST | `/api/projects/{id}/pbs` | Admin/Designer | 新建 PBS 节点 |
 | PUT/DELETE | `/api/pbs/{id}` | Admin/Designer | 编辑/删除 PBS 节点 |
-| GET | `/api/projects/{id}/equipments` | 登录 | 设备索引（搜索/专业/状态/PBS 过滤） |
+| GET | `/api/projects/{id}/equipments` | 登录 | 索引表查询（搜索/回路号/专业/状态/PBS 过滤） |
 | POST | `/api/projects/{id}/equipments` | Admin/Designer | 新建设备 |
 | GET/PUT/DELETE | `/api/equipments/{id}` | 登录 / Admin/Designer | 设备详情/编辑/删除 |
 
@@ -155,12 +161,51 @@ docker compose up -d
 2. **材料附件**：设备—材料—附件关联、按 PBS/图号汇总。
 3. **报表输出**：Excel/Word/PDF 模板，预留 AutoCAD 出图接口。
 4. **索引增强**：位号自动编制、Excel 批量导入导出、PBS 子树过滤。
-5. **工程化**：EF Migrations、刷新令牌、审计日志界面、单元/集成测试、CI。
+5. **工程化**：EF Migrations、刷新令牌、审计日志界面。
 
 ## 9. 已知限制
 
-- 设备规格、材料附件、报表输出仍为占位页面。
+- 第一阶段只覆盖项目信息、PBS、索引表；设备规格、材料附件、报表输出为第二阶段。
+- 开发库已重建以加入新字段；旧库备份在 `%TEMP%\windesign_phase1_backup.db`。
 - 未实现刷新令牌；JWT 过期后需重新登录。
 - 使用 `EnsureCreated` 建库，暂不支持数据库版本升级。
 - WPF 的密码框通过 code-behind 传值，未做附加属性绑定。
 - 开发默认 SQLite；生产请切换 PostgreSQL 并修改默认 JWT 密钥。
+
+## 10. 测试
+
+已部署三层测试，共 **37 个用例**，全部通过：
+
+| 项目 | 内容 | 依赖 |
+|------|------|------|
+| `WinDesign.UnitTests` | 密码哈希、JWT 签发与声明 | 无 |
+| `WinDesign.Api.Tests` | 登录/权限、PBS 约束、设备索引 CRUD | 进程内 TestServer + 临时 SQLite |
+| `WinDesign.Client.Tests` | 登录、PBS 树与节点弹窗、索引表 ViewModel | FakeApiClient，无 UI/服务端 |
+
+运行：
+
+```bash
+dotnet test WinDesign.slnx
+```
+
+覆盖率：
+
+```bash
+dotnet test WinDesign.slnx --collect:"XPlat Code Coverage"
+```
+
+CI：`.github/workflows/dotnet-tests.yml`（windows-latest，推送/PR 自动运行）。
+
+详细说明见 [docs/testing.md](docs/testing.md)。
+
+## 11. UI/UX 设计
+
+界面参考 Intergraph/Hexagon **SmartPlant Instrumentation** 的桌面工程软件模式重做：
+
+- 顶部菜单栏 + 工具栏 + 项目选择
+- 左侧 **Domain Explorer** 导航树
+- 中部多文档标签页（项目信息 / 工厂 PBS / 索引表 / 规格 / 材料 / 报表）
+- 底部状态栏（项目、当前文档、用户、服务器）
+- 高密度 DataGrid、紧凑字体、工业蓝灰配色
+
+详见 [docs/ui-redesign.md](docs/ui-redesign.md)。

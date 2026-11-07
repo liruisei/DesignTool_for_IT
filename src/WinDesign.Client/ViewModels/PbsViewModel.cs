@@ -21,6 +21,16 @@ public partial class PbsNodeItem : ObservableObject
 
     [ObservableProperty]
     private bool isSelected;
+
+    public string Glyph => Node.NodeType switch
+    {
+        "Root" => "⌂",
+        "Area" => "▦",
+        "Unit" => "▣",
+        "System" => "◇",
+        "SubSystem" => "·",
+        _ => "·"
+    };
 }
 
 public sealed record PbsNodeOption(Guid? Id, string Display);
@@ -31,6 +41,7 @@ public partial class PbsViewModel : ViewModelBase
 {
     private readonly SessionService _session;
     private readonly ProjectContext _context;
+    private readonly IPbsDialogService _dialogs;
 
     public ObservableCollection<PbsNodeItem> Roots { get; } = new();
     public ObservableCollection<PbsNodeOption> ParentOptions { get; } = new();
@@ -48,38 +59,15 @@ public partial class PbsViewModel : ViewModelBase
     private PbsNodeItem? selectedNode;
 
     [ObservableProperty]
-    private PbsNodeOption? selectedParentOption;
-
-    [ObservableProperty]
-    private string editorTitle = "新建 PBS 节点";
-
-    [ObservableProperty]
-    private bool isCreating = true;
-
-    [ObservableProperty]
-    private string editCode = string.Empty;
-
-    [ObservableProperty]
-    private string editName = string.Empty;
-
-    [ObservableProperty]
-    private string editNodeType = "System";
-
-    [ObservableProperty]
-    private int editSortOrder;
-
-    [ObservableProperty]
-    private string editDescription = string.Empty;
-
-    [ObservableProperty]
     private string? statusMessage;
 
     public ProjectContext Context => _context;
 
-    public PbsViewModel(SessionService session, ProjectContext context)
+    public PbsViewModel(SessionService session, ProjectContext context, IPbsDialogService? dialogs = null)
     {
         _session = session;
         _context = context;
+        _dialogs = dialogs ?? new PbsDialogService();
         Title = "工厂 PBS";
         _context.ProjectChanged += OnProjectChanged;
         _ = RefreshAsync();
@@ -107,102 +95,124 @@ public partial class PbsViewModel : ViewModelBase
     });
 
     [RelayCommand]
-    private void NewNode()
+    private Task NewRootAsync() => OpenEditorAsync(null, null);
+
+    [RelayCommand]
+    private async Task NewChildAsync()
     {
-        var parentId = SelectedNode?.Node.Id;
-        SelectedNode = null;
-        IsCreating = true;
-        EditorTitle = "新建 PBS 节点";
-        EditCode = string.Empty;
-        EditName = string.Empty;
-        EditSortOrder = 0;
-        EditDescription = string.Empty;
-        EditNodeType = parentId is null ? "Root" : "System";
-        SelectedParentOption = ParentOptions.FirstOrDefault(x => x.Id == parentId) ?? ParentOptions.FirstOrDefault();
-        StatusMessage = null;
+        if (SelectedNode is null)
+        {
+            ErrorMessage = "请先选择一个上级节点";
+            return;
+        }
+
+        await OpenEditorAsync(null, SelectedNode.Node.Id);
     }
 
     [RelayCommand]
-    private Task SaveAsync() => RunAsync(async () =>
+    private async Task NewSiblingAsync()
     {
-        var project = _context.CurrentProject ?? throw new ApiException("请先在顶部选择项目");
-        if (string.IsNullOrWhiteSpace(EditCode) || string.IsNullOrWhiteSpace(EditName))
+        if (SelectedNode is null)
         {
-            throw new ApiException("节点编码和名称不能为空");
+            ErrorMessage = "请先选择一个节点";
+            return;
+        }
+        if (SelectedNode.Node.ParentId is null)
+        {
+            ErrorMessage = "根节点没有同级节点，请使用“新建子节点”";
+            return;
         }
 
-        var parentId = SelectedParentOption?.Id;
-        PbsNodeDto saved;
-        if (IsCreating)
-        {
-            saved = await _session.Api.CreatePbsNodeAsync(project.Id, new CreatePbsNodeRequest(
-                parentId,
-                EditCode.Trim(),
-                EditName.Trim(),
-                EditNodeType,
-                EditSortOrder,
-                NullIfEmpty(EditDescription)));
-            StatusMessage = "PBS 节点已创建";
-        }
-        else
-        {
-            if (SelectedNode is null)
-            {
-                throw new ApiException("请选择要编辑的节点");
-            }
-
-            saved = await _session.Api.UpdatePbsNodeAsync(SelectedNode.Node.Id, new UpdatePbsNodeRequest(
-                parentId,
-                EditCode.Trim(),
-                EditName.Trim(),
-                EditNodeType,
-                EditSortOrder,
-                NullIfEmpty(EditDescription)));
-            StatusMessage = "PBS 节点已保存";
-        }
-
-        await RefreshAsync();
-        SelectedNode = FindItem(Roots, saved.Id);
-    });
+        await OpenEditorAsync(null, SelectedNode.Node.ParentId);
+    }
 
     [RelayCommand]
-    private Task DeleteAsync() => RunAsync(async () =>
+    private async Task EditNodeAsync()
+    {
+        if (SelectedNode is null)
+        {
+            ErrorMessage = "请选择要编辑的节点";
+            return;
+        }
+
+        await OpenEditorAsync(SelectedNode.Node, null);
+    }
+
+    [RelayCommand]
+    private Task DeleteNodeAsync() => RunAsync(async () =>
     {
         if (SelectedNode is null)
         {
             throw new ApiException("请选择要删除的节点");
         }
 
-        await _session.Api.DeletePbsNodeAsync(SelectedNode.Node.Id);
-        StatusMessage = "PBS 节点已删除";
-        SelectedNode = null;
-        IsCreating = true;
-        EditorTitle = "新建 PBS 节点";
-        await RefreshAsync();
-    });
-
-    private void OnProjectChanged(object? sender, EventArgs e)
-    {
-        _ = RefreshAsync();
-    }
-
-    partial void OnSelectedNodeChanged(PbsNodeItem? value)
-    {
-        if (value is null)
+        if (!_dialogs.Confirm($"确定删除节点“{SelectedNode.Node.Code} {SelectedNode.Node.Name}”吗？"))
         {
             return;
         }
 
-        IsCreating = false;
-        EditorTitle = "编辑 PBS 节点：" + value.Node.Code;
-        EditCode = value.Node.Code;
-        EditName = value.Node.Name;
-        EditNodeType = value.Node.NodeType;
-        EditSortOrder = value.Node.SortOrder;
-        EditDescription = value.Node.Description ?? string.Empty;
-        SelectedParentOption = ParentOptions.FirstOrDefault(x => x.Id == value.Node.ParentId)
-                               ?? ParentOptions.FirstOrDefault();
-        StatusMessage = null;
+        await _session.Api.DeletePbsNodeAsync(SelectedNode.Node.Id);
+        StatusMessage = "节点已删除";
+        SelectedNode = null;
+        await RefreshAsync();
+    });
+
+    [RelayCommand]
+    private void ExpandAll() => SetExpanded(true);
+
+    [RelayCommand]
+    private void CollapseAll() => SetExpanded(false);
+
+    private async Task OpenEditorAsync(PbsNodeDto? node, Guid? defaultParentId)
+    {
+        var project = _context.CurrentProject;
+        if (project is null)
+        {
+            ErrorMessage = "请先在顶部选择项目";
+            return;
+        }
+
+        var editorContext = new PbsNodeEditorContext(node, defaultParentId, ParentOptions.ToList());
+        var result = _dialogs.EditPbsNode(editorContext);
+        if (result is null)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            PbsNodeDto saved;
+            if (node is null)
+            {
+                saved = await _session.Api.CreatePbsNodeAsync(project.Id, new CreatePbsNodeRequest(
+                    result.ParentId,
+                    result.Code,
+                    result.Name,
+                    result.NodeType,
+                    result.SortOrder,
+                    result.Description));
+                StatusMessage = "节点已创建";
+            }
+            else
+            {
+                saved = await _session.Api.UpdatePbsNodeAsync(node.Id, new UpdatePbsNodeRequest(
+                    result.ParentId,
+                    result.Code,
+                    result.Name,
+                    result.NodeType,
+                    result.SortOrder,
+                    result.Description));
+                StatusMessage = "节点已保存";
+            }
+
+            await RefreshAsync();
+            SelectedNode = FindItem(Roots, saved.Id);
+        });
+    }
+
+    private void OnProjectChanged(object? sender, EventArgs e)
+    {
+        _ = RefreshAsync();
     }
 
     private void BuildTree(IReadOnlyList<PbsNodeDto> nodes)
@@ -259,6 +269,20 @@ public partial class PbsViewModel : ViewModelBase
         return null;
     }
 
-    private static string? NullIfEmpty(string value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static void SetExpanded(PbsNodeItem item, bool expanded)
+    {
+        item.IsExpanded = expanded;
+        foreach (var child in item.Children)
+        {
+            SetExpanded(child, expanded);
+        }
+    }
+
+    private void SetExpanded(bool expanded)
+    {
+        foreach (var root in Roots)
+        {
+            SetExpanded(root, expanded);
+        }
+    }
 }

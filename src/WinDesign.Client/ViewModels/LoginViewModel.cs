@@ -58,7 +58,6 @@ public partial class LoginViewModel : ObservableObject
             _session.Api.Configure(ServerUrl);
             var response = await _session.Api.LoginAsync(UserName.Trim(), Password);
             _session.SignIn(response);
-            SettingsService.Save(new AppSettings(_session.Api.BaseUrl, UserName.Trim()));
             LoginSucceeded?.Invoke(this, EventArgs.Empty);
         }
         catch (ApiException ex)

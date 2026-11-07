@@ -80,7 +80,10 @@ public sealed class ProjectsController : ApiControllerBase
             Code = code,
             Name = request.Name.Trim(),
             ClientName = string.IsNullOrWhiteSpace(request.ClientName) ? null : request.ClientName.Trim(),
+            Location = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim(),
             Phase = string.IsNullOrWhiteSpace(request.Phase) ? null : request.Phase.Trim(),
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             OwnerUserId = CurrentUserId,
             Status = ProjectStatus.Active
@@ -120,7 +123,10 @@ public sealed class ProjectsController : ApiControllerBase
 
         project.Name = request.Name.Trim();
         project.ClientName = string.IsNullOrWhiteSpace(request.ClientName) ? null : request.ClientName.Trim();
+        project.Location = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim();
         project.Phase = string.IsNullOrWhiteSpace(request.Phase) ? null : request.Phase.Trim();
+        project.StartDate = request.StartDate;
+        project.EndDate = request.EndDate;
         project.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         project.Status = status;
         project.UpdatedAt = DateTime.UtcNow;
@@ -147,15 +153,20 @@ public sealed class ProjectsController : ApiControllerBase
         return NoContent();
     }
 
-    private static ProjectDto ToDto(Project project) => new(
-        project.Id,
-        project.Code,
-        project.Name,
-        project.ClientName,
-        project.Phase,
-        project.Status.ToString(),
-        project.Description,
-        project.OwnerUserId,
-        project.Owner?.DisplayName,
-        project.CreatedAt);
+    private static ProjectDto ToDto(Project project) => new()
+    {
+        Id = project.Id,
+        Code = project.Code,
+        Name = project.Name,
+        ClientName = project.ClientName,
+        Location = project.Location,
+        Phase = project.Phase,
+        StartDate = project.StartDate,
+        EndDate = project.EndDate,
+        Status = project.Status.ToString(),
+        Description = project.Description,
+        OwnerUserId = project.OwnerUserId,
+        OwnerName = project.Owner?.DisplayName,
+        CreatedAt = project.CreatedAt
+    };
 }

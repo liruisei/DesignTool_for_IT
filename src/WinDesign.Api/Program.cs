@@ -29,12 +29,13 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod());
 });
 
-var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
-builder.Services.AddDbContext<WinDesignDbContext>(options =>
+builder.Services.AddDbContext<WinDesignDbContext>((sp, options) =>
 {
-    if (provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase))
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var configuredProvider = configuration["Database:Provider"] ?? "Sqlite";
+    if (configuredProvider.Equals("Postgres", StringComparison.OrdinalIgnoreCase))
     {
-        var connection = builder.Configuration.GetConnectionString("Postgres");
+        var connection = configuration.GetConnectionString("Postgres");
         if (string.IsNullOrWhiteSpace(connection))
         {
             throw new InvalidOperationException("缺少 ConnectionStrings:Postgres 配置");
@@ -43,7 +44,7 @@ builder.Services.AddDbContext<WinDesignDbContext>(options =>
     }
     else
     {
-        options.UseSqlite(builder.Configuration.GetConnectionString("Sqlite") ?? "Data Source=windesign.db");
+        options.UseSqlite(configuration.GetConnectionString("Sqlite") ?? "Data Source=windesign.db");
     }
 });
 
@@ -78,6 +79,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+var provider = app.Configuration["Database:Provider"] ?? "Sqlite";
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
@@ -108,3 +110,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+public partial class Program
+{
+}

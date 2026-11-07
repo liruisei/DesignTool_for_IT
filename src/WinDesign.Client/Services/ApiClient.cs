@@ -20,7 +20,7 @@ public sealed class ApiException : Exception
     }
 }
 
-public sealed class ApiClient
+public sealed class ApiClient : IApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };

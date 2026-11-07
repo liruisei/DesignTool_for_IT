@@ -68,9 +68,9 @@ audit_logs（独立流水）
 | User | UserName、DisplayName、PasswordHash、IsActive | 账号 |
 | Role | Code、Name | Admin / Designer / Viewer |
 | Permission | Code、Module | 细粒度权限 |
-| Project | Code、Name、ClientName、Phase、Status、OwnerUserId | 项目主数据 |
+| Project | Code、Name、ClientName、Location、Phase、StartDate、EndDate、Status、OwnerUserId | 项目主数据 |
 | PbsNode | ProjectId、ParentId、Code、Name、NodeType | 工厂分解结构 |
-| Equipment | ProjectId、PbsNodeId、TagNo、TypeCode、Discipline | 设备索引 |
+| Equipment | ProjectId、PbsNodeId、TagNo、LoopNo、Name、TypeCode、Discipline、Status、Quantity、用途、安装位置、管道设备号、图纸/文档号、IO/KeyWord/Index、工艺条件/规格书 | 索引表 |
 | EquipmentSpec | EquipmentId、SpecCode、ContentJson、Version | 规格书 |
 | MaterialItem | ProjectId、EquipmentId、Code、Name、Qty | 材料/附件 |
 | DictionaryType/Item | Code、Name、SortOrder、IsActive | 编码定义 |
@@ -106,7 +106,7 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 | POST | `/api/projects/{id}/pbs` | 新建节点；校验根节点唯一、编码唯一、上级归属 |
 | PUT | `/api/pbs/{id}` | 编辑节点；校验循环引用、根节点唯一 |
 | DELETE | `/api/pbs/{id}` | 删除节点；有子节点或设备时拒绝 |
-| GET | `/api/projects/{id}/equipments` | 设备分页查询，支持 search/discipline/status/pbsNodeId |
+| GET | `/api/projects/{id}/equipments` | 索引表分页查询，支持 search/loopNo/discipline/status/pbsNodeId |
 | POST | `/api/projects/{id}/equipments` | 新建设备；位号项目内唯一 |
 | GET/PUT/DELETE | `/api/equipments/{id}` | 设备详情/编辑/删除；有规格或材料时拒绝删除 |
 
@@ -135,6 +135,9 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 
 ## 9. 下一阶段
 
+第一阶段已完成：项目信息录入、工厂 PBS 搭建、索引表录入。
+
+第二阶段：
 1. 设备规格模板/版本 + 缺项校验。
 2. 材料汇总 + Excel/Word/PDF 输出。
 3. 索引增强：位号自动编制、Excel 批量导入导出、PBS 子树过滤。

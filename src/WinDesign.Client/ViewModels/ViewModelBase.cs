@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using WinDesign.Client.Services;
 
 namespace WinDesign.Client.ViewModels;
@@ -20,6 +21,9 @@ public abstract partial class ViewModelBase : ObservableObject, IRefreshable
     private string? errorMessage;
 
     public virtual Task RefreshAsync() => Task.CompletedTask;
+
+    [RelayCommand]
+    private Task Refresh() => RefreshAsync();
 
     protected async Task RunAsync(Func<Task> action)
     {

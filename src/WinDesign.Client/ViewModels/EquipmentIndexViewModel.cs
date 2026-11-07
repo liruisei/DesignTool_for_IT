@@ -96,6 +96,66 @@ public partial class EquipmentIndexViewModel : ViewModelBase
     private string editDescription = string.Empty;
 
     [ObservableProperty]
+    private string editLoopNo = string.Empty;
+
+    [ObservableProperty]
+    private int editQuantity = 1;
+
+    [ObservableProperty]
+    private string editPipeEquipmentNo = string.Empty;
+
+    [ObservableProperty]
+    private string editPurpose = string.Empty;
+
+    [ObservableProperty]
+    private string editPidDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editSpecNo = string.Empty;
+
+    [ObservableProperty]
+    private string editSpecPageNo = string.Empty;
+
+    [ObservableProperty]
+    private string editLoopDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editInstallDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editElectricalDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editHeatSupplyDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editAirSupplyDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editLayingDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editJunctionBoxDrawingNo = string.Empty;
+
+    [ObservableProperty]
+    private string editKeyword = string.Empty;
+
+    [ObservableProperty]
+    private string editIoSetting = string.Empty;
+
+    [ObservableProperty]
+    private string editIndexNo = string.Empty;
+
+    [ObservableProperty]
+    private int editSortOrder;
+
+    [ObservableProperty]
+    private string editProcessCondition = string.Empty;
+
+    [ObservableProperty]
+    private string editSpecification = string.Empty;
+
+    [ObservableProperty]
     private string? statusMessage;
 
     public ProjectContext Context => _context;
@@ -157,6 +217,26 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         EditPbsNodeId = FilterPbsNode?.Id;
         EditLocation = string.Empty;
         EditDescription = string.Empty;
+        EditLoopNo = string.Empty;
+        EditQuantity = 1;
+        EditPipeEquipmentNo = string.Empty;
+        EditPurpose = string.Empty;
+        EditPidDrawingNo = string.Empty;
+        EditSpecNo = string.Empty;
+        EditSpecPageNo = string.Empty;
+        EditLoopDrawingNo = string.Empty;
+        EditInstallDrawingNo = string.Empty;
+        EditElectricalDrawingNo = string.Empty;
+        EditHeatSupplyDrawingNo = string.Empty;
+        EditAirSupplyDrawingNo = string.Empty;
+        EditLayingDrawingNo = string.Empty;
+        EditJunctionBoxDrawingNo = string.Empty;
+        EditKeyword = string.Empty;
+        EditIoSetting = string.Empty;
+        EditIndexNo = string.Empty;
+        EditSortOrder = 0;
+        EditProcessCondition = string.Empty;
+        EditSpecification = string.Empty;
         StatusMessage = null;
     }
 
@@ -172,15 +252,37 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         EquipmentDto saved;
         if (IsCreating)
         {
-            saved = await _session.Api.CreateEquipmentAsync(project.Id, new CreateEquipmentRequest(
-                EditPbsNodeId,
-                EditTagNo.Trim(),
-                EditName.Trim(),
-                NullIfEmpty(EditTypeCode),
-                EditDiscipline,
-                EditStatus,
-                NullIfEmpty(EditLocation),
-                NullIfEmpty(EditDescription)));
+            saved = await _session.Api.CreateEquipmentAsync(project.Id, new CreateEquipmentRequest
+            {
+                PbsNodeId = EditPbsNodeId,
+                TagNo = EditTagNo.Trim(),
+                LoopNo = NullIfEmpty(EditLoopNo),
+                Name = EditName.Trim(),
+                TypeCode = NullIfEmpty(EditTypeCode),
+                Discipline = EditDiscipline,
+                Status = EditStatus,
+                Location = NullIfEmpty(EditLocation),
+                PipeEquipmentNo = NullIfEmpty(EditPipeEquipmentNo),
+                Quantity = EditQuantity,
+                Purpose = NullIfEmpty(EditPurpose),
+                PidDrawingNo = NullIfEmpty(EditPidDrawingNo),
+                SpecNo = NullIfEmpty(EditSpecNo),
+                SpecPageNo = NullIfEmpty(EditSpecPageNo),
+                LoopDrawingNo = NullIfEmpty(EditLoopDrawingNo),
+                InstallDrawingNo = NullIfEmpty(EditInstallDrawingNo),
+                ElectricalDrawingNo = NullIfEmpty(EditElectricalDrawingNo),
+                HeatSupplyDrawingNo = NullIfEmpty(EditHeatSupplyDrawingNo),
+                AirSupplyDrawingNo = NullIfEmpty(EditAirSupplyDrawingNo),
+                LayingDrawingNo = NullIfEmpty(EditLayingDrawingNo),
+                JunctionBoxDrawingNo = NullIfEmpty(EditJunctionBoxDrawingNo),
+                Keyword = NullIfEmpty(EditKeyword),
+                IoSetting = NullIfEmpty(EditIoSetting),
+                IndexNo = NullIfEmpty(EditIndexNo),
+                SortOrder = EditSortOrder,
+                Description = NullIfEmpty(EditDescription),
+                ProcessCondition = NullIfEmpty(EditProcessCondition),
+                Specification = NullIfEmpty(EditSpecification)
+            });
             StatusMessage = "设备已创建";
         }
         else
@@ -190,15 +292,37 @@ public partial class EquipmentIndexViewModel : ViewModelBase
                 throw new ApiException("请选择要编辑的设备");
             }
 
-            saved = await _session.Api.UpdateEquipmentAsync(SelectedEquipment.Id, new UpdateEquipmentRequest(
-                EditPbsNodeId,
-                EditTagNo.Trim(),
-                EditName.Trim(),
-                NullIfEmpty(EditTypeCode),
-                EditDiscipline,
-                EditStatus,
-                NullIfEmpty(EditLocation),
-                NullIfEmpty(EditDescription)));
+            saved = await _session.Api.UpdateEquipmentAsync(SelectedEquipment.Id, new UpdateEquipmentRequest
+            {
+                PbsNodeId = EditPbsNodeId,
+                TagNo = EditTagNo.Trim(),
+                LoopNo = NullIfEmpty(EditLoopNo),
+                Name = EditName.Trim(),
+                TypeCode = NullIfEmpty(EditTypeCode),
+                Discipline = EditDiscipline,
+                Status = EditStatus,
+                Location = NullIfEmpty(EditLocation),
+                PipeEquipmentNo = NullIfEmpty(EditPipeEquipmentNo),
+                Quantity = EditQuantity,
+                Purpose = NullIfEmpty(EditPurpose),
+                PidDrawingNo = NullIfEmpty(EditPidDrawingNo),
+                SpecNo = NullIfEmpty(EditSpecNo),
+                SpecPageNo = NullIfEmpty(EditSpecPageNo),
+                LoopDrawingNo = NullIfEmpty(EditLoopDrawingNo),
+                InstallDrawingNo = NullIfEmpty(EditInstallDrawingNo),
+                ElectricalDrawingNo = NullIfEmpty(EditElectricalDrawingNo),
+                HeatSupplyDrawingNo = NullIfEmpty(EditHeatSupplyDrawingNo),
+                AirSupplyDrawingNo = NullIfEmpty(EditAirSupplyDrawingNo),
+                LayingDrawingNo = NullIfEmpty(EditLayingDrawingNo),
+                JunctionBoxDrawingNo = NullIfEmpty(EditJunctionBoxDrawingNo),
+                Keyword = NullIfEmpty(EditKeyword),
+                IoSetting = NullIfEmpty(EditIoSetting),
+                IndexNo = NullIfEmpty(EditIndexNo),
+                SortOrder = EditSortOrder,
+                Description = NullIfEmpty(EditDescription),
+                ProcessCondition = NullIfEmpty(EditProcessCondition),
+                Specification = NullIfEmpty(EditSpecification)
+            });
             StatusMessage = "设备已保存";
         }
 
@@ -244,10 +368,30 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         EditName = value.Name;
         EditTypeCode = value.TypeCode;
         EditDiscipline = value.Discipline;
-        EditStatus = value.Status;
+        EditStatus = value.Status ?? "Planned";
         EditPbsNodeId = value.PbsNodeId;
         EditLocation = value.Location ?? string.Empty;
         EditDescription = value.Description ?? string.Empty;
+        EditLoopNo = value.LoopNo ?? string.Empty;
+        EditQuantity = value.Quantity;
+        EditPipeEquipmentNo = value.PipeEquipmentNo ?? string.Empty;
+        EditPurpose = value.Purpose ?? string.Empty;
+        EditPidDrawingNo = value.PidDrawingNo ?? string.Empty;
+        EditSpecNo = value.SpecNo ?? string.Empty;
+        EditSpecPageNo = value.SpecPageNo ?? string.Empty;
+        EditLoopDrawingNo = value.LoopDrawingNo ?? string.Empty;
+        EditInstallDrawingNo = value.InstallDrawingNo ?? string.Empty;
+        EditElectricalDrawingNo = value.ElectricalDrawingNo ?? string.Empty;
+        EditHeatSupplyDrawingNo = value.HeatSupplyDrawingNo ?? string.Empty;
+        EditAirSupplyDrawingNo = value.AirSupplyDrawingNo ?? string.Empty;
+        EditLayingDrawingNo = value.LayingDrawingNo ?? string.Empty;
+        EditJunctionBoxDrawingNo = value.JunctionBoxDrawingNo ?? string.Empty;
+        EditKeyword = value.Keyword ?? string.Empty;
+        EditIoSetting = value.IoSetting ?? string.Empty;
+        EditIndexNo = value.IndexNo ?? string.Empty;
+        EditSortOrder = value.SortOrder;
+        EditProcessCondition = value.ProcessCondition ?? string.Empty;
+        EditSpecification = value.Specification ?? string.Empty;
         StatusMessage = null;
     }
 

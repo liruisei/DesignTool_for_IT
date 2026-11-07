@@ -77,6 +77,7 @@ public class WinDesignDbContext : DbContext
             e.Property(x => x.Code).HasMaxLength(64).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.ClientName).HasMaxLength(200);
+            e.Property(x => x.Location).HasMaxLength(200);
             e.Property(x => x.Phase).HasMaxLength(64);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             e.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerUserId)
@@ -111,6 +112,22 @@ public class WinDesignDbContext : DbContext
             e.Property(x => x.TagNo).HasMaxLength(64).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.TypeCode).HasMaxLength(64);
+            e.Property(x => x.LoopNo).HasMaxLength(64);
+            e.Property(x => x.PipeEquipmentNo).HasMaxLength(120);
+            e.Property(x => x.Purpose).HasMaxLength(120);
+            e.Property(x => x.PidDrawingNo).HasMaxLength(120);
+            e.Property(x => x.SpecNo).HasMaxLength(120);
+            e.Property(x => x.SpecPageNo).HasMaxLength(32);
+            e.Property(x => x.LoopDrawingNo).HasMaxLength(120);
+            e.Property(x => x.InstallDrawingNo).HasMaxLength(120);
+            e.Property(x => x.ElectricalDrawingNo).HasMaxLength(120);
+            e.Property(x => x.HeatSupplyDrawingNo).HasMaxLength(120);
+            e.Property(x => x.AirSupplyDrawingNo).HasMaxLength(120);
+            e.Property(x => x.LayingDrawingNo).HasMaxLength(120);
+            e.Property(x => x.JunctionBoxDrawingNo).HasMaxLength(120);
+            e.Property(x => x.Keyword).HasMaxLength(64);
+            e.Property(x => x.IoSetting).HasMaxLength(64);
+            e.Property(x => x.IndexNo).HasMaxLength(64);
             e.Property(x => x.Discipline).HasConversion<string>().HasMaxLength(32);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             e.HasOne(x => x.Project).WithMany(x => x.Equipments).HasForeignKey(x => x.ProjectId);

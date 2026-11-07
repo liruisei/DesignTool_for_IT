@@ -43,6 +43,15 @@ public partial class ProjectManagementViewModel : ViewModelBase
     private string editClient = string.Empty;
 
     [ObservableProperty]
+    private string editLocation = string.Empty;
+
+    [ObservableProperty]
+    private DateTime? editStartDate;
+
+    [ObservableProperty]
+    private DateTime? editEndDate;
+
+    [ObservableProperty]
     private string editPhase = "详细设计";
 
     [ObservableProperty]
@@ -75,6 +84,9 @@ public partial class ProjectManagementViewModel : ViewModelBase
         EditCode = string.Empty;
         EditName = string.Empty;
         EditClient = string.Empty;
+        EditLocation = string.Empty;
+        EditStartDate = null;
+        EditEndDate = null;
         EditPhase = "详细设计";
         EditStatus = "Active";
         EditDescription = string.Empty;
@@ -84,6 +96,11 @@ public partial class ProjectManagementViewModel : ViewModelBase
     [RelayCommand]
     private Task SaveAsync() => RunAsync(async () =>
     {
+        if (EditStartDate is not null && EditEndDate is not null && EditEndDate < EditStartDate)
+        {
+            throw new ApiException("计划完成日期不能早于开工日期");
+        }
+
         ProjectDto saved;
         if (IsCreating)
         {
@@ -92,12 +109,17 @@ public partial class ProjectManagementViewModel : ViewModelBase
                 throw new ApiException("项目代号和项目名称不能为空");
             }
 
-            saved = await _session.Api.CreateProjectAsync(new CreateProjectRequest(
-                EditCode.Trim(),
-                EditName.Trim(),
-                NullIfEmpty(EditClient),
-                NullIfEmpty(EditPhase),
-                NullIfEmpty(EditDescription)));
+            saved = await _session.Api.CreateProjectAsync(new CreateProjectRequest
+            {
+                Code = EditCode.Trim(),
+                Name = EditName.Trim(),
+                ClientName = NullIfEmpty(EditClient),
+                Location = NullIfEmpty(EditLocation),
+                Phase = NullIfEmpty(EditPhase),
+                StartDate = EditStartDate,
+                EndDate = EditEndDate,
+                Description = NullIfEmpty(EditDescription)
+            });
             StatusMessage = "项目已创建";
         }
         else
@@ -107,12 +129,17 @@ public partial class ProjectManagementViewModel : ViewModelBase
                 throw new ApiException("请选择项目");
             }
 
-            saved = await _session.Api.UpdateProjectAsync(SelectedProject.Id, new UpdateProjectRequest(
-                EditName.Trim(),
-                NullIfEmpty(EditClient),
-                NullIfEmpty(EditPhase),
-                EditStatus,
-                NullIfEmpty(EditDescription)));
+            saved = await _session.Api.UpdateProjectAsync(SelectedProject.Id, new UpdateProjectRequest
+            {
+                Name = EditName.Trim(),
+                ClientName = NullIfEmpty(EditClient),
+                Location = NullIfEmpty(EditLocation),
+                Phase = NullIfEmpty(EditPhase),
+                StartDate = EditStartDate,
+                EndDate = EditEndDate,
+                Status = EditStatus,
+                Description = NullIfEmpty(EditDescription)
+            });
             StatusMessage = "项目已保存";
         }
 
@@ -145,6 +172,9 @@ public partial class ProjectManagementViewModel : ViewModelBase
         EditCode = value.Code;
         EditName = value.Name;
         EditClient = value.ClientName ?? string.Empty;
+        EditLocation = value.Location ?? string.Empty;
+        EditStartDate = value.StartDate;
+        EditEndDate = value.EndDate;
         EditPhase = value.Phase ?? string.Empty;
         EditStatus = value.Status;
         EditDescription = value.Description ?? string.Empty;

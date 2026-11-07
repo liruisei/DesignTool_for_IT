@@ -1,35 +1,51 @@
 namespace WinDesign.Contracts.Equipment;
 
-public sealed record EquipmentDto(
-    Guid Id,
-    Guid ProjectId,
-    Guid? PbsNodeId,
-    string? PbsNodeName,
-    string TagNo,
-    string Name,
-    string? TypeCode,
-    string Discipline,
-    string Status,
-    string? Location,
-    string? Description,
-    DateTime CreatedAt);
+public record EquipmentUpsertRequest
+{
+    public Guid? PbsNodeId { get; init; }
+    public string TagNo { get; init; } = string.Empty;
+    public string? LoopNo { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string? TypeCode { get; init; }
+    public string Discipline { get; init; } = string.Empty;
+    public string? Status { get; init; }
+    public string? Location { get; init; }
+    public string? PipeEquipmentNo { get; init; }
+    public int Quantity { get; init; } = 1;
+    public string? Purpose { get; init; }
 
-public sealed record CreateEquipmentRequest(
-    Guid? PbsNodeId,
-    string TagNo,
-    string Name,
-    string? TypeCode,
-    string Discipline,
-    string? Status,
-    string? Location,
-    string? Description);
+    public string? PidDrawingNo { get; init; }
+    public string? SpecNo { get; init; }
+    public string? SpecPageNo { get; init; }
+    public string? LoopDrawingNo { get; init; }
+    public string? InstallDrawingNo { get; init; }
+    public string? ElectricalDrawingNo { get; init; }
+    public string? HeatSupplyDrawingNo { get; init; }
+    public string? AirSupplyDrawingNo { get; init; }
+    public string? LayingDrawingNo { get; init; }
+    public string? JunctionBoxDrawingNo { get; init; }
 
-public sealed record UpdateEquipmentRequest(
-    Guid? PbsNodeId,
-    string TagNo,
-    string Name,
-    string? TypeCode,
-    string Discipline,
-    string? Status,
-    string? Location,
-    string? Description);
+    public string? Keyword { get; init; }
+    public string? IoSetting { get; init; }
+    public string? IndexNo { get; init; }
+    public int SortOrder { get; init; }
+    public string? Description { get; init; }
+    public string? ProcessCondition { get; init; }
+    public string? Specification { get; init; }
+}
+
+public sealed record CreateEquipmentRequest : EquipmentUpsertRequest
+{
+}
+
+public sealed record UpdateEquipmentRequest : EquipmentUpsertRequest
+{
+}
+
+public sealed record EquipmentDto : EquipmentUpsertRequest
+{
+    public Guid Id { get; init; }
+    public Guid ProjectId { get; init; }
+    public string? PbsNodeName { get; init; }
+    public DateTime CreatedAt { get; init; }
+}

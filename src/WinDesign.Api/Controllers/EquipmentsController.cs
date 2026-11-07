@@ -24,6 +24,7 @@ public sealed class EquipmentsController : ApiControllerBase
     public async Task<ActionResult<PagedResult<EquipmentDto>>> Get(
         Guid projectId,
         [FromQuery] string? search,
+        [FromQuery] string? loopNo,
         [FromQuery] string? discipline,
         [FromQuery] string? status,
         [FromQuery] Guid? pbsNodeId,
@@ -48,8 +49,17 @@ public sealed class EquipmentsController : ApiControllerBase
         {
             var keyword = search.Trim();
             query = query.Where(x => x.TagNo.Contains(keyword) || x.Name.Contains(keyword) ||
+                                     (x.LoopNo != null && x.LoopNo.Contains(keyword)) ||
                                      (x.TypeCode != null && x.TypeCode.Contains(keyword)) ||
+                                     (x.PidDrawingNo != null && x.PidDrawingNo.Contains(keyword)) ||
+                                     (x.SpecNo != null && x.SpecNo.Contains(keyword)) ||
+                                     (x.PipeEquipmentNo != null && x.PipeEquipmentNo.Contains(keyword)) ||
                                      (x.Location != null && x.Location.Contains(keyword)));
+        }
+        if (!string.IsNullOrWhiteSpace(loopNo))
+        {
+            var loop = loopNo.Trim();
+            query = query.Where(x => x.LoopNo == loop);
         }
         if (!string.IsNullOrWhiteSpace(discipline))
         {
@@ -138,12 +148,32 @@ public sealed class EquipmentsController : ApiControllerBase
             ProjectId = projectId,
             PbsNodeId = request.PbsNodeId,
             TagNo = tagNo,
+            LoopNo = Clean(request.LoopNo),
             Name = request.Name.Trim(),
-            TypeCode = string.IsNullOrWhiteSpace(request.TypeCode) ? null : request.TypeCode.Trim(),
+            TypeCode = Clean(request.TypeCode),
             Discipline = discipline,
             Status = status,
-            Location = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim(),
-            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim()
+            Location = Clean(request.Location),
+            PipeEquipmentNo = Clean(request.PipeEquipmentNo),
+            Quantity = request.Quantity > 0 ? request.Quantity : 1,
+            Purpose = Clean(request.Purpose),
+            PidDrawingNo = Clean(request.PidDrawingNo),
+            SpecNo = Clean(request.SpecNo),
+            SpecPageNo = Clean(request.SpecPageNo),
+            LoopDrawingNo = Clean(request.LoopDrawingNo),
+            InstallDrawingNo = Clean(request.InstallDrawingNo),
+            ElectricalDrawingNo = Clean(request.ElectricalDrawingNo),
+            HeatSupplyDrawingNo = Clean(request.HeatSupplyDrawingNo),
+            AirSupplyDrawingNo = Clean(request.AirSupplyDrawingNo),
+            LayingDrawingNo = Clean(request.LayingDrawingNo),
+            JunctionBoxDrawingNo = Clean(request.JunctionBoxDrawingNo),
+            Keyword = Clean(request.Keyword),
+            IoSetting = Clean(request.IoSetting),
+            IndexNo = Clean(request.IndexNo),
+            SortOrder = request.SortOrder,
+            Description = Clean(request.Description),
+            ProcessCondition = Clean(request.ProcessCondition),
+            Specification = Clean(request.Specification)
         };
         _db.Equipments.Add(equipment);
         _db.AddAudit(CurrentUserId, CurrentUserName, "Create", "Equipment", equipment.Id.ToString(), tagNo);
@@ -199,12 +229,32 @@ public sealed class EquipmentsController : ApiControllerBase
 
         equipment.PbsNodeId = request.PbsNodeId;
         equipment.TagNo = tagNo;
+        equipment.LoopNo = Clean(request.LoopNo);
         equipment.Name = request.Name.Trim();
-        equipment.TypeCode = string.IsNullOrWhiteSpace(request.TypeCode) ? null : request.TypeCode.Trim();
+        equipment.TypeCode = Clean(request.TypeCode);
         equipment.Discipline = discipline;
         equipment.Status = status;
-        equipment.Location = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim();
-        equipment.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        equipment.Location = Clean(request.Location);
+        equipment.PipeEquipmentNo = Clean(request.PipeEquipmentNo);
+        equipment.Quantity = request.Quantity > 0 ? request.Quantity : 1;
+        equipment.Purpose = Clean(request.Purpose);
+        equipment.PidDrawingNo = Clean(request.PidDrawingNo);
+        equipment.SpecNo = Clean(request.SpecNo);
+        equipment.SpecPageNo = Clean(request.SpecPageNo);
+        equipment.LoopDrawingNo = Clean(request.LoopDrawingNo);
+        equipment.InstallDrawingNo = Clean(request.InstallDrawingNo);
+        equipment.ElectricalDrawingNo = Clean(request.ElectricalDrawingNo);
+        equipment.HeatSupplyDrawingNo = Clean(request.HeatSupplyDrawingNo);
+        equipment.AirSupplyDrawingNo = Clean(request.AirSupplyDrawingNo);
+        equipment.LayingDrawingNo = Clean(request.LayingDrawingNo);
+        equipment.JunctionBoxDrawingNo = Clean(request.JunctionBoxDrawingNo);
+        equipment.Keyword = Clean(request.Keyword);
+        equipment.IoSetting = Clean(request.IoSetting);
+        equipment.IndexNo = Clean(request.IndexNo);
+        equipment.SortOrder = request.SortOrder;
+        equipment.Description = Clean(request.Description);
+        equipment.ProcessCondition = Clean(request.ProcessCondition);
+        equipment.Specification = Clean(request.Specification);
         equipment.UpdatedAt = DateTime.UtcNow;
 
         _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "Equipment", equipment.Id.ToString(), tagNo);
@@ -239,17 +289,42 @@ public sealed class EquipmentsController : ApiControllerBase
         return NoContent();
     }
 
-    private static EquipmentDto ToDto(Equipment equipment) => new(
-        equipment.Id,
-        equipment.ProjectId,
-        equipment.PbsNodeId,
-        equipment.PbsNode?.Name,
-        equipment.TagNo,
-        equipment.Name,
-        equipment.TypeCode,
-        equipment.Discipline.ToString(),
-        equipment.Status.ToString(),
-        equipment.Location,
-        equipment.Description,
-        equipment.CreatedAt);
+    private static EquipmentDto ToDto(Equipment equipment) => new()
+    {
+        Id = equipment.Id,
+        ProjectId = equipment.ProjectId,
+        PbsNodeId = equipment.PbsNodeId,
+        PbsNodeName = equipment.PbsNode?.Name,
+        TagNo = equipment.TagNo,
+        LoopNo = equipment.LoopNo,
+        Name = equipment.Name,
+        TypeCode = equipment.TypeCode,
+        Discipline = equipment.Discipline.ToString(),
+        Status = equipment.Status.ToString(),
+        Location = equipment.Location,
+        PipeEquipmentNo = equipment.PipeEquipmentNo,
+        Quantity = equipment.Quantity,
+        Purpose = equipment.Purpose,
+        PidDrawingNo = equipment.PidDrawingNo,
+        SpecNo = equipment.SpecNo,
+        SpecPageNo = equipment.SpecPageNo,
+        LoopDrawingNo = equipment.LoopDrawingNo,
+        InstallDrawingNo = equipment.InstallDrawingNo,
+        ElectricalDrawingNo = equipment.ElectricalDrawingNo,
+        HeatSupplyDrawingNo = equipment.HeatSupplyDrawingNo,
+        AirSupplyDrawingNo = equipment.AirSupplyDrawingNo,
+        LayingDrawingNo = equipment.LayingDrawingNo,
+        JunctionBoxDrawingNo = equipment.JunctionBoxDrawingNo,
+        Keyword = equipment.Keyword,
+        IoSetting = equipment.IoSetting,
+        IndexNo = equipment.IndexNo,
+        SortOrder = equipment.SortOrder,
+        Description = equipment.Description,
+        ProcessCondition = equipment.ProcessCondition,
+        Specification = equipment.Specification,
+        CreatedAt = equipment.CreatedAt
+    };
+
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

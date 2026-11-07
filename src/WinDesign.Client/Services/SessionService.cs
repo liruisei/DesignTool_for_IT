@@ -4,7 +4,12 @@ namespace WinDesign.Client.Services;
 
 public sealed class SessionService
 {
-    public ApiClient Api { get; } = new();
+    public SessionService(IApiClient? api = null)
+    {
+        Api = api ?? new ApiClient();
+    }
+
+    public IApiClient Api { get; }
     public CurrentUserDto? User { get; private set; }
 
     public bool IsAdmin => User?.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase) == true;

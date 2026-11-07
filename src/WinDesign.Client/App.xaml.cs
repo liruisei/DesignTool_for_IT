@@ -25,6 +25,9 @@ public partial class App : Application
                 return;
             }
 
+            settings = new AppSettings(session.Api.BaseUrl, session.User?.UserName ?? settings.UserName);
+            SettingsService.Save(settings);
+
             var mainViewModel = new MainViewModel(session);
             var mainWindow = new MainWindow { DataContext = mainViewModel };
             var logout = false;

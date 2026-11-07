@@ -33,102 +33,160 @@
     </Window.Resources>
 
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="252" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}">
+        <Menu Grid.Row="0" Padding="4,2">
+            <MenuItem Header="文件(_F)">
+                <MenuItem Header="项目信息" Command="{Binding OpenProjectInfoCommand}" />
+                <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
+                <Separator />
+                <MenuItem Header="退出" Command="{Binding LogoutCommand}" />
+            </MenuItem>
+            <MenuItem Header="视图(_V)">
+                <MenuItem Header="工厂 PBS" Command="{Binding OpenPbsCommand}" />
+                <MenuItem Header="索引表" Command="{Binding OpenIndexCommand}" />
+                <MenuItem Header="编码定义" Command="{Binding OpenDictionariesCommand}" />
+                <MenuItem Header="用户管理" Command="{Binding OpenUsersCommand}" IsEnabled="{Binding IsAdmin}" />
+                <Separator />
+                <MenuItem Header="关闭当前标签" Command="{Binding CloseSelectedDocumentCommand}" />
+            </MenuItem>
+            <MenuItem Header="模块(_M)">
+                <MenuItem Header="设备规格（第二阶段）" Command="{Binding OpenSpecsCommand}" />
+                <MenuItem Header="材料附件（第二阶段）" Command="{Binding OpenMaterialsCommand}" />
+                <MenuItem Header="报表输出（第二阶段）" Command="{Binding OpenReportsCommand}" />
+            </MenuItem>
+            <MenuItem Header="帮助(_H)">
+                <MenuItem Header="关于 WinDesign" Click="OnAboutClick" />
+            </MenuItem>
+        </Menu>
+
+        <Border Grid.Row="1" Background="#FAFAFA" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1" Padding="8,5">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="88" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                <StackPanel Margin="24,22,24,0">
-                    <TextBlock Text="WIN DESIGN" Foreground="White" FontSize="19" FontWeight="Bold" />
-                    <TextBlock Text="仪表 · 电信 · IT" Foreground="#7FB2FF" FontSize="11" Margin="0,4,0,0" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="项目" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <ComboBox Width="250" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}"
+                              DisplayMemberPath="Name" />
                 </StackPanel>
 
-                <ListBox Grid.Row="1" ItemsSource="{Binding NavigationItems}"
-                         SelectedItem="{Binding SelectedNavigationItem}"
-                         Style="{StaticResource NavList}" Margin="0,10,0,0">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="28" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Glyph}" FontSize="15" VerticalAlignment="Center" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Title}" FontSize="13.5"
-                                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
-                                    <TextBlock Text="{Binding Subtitle}" FontSize="10.5" Opacity="0.7"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
-                                </StackPanel>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <Button Content="▤ 项目信息" Command="{Binding OpenProjectInfoCommand}" Style="{StaticResource ToolButton}" />
+                    <Button Content="◇ 工厂 PBS" Command="{Binding OpenPbsCommand}" Style="{StaticResource ToolButton}" />
+                    <Button Content="▦ 索引表" Command="{Binding OpenIndexCommand}" Style="{StaticResource ToolButton}" />
+                    <Button Content="⟳ 刷新" Command="{Binding RefreshCommand}" Style="{StaticResource ToolButton}" />
+                </StackPanel>
 
-                <Border Grid.Row="2" BorderThickness="0,1,0,0" BorderBrush="#1E3A52" Padding="20,14">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="{Binding UserDisplayName}" Foreground="White" FontSize="13" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding RoleText}" Foreground="#8FA9C2" FontSize="11" Margin="0,2,0,0" />
-                        </StackPanel>
-                        <Button Grid.Column="1" Content="退出" Command="{Binding LogoutCommand}"
-                                Style="{StaticResource SecondaryButton}" Padding="10,5" Height="30"
-                                VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding UserDisplayName}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding RoleText}" Style="{StaticResource MutedText}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="68" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <Border Background="White" BorderThickness="0,0,0,1" BorderBrush="{StaticResource BorderBrush}">
-                <Grid Margin="24,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding CurrentViewModel.Title}" FontSize="18" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource MutedText}" Margin="0,3,0,0" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="当前项目" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <ComboBox Width="230" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}"
-                                  DisplayMemberPath="Name" />
-                    </StackPanel>
-
-                    <Button Grid.Column="2" Content="刷新" Command="{Binding RefreshCommand}"
-                            Style="{StaticResource SecondaryButton}" Height="34" VerticalAlignment="Center"
-                            Margin="0,0,10,0" />
-
-                    <Border Grid.Column="3" Style="{StaticResource Badge}" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ServerUrl}" FontSize="11" Foreground="{StaticResource AccentBrush}" />
+                    <Border Padding="10,6" Background="#FAFAFA" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <TextBlock Text="Domain Explorer" FontSize="12" FontWeight="SemiBold" />
                     </Border>
+
+                    <TreeView Grid.Row="1" ItemsSource="{Binding ExplorerNodes}" Style="{StaticResource ExplorerTree}"
+                              SelectedItemChanged="OnExplorerSelectedItemChanged"
+                              MouseDoubleClick="OnExplorerMouseDoubleClick"
+                              ContextMenuOpening="OnExplorerContextMenuOpening">
+                        <TreeView.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="打开" Command="{Binding OpenSelectedExplorerNodeCommand}" />
+                                <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem">
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                                <Setter Property="Padding" Value="3,3" />
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Glyph}" Width="18" Foreground="{StaticResource AccentBrush}" />
+                                    <TextBlock Text="{Binding Title}" />
+                                </StackPanel>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
                 </Grid>
             </Border>
 
-            <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}" />
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}" ResizeBehavior="PreviousAndNext" />
+
+            <TabControl Grid.Column="2" ItemsSource="{Binding Documents}"
+                        SelectedItem="{Binding SelectedDocument, Mode=TwoWay}">
+                <TabControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                            <Button Content="×" Style="{StaticResource TabCloseButton}"
+                                    Command="{Binding DataContext.CloseDocumentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}"
+                                    Visibility="{Binding IsClosable, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+                <TabControl.ContentTemplate>
+                    <DataTemplate>
+                        <ContentControl Content="{Binding ViewModel}" />
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
         </Grid>
+
+        <Border Grid.Row="3" Background="#FAFAFA" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0" Padding="8,3">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="项目：" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding CurrentProjectName}" FontSize="12" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding StatusText}" Style="{StaticResource MutedText}"
+                           VerticalAlignment="Center" Margin="24,0,0,0" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <TextBlock Text="{Binding UserName}" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                    <TextBlock Text="  |  " Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ServerUrl}" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

@@ -7,7 +7,10 @@ public class Project : EntityBase
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? ClientName { get; set; }
+    public string? Location { get; set; }
     public string? Phase { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
     public ProjectStatus Status { get; set; } = ProjectStatus.Active;
     public string? Description { get; set; }
     public Guid? OwnerUserId { get; set; }
@@ -50,12 +53,34 @@ public class Equipment : EntityBase
     public PbsNode? PbsNode { get; set; }
 
     public string TagNo { get; set; } = string.Empty;
+    public string? LoopNo { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? TypeCode { get; set; }
     public Discipline Discipline { get; set; } = Discipline.Instrument;
     public EquipmentStatus Status { get; set; } = EquipmentStatus.Planned;
     public string? Location { get; set; }
+    public string? PipeEquipmentNo { get; set; }
+    public int Quantity { get; set; } = 1;
+    public string? Purpose { get; set; }
+
+    public string? PidDrawingNo { get; set; }
+    public string? SpecNo { get; set; }
+    public string? SpecPageNo { get; set; }
+    public string? LoopDrawingNo { get; set; }
+    public string? InstallDrawingNo { get; set; }
+    public string? ElectricalDrawingNo { get; set; }
+    public string? HeatSupplyDrawingNo { get; set; }
+    public string? AirSupplyDrawingNo { get; set; }
+    public string? LayingDrawingNo { get; set; }
+    public string? JunctionBoxDrawingNo { get; set; }
+
+    public string? Keyword { get; set; }
+    public string? IoSetting { get; set; }
+    public string? IndexNo { get; set; }
+    public int SortOrder { get; set; }
     public string? Description { get; set; }
+    public string? ProcessCondition { get; set; }
+    public string? Specification { get; set; }
 
     public ICollection<EquipmentSpec> Specs { get; set; } = new List<EquipmentSpec>();
     public ICollection<MaterialItem> Materials { get; set; } = new List<MaterialItem>();
