@@ -15,6 +15,12 @@
         <DataTemplate DataType="{x:Type vm:ProjectManagementViewModel}">
             <views:ProjectManagementView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PbsViewModel}">
+            <views:PbsView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:EquipmentIndexViewModel}">
+            <views:EquipmentIndexView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:DictionaryViewModel}">
             <views:DictionaryView />
         </DataTemplate>

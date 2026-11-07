@@ -98,6 +98,18 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 - 写操作记录 `audit_logs`。
 - 用户管理仅 Admin；项目/编码写入为 Admin/Designer；只读用户只能查询。
 
+## 6.1 PBS 与设备索引接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/projects/{id}/pbs` | PBS 节点平铺列表（含子节点数与设备数） |
+| POST | `/api/projects/{id}/pbs` | 新建节点；校验根节点唯一、编码唯一、上级归属 |
+| PUT | `/api/pbs/{id}` | 编辑节点；校验循环引用、根节点唯一 |
+| DELETE | `/api/pbs/{id}` | 删除节点；有子节点或设备时拒绝 |
+| GET | `/api/projects/{id}/equipments` | 设备分页查询，支持 search/discipline/status/pbsNodeId |
+| POST | `/api/projects/{id}/equipments` | 新建设备；位号项目内唯一 |
+| GET/PUT/DELETE | `/api/equipments/{id}` | 设备详情/编辑/删除；有规格或材料时拒绝删除 |
+
 ## 7. 部署
 
 ### 开发
@@ -123,8 +135,8 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 
 ## 9. 下一阶段
 
-1. PBS 树 + 设备索引闭环。
-2. 规格书模板/版本 + 缺项校验。
-3. 材料汇总 + Excel/Word/PDF 输出。
+1. 设备规格模板/版本 + 缺项校验。
+2. 材料汇总 + Excel/Word/PDF 输出。
+3. 索引增强：位号自动编制、Excel 批量导入导出、PBS 子树过滤。
 4. EF Migrations、刷新令牌、审计日志界面。
-5. 旧 WINPCCAD 数据迁移（复用 `../docs/migration/` 的导出与检查工具）。
+5. 旧 WINPCCAD 数据迁移（导出与检查工具见原工作区 `docs/migration/`）。

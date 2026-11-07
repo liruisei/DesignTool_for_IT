@@ -1,0 +1,115 @@
+<UserControl x:Class="WinDesign.Client.Views.EquipmentIndexView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="24">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="390" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,16,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="0,0,0,8">
+                    <TextBlock Text="设备索引" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="刷新" Command="{Binding RefreshCommand}" Style="{StaticResource SecondaryButton}"
+                                Padding="12,6" Margin="0,0,8,0" />
+                        <Button Content="新建设备" Command="{Binding NewEquipmentCommand}" Style="{StaticResource PrimaryButton}"
+                                Padding="12,6" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Grid.Row="1" Style="{StaticResource MutedText}" Margin="0,0,0,10"
+                           Text="{Binding Context.CurrentProject.Name, TargetNullValue=请先在顶部选择项目，再维护设备索引}" />
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+                    <TextBox Width="180" Style="{StaticResource Input}"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <ComboBox Width="120" Margin="8,0,0,0" ItemsSource="{Binding FilterDisciplineOptions}"
+                              DisplayMemberPath="Name" SelectedValuePath="Code"
+                              SelectedValue="{Binding FilterDiscipline}" />
+                    <ComboBox Width="120" Margin="8,0,0,0" ItemsSource="{Binding FilterStatusOptions}"
+                              DisplayMemberPath="Name" SelectedValuePath="Code"
+                              SelectedValue="{Binding FilterStatus}" />
+                    <ComboBox Width="190" Margin="8,0,0,0" ItemsSource="{Binding PbsFilterOptions}"
+                              DisplayMemberPath="Display" SelectedItem="{Binding FilterPbsNode}" />
+                    <Button Content="查询" Command="{Binding SearchCommand}" Style="{StaticResource SecondaryButton}"
+                            Margin="8,0,0,0" />
+                </StackPanel>
+
+                <DataGrid Grid.Row="3" ItemsSource="{Binding Equipments}" SelectedItem="{Binding SelectedEquipment}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="位号" Binding="{Binding TagNo}" Width="130" />
+                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="类型" Binding="{Binding TypeCode}" Width="80" />
+                        <DataGridTextColumn Header="专业" Binding="{Binding Discipline}" Width="90" />
+                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="90" />
+                        <DataGridTextColumn Header="所属 PBS" Binding="{Binding PbsNodeName}" Width="150" />
+                        <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="160" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="1" Style="{StaticResource Card}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel IsEnabled="{Binding Context.HasProject}">
+                    <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="位号在项目内唯一；设备可挂接到 PBS 节点。" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+
+                    <TextBlock Text="位号" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditTagNo, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="名称" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="设备类型" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding EquipmentTypes}" DisplayMemberPath="Name"
+                              SelectedValuePath="Code" SelectedValue="{Binding EditTypeCode}" />
+
+                    <TextBlock Text="专业" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding DisciplineOptions}" DisplayMemberPath="Name"
+                              SelectedValuePath="Code" SelectedValue="{Binding EditDiscipline}" />
+
+                    <TextBlock Text="设计状态" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding StatusOptions}" DisplayMemberPath="Name"
+                              SelectedValuePath="Code" SelectedValue="{Binding EditStatus}" />
+
+                    <TextBlock Text="所属 PBS" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding PbsEditorOptions}" DisplayMemberPath="Display"
+                              SelectedValuePath="Id" SelectedValue="{Binding EditPbsNodeId}" />
+
+                    <TextBlock Text="安装位置" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditLocation, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="说明" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputMultiline}" MinHeight="70"
+                             Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                        <Button Content="保存" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" />
+                        <Button Content="新建" Command="{Binding NewEquipmentCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        <Button Content="删除" Command="{Binding DeleteCommand}" Style="{StaticResource DangerButton}" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                               Margin="0,12,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}"
+                               Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVis}}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

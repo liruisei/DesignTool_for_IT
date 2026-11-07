@@ -6,6 +6,8 @@ using System.Text.Json;
 using WinDesign.Contracts.Auth;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Dictionaries;
+using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Users;
 
@@ -227,4 +229,84 @@ public sealed class ApiClient
 
     public Task DeleteDictionaryItemAsync(Guid id, CancellationToken ct = default) =>
         SendNoContentAsync(Request(HttpMethod.Delete, $"api/dictionaries/items/{id}"), ct);
+
+    // ---------- PBS ----------
+    public Task<IReadOnlyList<PbsNodeDto>> GetPbsNodesAsync(Guid projectId, CancellationToken ct = default) =>
+        SendAsync<IReadOnlyList<PbsNodeDto>>(
+            Request(HttpMethod.Get, $"api/projects/{projectId}/pbs"), ct);
+
+    public Task<PbsNodeDto> CreatePbsNodeAsync(
+        Guid projectId,
+        CreatePbsNodeRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, $"api/projects/{projectId}/pbs");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<PbsNodeDto>(message, ct);
+    }
+
+    public Task<PbsNodeDto> UpdatePbsNodeAsync(
+        Guid id,
+        UpdatePbsNodeRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/pbs/{id}");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<PbsNodeDto>(message, ct);
+    }
+
+    public Task DeletePbsNodeAsync(Guid id, CancellationToken ct = default) =>
+        SendNoContentAsync(Request(HttpMethod.Delete, $"api/pbs/{id}"), ct);
+
+    // ---------- equipment ----------
+    public Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(
+        Guid projectId,
+        string? search = null,
+        string? discipline = null,
+        string? status = null,
+        Guid? pbsNodeId = null,
+        CancellationToken ct = default)
+    {
+        var query = $"api/projects/{projectId}/equipments?pageSize=500";
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query += "&search=" + Uri.EscapeDataString(search);
+        }
+        if (!string.IsNullOrWhiteSpace(discipline))
+        {
+            query += "&discipline=" + Uri.EscapeDataString(discipline);
+        }
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query += "&status=" + Uri.EscapeDataString(status);
+        }
+        if (pbsNodeId is Guid nodeId)
+        {
+            query += "&pbsNodeId=" + nodeId;
+        }
+        return SendAsync<PagedResult<EquipmentDto>>(Request(HttpMethod.Get, query), ct);
+    }
+
+    public Task<EquipmentDto> CreateEquipmentAsync(
+        Guid projectId,
+        CreateEquipmentRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, $"api/projects/{projectId}/equipments");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<EquipmentDto>(message, ct);
+    }
+
+    public Task<EquipmentDto> UpdateEquipmentAsync(
+        Guid id,
+        UpdateEquipmentRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/equipments/{id}");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<EquipmentDto>(message, ct);
+    }
+
+    public Task DeleteEquipmentAsync(Guid id, CancellationToken ct = default) =>
+        SendNoContentAsync(Request(HttpMethod.Delete, $"api/equipments/{id}"), ct);
 }

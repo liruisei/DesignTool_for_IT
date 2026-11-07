@@ -9,6 +9,7 @@ namespace WinDesign.Client.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly SessionService _session;
+    private readonly ProjectContext _projectContext = new();
 
     [ObservableProperty]
     private NavigationItem? selectedNavigationItem;
@@ -67,17 +68,7 @@ public partial class MainViewModel : ObservableObject
             Title = "工厂 PBS",
             Subtitle = "工厂—区域—装置—系统分解结构",
             Glyph = "◇",
-            Factory = () => new ModulePlaceholderViewModel(
-                "工厂 PBS 设计",
-                "下一阶段",
-                "建立工厂分解结构（Plant Breakdown Structure），把项目按区域、装置、系统和子系统组织起来，为设备索引、规格书和材料统计提供统一骨架。",
-                new[]
-                {
-                    "PBS 树形维护：区域 / 装置 / 系统 / 子系统",
-                    "节点编码规则与编码定义联动",
-                    "设备挂接到 PBS 节点",
-                    "PBS 与设备索引、报表的联动统计"
-                })
+            Factory = () => new PbsViewModel(_session, _projectContext)
         });
 
         NavigationItems.Add(new NavigationItem
@@ -95,17 +86,7 @@ public partial class MainViewModel : ObservableObject
             Title = "设备索引",
             Subtitle = "位号、设备类型、PBS 与设计状态",
             Glyph = "▤",
-            Factory = () => new ModulePlaceholderViewModel(
-                "设备索引设计",
-                "下一阶段",
-                "按项目维护仪表、电信与 IT 设备的主索引：位号、名称、类型、所属 PBS、安装位置与设计状态。",
-                new[]
-                {
-                    "设备位号自动编制与查重",
-                    "按专业 / 类型 / PBS 过滤",
-                    "设备与规格书、材料附件关联",
-                    "批量导入导出 Excel"
-                })
+            Factory = () => new EquipmentIndexViewModel(_session, _projectContext)
         });
 
         NavigationItems.Add(new NavigationItem
@@ -188,6 +169,11 @@ public partial class MainViewModel : ObservableObject
 
         CurrentViewModel = value.Factory();
         StatusText = value.Subtitle;
+    }
+
+    partial void OnSelectedProjectChanged(ProjectDto? value)
+    {
+        _projectContext.CurrentProject = value;
     }
 
     [RelayCommand]

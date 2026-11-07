@@ -4,7 +4,7 @@
 
 C/S 架构的工程设计软件骨架：WPF 桌面客户端 + ASP.NET Core 服务端 + PostgreSQL（开发环境可切 SQLite）。
 
-当前为 **v0.1 可运行骨架**：登录、主界面、子功能框架、用户管理、项目管理、编码定义已打通；工厂 PBS、设备索引、设备规格、材料附件、报表输出已进入导航，业务接口下一阶段接入。
+当前为 **v0.2 可运行骨架**：登录、主界面、用户管理、项目管理、编码定义、工厂 PBS、设备索引已打通；设备规格、材料附件、报表输出已进入导航，业务接口下一阶段接入。
 
 ---
 
@@ -80,8 +80,8 @@ dotnet run --project src/WinDesign.Client
 | 项目管理 | ✅ | 列表、搜索、新建、编辑、归档 |
 | 编码定义 | ✅ | 编码类型 + 编码项两级维护，系统类型保护 |
 | 用户管理 | ✅ | 列表、搜索、新建、编辑、角色分配、重置密码、启用/停用、管理员保护 |
-| 工厂 PBS | 🟡 骨架 | 导航与页面占位，下一阶段实现树形 CRUD |
-| 设备索引 | 🟡 骨架 | 实体与表已建，界面/接口下一阶段 |
+| 工厂 PBS | ✅ | 树形维护、区域/装置/系统/子系统、节点编码、设备挂接与设备计数 |
+| 设备索引 | ✅ | 位号查重、专业/状态/PBS 过滤、CRUD、与字典和 PBS 联动 |
 | 设备规格 | 🟡 骨架 | 实体与表已建，模板/版本下一阶段 |
 | 材料附件 | 🟡 骨架 | 实体与表已建，汇总下一阶段 |
 | 报表输出 | 🟡 骨架 | 导航与页面占位，下一阶段接 Excel/Word/PDF |
@@ -132,6 +132,12 @@ docker compose up -d
 | POST/PUT/DELETE | `/api/dictionaries/types...` | Admin/Designer | 类型维护 |
 | GET | `/api/dictionaries/types/{code}/items` | 登录 | 编码项 |
 | POST/PUT/DELETE | `/api/dictionaries/items...` | Admin/Designer | 编码项维护 |
+| GET | `/api/projects/{id}/pbs` | 登录 | PBS 节点（平铺，含设备数） |
+| POST | `/api/projects/{id}/pbs` | Admin/Designer | 新建 PBS 节点 |
+| PUT/DELETE | `/api/pbs/{id}` | Admin/Designer | 编辑/删除 PBS 节点 |
+| GET | `/api/projects/{id}/equipments` | 登录 | 设备索引（搜索/专业/状态/PBS 过滤） |
+| POST | `/api/projects/{id}/equipments` | Admin/Designer | 新建设备 |
+| GET/PUT/DELETE | `/api/equipments/{id}` | 登录 / Admin/Designer | 设备详情/编辑/删除 |
 
 请求示例见 `src/WinDesign.Api/WinDesign.Api.http`。
 
@@ -145,16 +151,15 @@ docker compose up -d
 
 ## 8. 下一阶段路线图
 
-1. **工厂 PBS**：树形 CRUD、节点编码规则、设备挂接、PBS 统计。
-2. **设备索引**：位号编制/查重、专业与类型过滤、Excel 导入导出。
-3. **设备规格**：按设备类型定义字段模板、版本与审批状态、缺项检查。
-4. **材料附件**：设备—材料—附件关联、按 PBS/图号汇总。
-5. **报表输出**：Excel/Word/PDF 模板，预留 AutoCAD 出图接口。
-6. **工程化**：EF Migrations、刷新令牌、审计日志界面、单元/集成测试、CI。
+1. **设备规格**：按设备类型定义字段模板、版本与审批状态、缺项检查。
+2. **材料附件**：设备—材料—附件关联、按 PBS/图号汇总。
+3. **报表输出**：Excel/Word/PDF 模板，预留 AutoCAD 出图接口。
+4. **索引增强**：位号自动编制、Excel 批量导入导出、PBS 子树过滤。
+5. **工程化**：EF Migrations、刷新令牌、审计日志界面、单元/集成测试、CI。
 
 ## 9. 已知限制
 
-- 骨架阶段，PBS/索引/规格/材料/报表为占位页面。
+- 设备规格、材料附件、报表输出仍为占位页面。
 - 未实现刷新令牌；JWT 过期后需重新登录。
 - 使用 `EnsureCreated` 建库，暂不支持数据库版本升级。
 - WPF 的密码框通过 code-behind 传值，未做附加属性绑定。
