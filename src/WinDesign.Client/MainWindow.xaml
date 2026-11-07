@@ -1,0 +1,128 @@
+﻿<Window x:Class="WinDesign.Client.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:WinDesign.Client.ViewModels"
+        xmlns:views="clr-namespace:WinDesign.Client.Views"
+        Title="WinDesign 设计平台"
+        Height="840" Width="1400"
+        MinHeight="720" MinWidth="1120"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgBrush}">
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+            <views:DashboardView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ProjectManagementViewModel}">
+            <views:ProjectManagementView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DictionaryViewModel}">
+            <views:DictionaryView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:UserManagementViewModel}">
+            <views:UserManagementView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ModulePlaceholderViewModel}">
+            <views:ModulePlaceholderView />
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="252" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="88" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Margin="24,22,24,0">
+                    <TextBlock Text="WIN DESIGN" Foreground="White" FontSize="19" FontWeight="Bold" />
+                    <TextBlock Text="仪表 · 电信 · IT" Foreground="#7FB2FF" FontSize="11" Margin="0,4,0,0" />
+                </StackPanel>
+
+                <ListBox Grid.Row="1" ItemsSource="{Binding NavigationItems}"
+                         SelectedItem="{Binding SelectedNavigationItem}"
+                         Style="{StaticResource NavList}" Margin="0,10,0,0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Glyph}" FontSize="15" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" FontSize="13.5"
+                                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+                                    <TextBlock Text="{Binding Subtitle}" FontSize="10.5" Opacity="0.7"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Grid.Row="2" BorderThickness="0,1,0,0" BorderBrush="#1E3A52" Padding="20,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding UserDisplayName}" Foreground="White" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding RoleText}" Foreground="#8FA9C2" FontSize="11" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="退出" Command="{Binding LogoutCommand}"
+                                Style="{StaticResource SecondaryButton}" Padding="10,5" Height="30"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="68" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Background="White" BorderThickness="0,0,0,1" BorderBrush="{StaticResource BorderBrush}">
+                <Grid Margin="24,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding CurrentViewModel.Title}" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource MutedText}" Margin="0,3,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="当前项目" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <ComboBox Width="230" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}"
+                                  DisplayMemberPath="Name" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Content="刷新" Command="{Binding RefreshCommand}"
+                            Style="{StaticResource SecondaryButton}" Height="34" VerticalAlignment="Center"
+                            Margin="0,0,10,0" />
+
+                    <Border Grid.Column="3" Style="{StaticResource Badge}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ServerUrl}" FontSize="11" Foreground="{StaticResource AccentBrush}" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}" />
+        </Grid>
+    </Grid>
+</Window>

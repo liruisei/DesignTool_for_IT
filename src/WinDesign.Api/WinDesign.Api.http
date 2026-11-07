@@ -1,0 +1,55 @@
+@host = http://localhost:5080
+@token = 粘贴登录返回的 accessToken
+
+### 健康检查
+GET {{host}}/health
+
+### 登录（admin / admin123）
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "userName": "admin",
+  "password": "admin123"
+}
+
+### 当前用户
+GET {{host}}/api/auth/me
+Authorization: Bearer {{token}}
+
+### 工作台
+GET {{host}}/api/dashboard
+Authorization: Bearer {{token}}
+
+### 用户列表
+GET {{host}}/api/users?page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### 项目列表
+GET {{host}}/api/projects
+Authorization: Bearer {{token}}
+
+### 新建项目
+POST {{host}}/api/projects
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "code": "DEMO-003",
+  "name": "示例项目",
+  "clientName": "示例客户",
+  "phase": "详细设计",
+  "description": "通过 .http 创建"
+}
+
+### 编码类型
+GET {{host}}/api/dictionaries/types
+Authorization: Bearer {{token}}
+
+### 编码项
+GET {{host}}/api/dictionaries/types/DISCIPLINE/items
+Authorization: Bearer {{token}}
+
+### 角色
+GET {{host}}/api/roles
+Authorization: Bearer {{token}}

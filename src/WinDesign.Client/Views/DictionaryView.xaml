@@ -1,0 +1,120 @@
+<UserControl x:Class="WinDesign.Client.Views.DictionaryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="24">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="360" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,12,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid Margin="0,0,0,12">
+                    <TextBlock Text="编码类型" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+                    <Button Content="新建" Command="{Binding NewTypeCommand}" Style="{StaticResource PrimaryButton}"
+                            HorizontalAlignment="Right" Padding="10,6" />
+                </Grid>
+                <ListBox Grid.Row="1" ItemsSource="{Binding Types}" SelectedItem="{Binding SelectedType}"
+                         BorderThickness="0" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="4,5">
+                                <TextBlock Text="{Binding Name}" FontSize="13" />
+                                <TextBlock Text="{Binding Code}" FontSize="10.5" Opacity="0.65" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,12,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid Margin="0,0,0,12">
+                    <TextBlock Text="编码项" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+                    <Button Content="新建" Command="{Binding NewItemCommand}" Style="{StaticResource PrimaryButton}"
+                            HorizontalAlignment="Right" Padding="10,6" />
+                </Grid>
+                <DataGrid Grid.Row="1" ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="编码" Binding="{Binding Code}" Width="130" />
+                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="排序" Binding="{Binding SortOrder}" Width="70" />
+                        <DataGridCheckBoxColumn Header="启用" Binding="{Binding IsActive}" Width="70" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="2" Style="{StaticResource Card}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="{Binding TypeEditorTitle}" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="系统内置类型可以修改名称，但不能删除。" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+
+                    <TextBlock Text="类型编码" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreatingType}"
+                             Text="{Binding EditTypeCode, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="类型名称" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditTypeName, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="说明" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputMultiline}" MinHeight="60"
+                             Text="{Binding EditTypeDescription, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="排序" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditTypeSort, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="保存类型" Command="{Binding SaveTypeCommand}" Style="{StaticResource PrimaryButton}" />
+                        <Button Content="新建" Command="{Binding NewTypeCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        <Button Content="删除" Command="{Binding DeleteTypeCommand}" Style="{StaticResource DangerButton}" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,20" />
+
+                    <TextBlock Text="{Binding ItemEditorTitle}" Style="{StaticResource SectionTitle}" />
+
+                    <TextBlock Text="编码" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreatingItem}"
+                             Text="{Binding EditItemCode, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="名称" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="排序" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditItemSort, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <CheckBox Content="启用该编码项" IsChecked="{Binding EditItemActive}" Margin="0,12,0,0" FontSize="13" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="保存编码项" Command="{Binding SaveItemCommand}" Style="{StaticResource PrimaryButton}" />
+                        <Button Content="新建" Command="{Binding NewItemCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        <Button Content="删除" Command="{Binding DeleteItemCommand}" Style="{StaticResource DangerButton}" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                               Margin="0,12,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}"
+                               Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVis}}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>
