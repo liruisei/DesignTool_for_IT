@@ -265,9 +265,10 @@ public sealed class ApiClient : IApiClient
         string? discipline = null,
         string? status = null,
         Guid? pbsNodeId = null,
+        int pageSize = 500,
         CancellationToken ct = default)
     {
-        var query = $"api/projects/{projectId}/equipments?pageSize=500";
+        var query = $"api/projects/{projectId}/equipments?pageSize={pageSize}";
         if (!string.IsNullOrWhiteSpace(search))
         {
             query += "&search=" + Uri.EscapeDataString(search);
@@ -289,7 +290,7 @@ public sealed class ApiClient : IApiClient
 
     public Task<EquipmentDto> CreateEquipmentAsync(
         Guid projectId,
-        CreateEquipmentRequest request,
+        EquipmentUpsertRequest request,
         CancellationToken ct = default)
     {
         var message = Request(HttpMethod.Post, $"api/projects/{projectId}/equipments");
@@ -299,7 +300,7 @@ public sealed class ApiClient : IApiClient
 
     public Task<EquipmentDto> UpdateEquipmentAsync(
         Guid id,
-        UpdateEquipmentRequest request,
+        EquipmentUpsertRequest request,
         CancellationToken ct = default)
     {
         var message = Request(HttpMethod.Put, $"api/equipments/{id}");

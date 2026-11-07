@@ -19,7 +19,8 @@ public class PbsTests : ApiTestBase
         var nodes = await GetNodesAsync(project.Id);
 
         Assert.Contains(nodes, x => x.ParentId is null);
-        Assert.True(nodes.Count >= 5);
+        Assert.Contains(nodes, x => x.NodeType == "Loop");
+        Assert.True(nodes.Count >= 4);
     }
 
     [Fact]

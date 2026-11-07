@@ -30,24 +30,50 @@ public sealed class PbsController : ApiControllerBase
 
         var nodes = await _db.PbsNodes
             .Where(x => x.ProjectId == projectId)
-            .Include(x => x.Children)
             .AsNoTracking()
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Code)
             .ToListAsync(ct);
 
-        var equipCounts = await _db.Equipments
+        var equipNodeIds = await _db.Equipments
             .Where(x => x.ProjectId == projectId && x.PbsNodeId != null)
-            .GroupBy(x => x.PbsNodeId)
-            .Select(g => new { PbsNodeId = g.Key, Count = g.Count() })
+            .Select(x => x.PbsNodeId!.Value)
             .ToListAsync(ct);
 
-        var counts = equipCounts
-            .Where(x => x.PbsNodeId.HasValue)
-            .ToDictionary(x => x.PbsNodeId!.Value, x => x.Count);
+        var directCounts = equipNodeIds
+            .GroupBy(x => x)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var childrenMap = nodes
+            .Where(x => x.ParentId != null)
+            .GroupBy(x => x.ParentId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var subtreeCounts = new Dictionary<Guid, int>();
+        int CountSubtree(Guid nodeId)
+        {
+            if (subtreeCounts.TryGetValue(nodeId, out var cached))
+            {
+                return cached;
+            }
+
+            var count = directCounts.GetValueOrDefault(nodeId);
+            if (childrenMap.TryGetValue(nodeId, out var children))
+            {
+                foreach (var child in children)
+                {
+                    count += CountSubtree(child.Id);
+                }
+            }
+            subtreeCounts[nodeId] = count;
+            return count;
+        }
 
         var result = nodes
-            .Select(x => ToDto(x, x.Children.Count, counts.GetValueOrDefault(x.Id)))
+            .Select(x => ToDto(
+                x,
+                childrenMap.GetValueOrDefault(x.Id)?.Count ?? 0,
+                CountSubtree(x.Id)))
             .ToList();
 
         return Ok(result);

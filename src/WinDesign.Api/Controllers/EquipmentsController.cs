@@ -89,7 +89,9 @@ public sealed class EquipmentsController : ApiControllerBase
             .Take(pageSize)
             .ToListAsync(ct);
 
-        return Ok(new PagedResult<EquipmentDto>(items.Select(ToDto).ToList(), total, page, pageSize));
+        var pathMap = await BuildPbsPathMapAsync(projectId, ct);
+        return Ok(new PagedResult<EquipmentDto>(
+            items.Select(x => ToDto(x, pathMap)).ToList(), total, page, pageSize));
     }
 
     [HttpGet("equipments/{id:guid}")]
@@ -99,14 +101,20 @@ public sealed class EquipmentsController : ApiControllerBase
             .Include(x => x.PbsNode)
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == id, ct);
-        return equipment is null ? NotFound(new ApiError("设备不存在")) : Ok(ToDto(equipment));
+        if (equipment is null)
+        {
+            return NotFound(new ApiError("设备不存在"));
+        }
+
+        var pathMap = await BuildPbsPathMapAsync(equipment.ProjectId, ct);
+        return Ok(ToDto(equipment, pathMap));
     }
 
     [HttpPost("projects/{projectId:guid}/equipments")]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<EquipmentDto>> Create(
         Guid projectId,
-        [FromBody] CreateEquipmentRequest request,
+        [FromBody] EquipmentUpsertRequest request,
         CancellationToken ct)
     {
         if (!await _db.Projects.AnyAsync(x => x.Id == projectId, ct))
@@ -181,14 +189,15 @@ public sealed class EquipmentsController : ApiControllerBase
 
         var created = await _db.Equipments.Include(x => x.PbsNode).AsNoTracking()
             .SingleAsync(x => x.Id == equipment.Id, ct);
-        return Ok(ToDto(created));
+        var createdPaths = await BuildPbsPathMapAsync(projectId, ct);
+        return Ok(ToDto(created, createdPaths));
     }
 
     [HttpPut("equipments/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<EquipmentDto>> Update(
         Guid id,
-        [FromBody] UpdateEquipmentRequest request,
+        [FromBody] EquipmentUpsertRequest request,
         CancellationToken ct)
     {
         var equipment = await _db.Equipments.Include(x => x.PbsNode)
@@ -262,7 +271,8 @@ public sealed class EquipmentsController : ApiControllerBase
 
         var updated = await _db.Equipments.Include(x => x.PbsNode).AsNoTracking()
             .SingleAsync(x => x.Id == equipment.Id, ct);
-        return Ok(ToDto(updated));
+        var updatedPaths = await BuildPbsPathMapAsync(equipment.ProjectId, ct);
+        return Ok(ToDto(updated, updatedPaths));
     }
 
     [HttpDelete("equipments/{id:guid}")]
@@ -289,12 +299,55 @@ public sealed class EquipmentsController : ApiControllerBase
         return NoContent();
     }
 
-    private static EquipmentDto ToDto(Equipment equipment) => new()
+    private async Task<Dictionary<Guid, string>> BuildPbsPathMapAsync(
+        Guid projectId,
+        CancellationToken ct)
+    {
+        var nodes = await _db.PbsNodes
+            .Where(x => x.ProjectId == projectId)
+            .AsNoTracking()
+            .ToListAsync(ct);
+        var byId = nodes.ToDictionary(x => x.Id);
+        var cache = new Dictionary<Guid, string>();
+
+        string Build(PbsNode node)
+        {
+            if (cache.TryGetValue(node.Id, out var cached))
+            {
+                return cached;
+            }
+
+            var parts = new List<string>();
+            var current = node;
+            while (current is not null)
+            {
+                parts.Add(current.Code + " " + current.Name);
+                current = current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent)
+                    ? parent
+                    : null!;
+            }
+
+            parts.Reverse();
+            var path = string.Join(" / ", parts);
+            cache[node.Id] = path;
+            return path;
+        }
+
+        return nodes.ToDictionary(x => x.Id, x => Build(x));
+    }
+
+    private static EquipmentDto ToDto(
+        Equipment equipment,
+        IReadOnlyDictionary<Guid, string>? pbsPaths = null) => new()
     {
         Id = equipment.Id,
         ProjectId = equipment.ProjectId,
         PbsNodeId = equipment.PbsNodeId,
         PbsNodeName = equipment.PbsNode?.Name,
+        PbsPath = equipment.PbsNodeId is Guid pbsNodeId && pbsPaths is not null &&
+                  pbsPaths.TryGetValue(pbsNodeId, out var pbsPath)
+            ? pbsPath
+            : null,
         TagNo = equipment.TagNo,
         LoopNo = equipment.LoopNo,
         Name = equipment.Name,

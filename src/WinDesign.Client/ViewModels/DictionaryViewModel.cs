@@ -58,6 +58,9 @@ public partial class DictionaryViewModel : ViewModelBase
     [ObservableProperty]
     private string? statusMessage;
 
+    public bool HasSelectedType => SelectedType is not null;
+    public bool HasSelectedItem => SelectedItem is not null;
+
     public DictionaryViewModel(SessionService session)
     {
         _session = session;
@@ -75,20 +78,30 @@ public partial class DictionaryViewModel : ViewModelBase
             Types.Add(type);
         }
 
-        SelectedType = Types.FirstOrDefault(x => x.Id == currentId) ?? Types.FirstOrDefault();
+        // 默认停留在“新建”状态：只有用户主动选中类型时才进入编辑状态
+        SelectedType = Types.FirstOrDefault(x => x.Id == currentId);
     });
 
     [RelayCommand]
     private void NewType()
     {
         SelectedType = null;
-        IsCreatingType = true;
-        TypeEditorTitle = "新建编码类型";
-        EditTypeCode = string.Empty;
-        EditTypeName = string.Empty;
-        EditTypeDescription = string.Empty;
-        EditTypeSort = 0;
+        ResetTypeEditor();
         Items.Clear();
+        SelectedItem = null;
+        StatusMessage = null;
+    }
+
+    [RelayCommand]
+    private void CancelTypeEdit()
+    {
+        if (!IsCreatingType && SelectedType is not null)
+        {
+            LoadTypeIntoEditor(SelectedType);
+            return;
+        }
+
+        ResetTypeEditor();
         StatusMessage = null;
     }
 
@@ -155,12 +168,20 @@ public partial class DictionaryViewModel : ViewModelBase
         }
 
         SelectedItem = null;
-        IsCreatingItem = true;
-        ItemEditorTitle = "新建编码项";
-        EditItemCode = string.Empty;
-        EditItemName = string.Empty;
-        EditItemSort = 0;
-        EditItemActive = true;
+        ResetItemEditor();
+        StatusMessage = null;
+    }
+
+    [RelayCommand]
+    private void CancelItemEdit()
+    {
+        if (!IsCreatingItem && SelectedItem is not null)
+        {
+            LoadItemIntoEditor(SelectedItem);
+            return;
+        }
+
+        ResetItemEditor();
         StatusMessage = null;
     }
 
@@ -220,35 +241,32 @@ public partial class DictionaryViewModel : ViewModelBase
 
     partial void OnSelectedTypeChanged(DictionaryTypeDto? value)
     {
+        OnPropertyChanged(nameof(HasSelectedType));
+
         if (value is null)
         {
+            ResetTypeEditor();
             Items.Clear();
+            SelectedItem = null;
             return;
         }
 
-        IsCreatingType = false;
-        TypeEditorTitle = "编辑编码类型：" + value.Code;
-        EditTypeCode = value.Code;
-        EditTypeName = value.Name;
-        EditTypeDescription = value.Description ?? string.Empty;
-        EditTypeSort = value.SortOrder;
+        LoadTypeIntoEditor(value);
         StatusMessage = null;
         _ = LoadItemsAsync(value.Code);
     }
 
     partial void OnSelectedItemChanged(DictionaryItemDto? value)
     {
+        OnPropertyChanged(nameof(HasSelectedItem));
+
         if (value is null)
         {
+            ResetItemEditor();
             return;
         }
 
-        IsCreatingItem = false;
-        ItemEditorTitle = "编辑编码项：" + value.Code;
-        EditItemCode = value.Code;
-        EditItemName = value.Name;
-        EditItemSort = value.SortOrder;
-        EditItemActive = value.IsActive;
+        LoadItemIntoEditor(value);
     }
 
     private Task LoadItemsAsync(string typeCode, Guid? selectId = null) => RunAsync(async () =>
@@ -260,9 +278,49 @@ public partial class DictionaryViewModel : ViewModelBase
             Items.Add(item);
         }
 
-        SelectedItem = (selectId is null ? null : Items.FirstOrDefault(x => x.Id == selectId))
-                       ?? Items.FirstOrDefault();
+        // 未指定保存后的回选项时保持“新建”状态，不自动选中第一行
+        SelectedItem = selectId is null ? null : Items.FirstOrDefault(x => x.Id == selectId);
     });
+
+    private void ResetTypeEditor()
+    {
+        IsCreatingType = true;
+        TypeEditorTitle = "新建编码类型";
+        EditTypeCode = string.Empty;
+        EditTypeName = string.Empty;
+        EditTypeDescription = string.Empty;
+        EditTypeSort = 0;
+    }
+
+    private void LoadTypeIntoEditor(DictionaryTypeDto type)
+    {
+        IsCreatingType = false;
+        TypeEditorTitle = "编辑编码类型：" + type.Code;
+        EditTypeCode = type.Code;
+        EditTypeName = type.Name;
+        EditTypeDescription = type.Description ?? string.Empty;
+        EditTypeSort = type.SortOrder;
+    }
+
+    private void ResetItemEditor()
+    {
+        IsCreatingItem = true;
+        ItemEditorTitle = "新建编码项";
+        EditItemCode = string.Empty;
+        EditItemName = string.Empty;
+        EditItemSort = 0;
+        EditItemActive = true;
+    }
+
+    private void LoadItemIntoEditor(DictionaryItemDto item)
+    {
+        IsCreatingItem = false;
+        ItemEditorTitle = "编辑编码项：" + item.Code;
+        EditItemCode = item.Code;
+        EditItemName = item.Name;
+        EditItemSort = item.SortOrder;
+        EditItemActive = item.IsActive;
+    }
 
     private static string? NullIfEmpty(string value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

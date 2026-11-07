@@ -46,8 +46,8 @@ public interface IApiClient
     Task<PbsNodeDto> UpdatePbsNodeAsync(Guid id, UpdatePbsNodeRequest request, CancellationToken ct = default);
     Task DeletePbsNodeAsync(Guid id, CancellationToken ct = default);
 
-    Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(Guid projectId, string? search = null, string? discipline = null, string? status = null, Guid? pbsNodeId = null, CancellationToken ct = default);
-    Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, CreateEquipmentRequest request, CancellationToken ct = default);
-    Task<EquipmentDto> UpdateEquipmentAsync(Guid id, UpdateEquipmentRequest request, CancellationToken ct = default);
+    Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(Guid projectId, string? search = null, string? discipline = null, string? status = null, Guid? pbsNodeId = null, int pageSize = 500, CancellationToken ct = default);
+    Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, EquipmentUpsertRequest request, CancellationToken ct = default);
+    Task<EquipmentDto> UpdateEquipmentAsync(Guid id, EquipmentUpsertRequest request, CancellationToken ct = default);
     Task DeleteEquipmentAsync(Guid id, CancellationToken ct = default);
 }

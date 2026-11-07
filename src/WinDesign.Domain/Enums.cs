@@ -21,7 +21,8 @@ public enum PbsNodeType
     Unit = 2,
     System = 3,
     SubSystem = 4,
-    Equipment = 5
+    Equipment = 5,
+    Loop = 6
 }
 
 public enum EquipmentStatus

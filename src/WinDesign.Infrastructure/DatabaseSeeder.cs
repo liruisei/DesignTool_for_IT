@@ -125,15 +125,15 @@ public static class DatabaseSeeder
         var root = new PbsNode { ProjectId = project1.Id, Code = "ROOT", Name = "全厂", NodeType = PbsNodeType.Root, SortOrder = 0 };
         var area = new PbsNode { ProjectId = project1.Id, ParentId = root.Id, Code = "AREA-A", Name = "A 区", NodeType = PbsNodeType.Area, SortOrder = 1 };
         var unit = new PbsNode { ProjectId = project1.Id, ParentId = area.Id, Code = "CDU", Name = "常减压装置", NodeType = PbsNodeType.Unit, SortOrder = 2 };
-        var system = new PbsNode { ProjectId = project1.Id, ParentId = unit.Id, Code = "INS", Name = "仪表系统", NodeType = PbsNodeType.System, SortOrder = 3 };
-        var subSystem = new PbsNode { ProjectId = project1.Id, ParentId = system.Id, Code = "PT", Name = "压力变送器", NodeType = PbsNodeType.SubSystem, SortOrder = 4 };
-        db.PbsNodes.AddRange(root, area, unit, system, subSystem);
+        var loop = new PbsNode { ProjectId = project1.Id, ParentId = unit.Id, Code = "L-1001", Name = "压力控制回路", NodeType = PbsNodeType.Loop, SortOrder = 3 };
+        db.PbsNodes.AddRange(root, area, unit, loop);
 
         var equipment = new Equipment
         {
             ProjectId = project1.Id,
-            PbsNodeId = subSystem.Id,
+            PbsNodeId = loop.Id,
             TagNo = "PT-1001",
+            LoopNo = "L-1001",
             Name = "压力变送器",
             TypeCode = "PT",
             Discipline = Discipline.Instrument,

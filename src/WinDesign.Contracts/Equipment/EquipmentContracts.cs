@@ -34,18 +34,11 @@ public record EquipmentUpsertRequest
     public string? Specification { get; init; }
 }
 
-public sealed record CreateEquipmentRequest : EquipmentUpsertRequest
-{
-}
-
-public sealed record UpdateEquipmentRequest : EquipmentUpsertRequest
-{
-}
-
 public sealed record EquipmentDto : EquipmentUpsertRequest
 {
     public Guid Id { get; init; }
     public Guid ProjectId { get; init; }
     public string? PbsNodeName { get; init; }
+    public string? PbsPath { get; init; }
     public DateTime CreatedAt { get; init; }
 }

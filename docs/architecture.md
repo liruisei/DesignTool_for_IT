@@ -70,7 +70,7 @@ audit_logs（独立流水）
 | Permission | Code、Module | 细粒度权限 |
 | Project | Code、Name、ClientName、Location、Phase、StartDate、EndDate、Status、OwnerUserId | 项目主数据 |
 | PbsNode | ProjectId、ParentId、Code、Name、NodeType | 工厂分解结构 |
-| Equipment | ProjectId、PbsNodeId、TagNo、LoopNo、Name、TypeCode、Discipline、Status、Quantity、用途、安装位置、管道设备号、图纸/文档号、IO/KeyWord/Index、工艺条件/规格书 | 索引表 |
+| Equipment | ProjectId、PbsNodeId、TagNo、LoopNo、Name、TypeCode、Discipline、Status、Quantity、用途、安装位置、管道设备号、图纸/文档号、IO/KeyWord/Index、工艺条件/规格书 | 索引表；PBS 路径由节点祖先计算 |
 | EquipmentSpec | EquipmentId、SpecCode、ContentJson、Version | 规格书 |
 | MaterialItem | ProjectId、EquipmentId、Code、Name、Qty | 材料/附件 |
 | DictionaryType/Item | Code、Name、SortOrder、IsActive | 编码定义 |
@@ -135,7 +135,7 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 
 ## 9. 下一阶段
 
-第一阶段已完成：项目信息录入、工厂 PBS 搭建、索引表录入。
+第一阶段已完成：项目信息录入、工厂 PBS 搭建（区域 → 装置 → 回路 → 设备）、索引表录入（设备可在 PBS 中创建，索引表浏览/修改）。
 
 第二阶段：
 1. 设备规格模板/版本 + 缺项校验。

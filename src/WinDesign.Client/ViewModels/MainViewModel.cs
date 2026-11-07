@@ -240,7 +240,21 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedDocumentChanged(DocumentTab? value)
     {
-        StatusText = value is null ? "就绪" : "当前文档：" + value.Title;
+        if (value is null)
+        {
+            StatusText = "就绪";
+            return;
+        }
+
+        StatusText = "当前文档：" + value.Title;
+        if (value.HasBeenActivated)
+        {
+            _ = RefreshDocumentAsync(value);
+        }
+        else
+        {
+            value.HasBeenActivated = true;
+        }
     }
 
     private void OpenDocument(string key, string title, Func<ViewModelBase> factory, bool closable = true)
@@ -248,7 +262,12 @@ public partial class MainViewModel : ObservableObject
         var existing = Documents.FirstOrDefault(x => x.Key == key);
         if (existing is not null)
         {
+            var alreadySelected = ReferenceEquals(SelectedDocument, existing);
             SelectedDocument = existing;
+            if (alreadySelected)
+            {
+                _ = RefreshDocumentAsync(existing);
+            }
             return;
         }
 
@@ -261,6 +280,18 @@ public partial class MainViewModel : ObservableObject
         };
         Documents.Add(tab);
         SelectedDocument = tab;
+    }
+
+    private static async Task RefreshDocumentAsync(DocumentTab tab)
+    {
+        try
+        {
+            await tab.ViewModel.RefreshAsync();
+        }
+        catch
+        {
+            // individual modules surface their own error messages
+        }
     }
 
     private async Task LoadProjectsAsync()

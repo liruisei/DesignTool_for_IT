@@ -117,7 +117,6 @@
 
                     <TreeView Grid.Row="1" ItemsSource="{Binding ExplorerNodes}" Style="{StaticResource ExplorerTree}"
                               SelectedItemChanged="OnExplorerSelectedItemChanged"
-                              MouseDoubleClick="OnExplorerMouseDoubleClick"
                               ContextMenuOpening="OnExplorerContextMenuOpening">
                         <TreeView.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">

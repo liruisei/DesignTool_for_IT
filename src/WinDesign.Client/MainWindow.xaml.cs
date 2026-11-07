@@ -18,14 +18,10 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel viewModel && e.NewValue is ExplorerNode node)
         {
             viewModel.SelectedExplorerNode = node;
-        }
-    }
-
-    private void OnExplorerMouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (DataContext is MainViewModel viewModel)
-        {
-            viewModel.OpenExplorerNode(viewModel.SelectedExplorerNode);
+            if (node.Open is not null)
+            {
+                viewModel.OpenExplorerNode(node);
+            }
         }
     }
 

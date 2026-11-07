@@ -1,5 +1,6 @@
 using WinDesign.Client.Services;
 using WinDesign.Client.ViewModels;
+using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
 
@@ -119,6 +120,60 @@ public class PbsViewModelTests
         Assert.DoesNotContain(api.PbsNodes, x => x.Id == area.Id);
     }
 
+    [Fact]
+    public async Task Refresh_IncludesEquipmentUnderPbsNode()
+    {
+        var (api, project, _, _, system) = CreateTree();
+        api.Equipments.Add(new EquipmentDto
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            PbsNodeId = system.Id,
+            TagNo = "PT-9001",
+            Name = "设备",
+            Discipline = "Instrument",
+            Status = "Planned",
+            Quantity = 1,
+            CreatedAt = DateTime.UtcNow
+        });
+        var viewModel = CreateViewModel(api, project);
+
+        await viewModel.RefreshAsync();
+
+        var systemItem = viewModel.Roots[0].Children[0].Children[0];
+        Assert.Contains(systemItem.Children, x => x.Equipment?.TagNo == "PT-9001");
+    }
+
+    [Fact]
+    public async Task AddEquipment_UnderLoop_PrefillsPbsAndLoopNo()
+    {
+        var (api, project, _, _, system) = CreateTree();
+        var loop = new PbsNodeDto(Guid.NewGuid(), project.Id, system.Id, "L-1001", "压力回路", "Loop", 0, null, 0, 0);
+        api.PbsNodes.Add(loop);
+        var equipmentDialogs = new FakeEquipmentDialogService
+        {
+            NextResult = new EquipmentUpsertRequest
+            {
+                PbsNodeId = loop.Id,
+                TagNo = "PT-9101",
+                Name = "设备",
+                Discipline = "Instrument",
+                Status = "Planned",
+                Quantity = 1
+            }
+        };
+        var viewModel = CreateViewModel(api, project, equipmentDialogs: equipmentDialogs);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0].Children[0].Children[0];
+
+        await viewModel.AddEquipmentCommand.ExecuteAsync(null);
+
+        Assert.NotNull(equipmentDialogs.LastContext);
+        Assert.Equal(loop.Id, equipmentDialogs.LastContext!.DefaultPbsNodeId);
+        Assert.Equal("L-1001", equipmentDialogs.LastContext.DefaultLoopNo);
+        Assert.Contains(api.Equipments, x => x.TagNo == "PT-9101");
+    }
+
     private static (FakeApiClient Api, ProjectDto Project,
         PbsNodeDto Root, PbsNodeDto Area, PbsNodeDto System) CreateTree()
     {
@@ -134,10 +189,15 @@ public class PbsViewModelTests
     private static PbsViewModel CreateViewModel(
         FakeApiClient api,
         ProjectDto project,
-        IPbsDialogService? dialogs = null)
+        IPbsDialogService? dialogs = null,
+        IEquipmentDialogService? equipmentDialogs = null)
     {
         var session = new SessionService(api);
         var context = new ProjectContext { CurrentProject = project };
-        return new PbsViewModel(session, context, dialogs ?? new FakePbsDialogService());
+        return new PbsViewModel(
+            session,
+            context,
+            dialogs ?? new FakePbsDialogService(),
+            equipmentDialogs ?? new FakeEquipmentDialogService());
     }
 }

@@ -31,6 +31,7 @@ public sealed class FakeApiClient : IApiClient
     public List<PbsNodeDto> PbsNodes { get; } = new();
     public List<EquipmentDto> Equipments { get; } = new();
     public List<DictionaryItemDto> EquipmentTypes { get; } = new();
+    public List<DictionaryTypeDto> DictionaryTypes { get; } = new();
 
     public void Configure(string baseUrl) => BaseUrl = baseUrl;
 
@@ -87,7 +88,7 @@ public sealed class FakeApiClient : IApiClient
         throw new NotSupportedException();
 
     public Task<IReadOnlyList<DictionaryTypeDto>> GetDictionaryTypesAsync(CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<DictionaryTypeDto>>(Array.Empty<DictionaryTypeDto>());
+        Task.FromResult<IReadOnlyList<DictionaryTypeDto>>(DictionaryTypes);
 
     public Task<DictionaryTypeDto> CreateDictionaryTypeAsync(CreateDictionaryTypeRequest request, CancellationToken ct = default) =>
         throw new NotSupportedException();
@@ -158,6 +159,7 @@ public sealed class FakeApiClient : IApiClient
         string? discipline = null,
         string? status = null,
         Guid? pbsNodeId = null,
+        int pageSize = 500,
         CancellationToken ct = default)
     {
         IEnumerable<EquipmentDto> query = Equipments.Where(x => x.ProjectId == projectId);
@@ -182,7 +184,7 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(new PagedResult<EquipmentDto>(items, items.Count, 1, 200));
     }
 
-    public Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, CreateEquipmentRequest request, CancellationToken ct = default)
+    public Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, EquipmentUpsertRequest request, CancellationToken ct = default)
     {
         var dto = new EquipmentDto
         {
@@ -223,7 +225,7 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(dto);
     }
 
-    public Task<EquipmentDto> UpdateEquipmentAsync(Guid id, UpdateEquipmentRequest request, CancellationToken ct = default)
+    public Task<EquipmentDto> UpdateEquipmentAsync(Guid id, EquipmentUpsertRequest request, CancellationToken ct = default)
     {
         var index = Equipments.FindIndex(x => x.Id == id);
         if (index < 0)

@@ -16,8 +16,12 @@
                 </Grid.RowDefinitions>
                 <Grid Margin="0,0,0,12">
                     <TextBlock Text="编码类型" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
-                    <Button Content="新建" Command="{Binding NewTypeCommand}" Style="{StaticResource PrimaryButton}"
-                            HorizontalAlignment="Right" Padding="10,6" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="新建" Command="{Binding NewTypeCommand}" Style="{StaticResource PrimaryButton}"
+                                Padding="10,6" />
+                        <Button Content="删除" Command="{Binding DeleteTypeCommand}" Style="{StaticResource DangerButton}"
+                                Margin="6,0,0,0" Padding="10,6" IsEnabled="{Binding HasSelectedType}" />
+                    </StackPanel>
                 </Grid>
                 <ListBox Grid.Row="1" ItemsSource="{Binding Types}" SelectedItem="{Binding SelectedType}"
                          BorderThickness="0" Background="Transparent">
@@ -41,8 +45,12 @@
                 </Grid.RowDefinitions>
                 <Grid Margin="0,0,0,12">
                     <TextBlock Text="编码项" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
-                    <Button Content="新建" Command="{Binding NewItemCommand}" Style="{StaticResource PrimaryButton}"
-                            HorizontalAlignment="Right" Padding="10,6" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="新建" Command="{Binding NewItemCommand}" Style="{StaticResource PrimaryButton}"
+                                Padding="10,6" />
+                        <Button Content="删除" Command="{Binding DeleteItemCommand}" Style="{StaticResource DangerButton}"
+                                Margin="6,0,0,0" Padding="10,6" IsEnabled="{Binding HasSelectedItem}" />
+                    </StackPanel>
                 </Grid>
                 <DataGrid Grid.Row="1" ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}">
                     <DataGrid.Columns>
@@ -79,32 +87,56 @@
 
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                         <Button Content="保存类型" Command="{Binding SaveTypeCommand}" Style="{StaticResource PrimaryButton}" />
-                        <Button Content="新建" Command="{Binding NewTypeCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
-                        <Button Content="删除" Command="{Binding DeleteTypeCommand}" Style="{StaticResource DangerButton}" Margin="8,0,0,0" />
+                        <Button Content="取消" Command="{Binding CancelTypeEditCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
                     </StackPanel>
 
                     <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,20" />
 
-                    <TextBlock Text="{Binding ItemEditorTitle}" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="请先在左侧选择编码类型" Margin="0,4,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedType}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
-                    <TextBlock Text="编码" Style="{StaticResource FieldLabel}" />
-                    <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreatingItem}"
-                             Text="{Binding EditItemCode, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel>
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="IsEnabled" Value="False" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedType}" Value="True">
+                                        <Setter Property="IsEnabled" Value="True" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
 
-                    <TextBlock Text="名称" Style="{StaticResource FieldLabel}" />
-                    <TextBox Style="{StaticResource Input}"
-                             Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="{Binding ItemEditorTitle}" Style="{StaticResource SectionTitle}" />
 
-                    <TextBlock Text="排序" Style="{StaticResource FieldLabel}" />
-                    <TextBox Style="{StaticResource Input}"
-                             Text="{Binding EditItemSort, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="编码" Style="{StaticResource FieldLabel}" />
+                        <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreatingItem}"
+                                 Text="{Binding EditItemCode, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <CheckBox Content="启用该编码项" IsChecked="{Binding EditItemActive}" Margin="0,12,0,0" FontSize="13" />
+                        <TextBlock Text="名称" Style="{StaticResource FieldLabel}" />
+                        <TextBox Style="{StaticResource Input}"
+                                 Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                        <Button Content="保存编码项" Command="{Binding SaveItemCommand}" Style="{StaticResource PrimaryButton}" />
-                        <Button Content="新建" Command="{Binding NewItemCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
-                        <Button Content="删除" Command="{Binding DeleteItemCommand}" Style="{StaticResource DangerButton}" Margin="8,0,0,0" />
+                        <TextBlock Text="排序" Style="{StaticResource FieldLabel}" />
+                        <TextBox Style="{StaticResource Input}"
+                                 Text="{Binding EditItemSort, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <CheckBox Content="启用该编码项" IsChecked="{Binding EditItemActive}" Margin="0,12,0,0" FontSize="13" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Content="保存编码项" Command="{Binding SaveItemCommand}" Style="{StaticResource PrimaryButton}" />
+                            <Button Content="取消" Command="{Binding CancelItemEditCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        </StackPanel>
                     </StackPanel>
 
                     <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"

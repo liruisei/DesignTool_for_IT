@@ -8,24 +8,16 @@ using WinDesign.Contracts.Pbs;
 
 namespace WinDesign.Client.ViewModels;
 
-public sealed record CodeNameOption(string Code, string Name);
-
 public partial class EquipmentIndexViewModel : ViewModelBase
 {
     private readonly SessionService _session;
     private readonly ProjectContext _context;
+    private readonly IEquipmentDialogService _dialogs;
 
     public ObservableCollection<EquipmentDto> Equipments { get; } = new();
     public ObservableCollection<PbsNodeOption> PbsFilterOptions { get; } = new();
     public ObservableCollection<PbsNodeOption> PbsEditorOptions { get; } = new();
     public ObservableCollection<DictionaryItemDto> EquipmentTypes { get; } = new();
-
-    public IReadOnlyList<CodeNameOption> DisciplineOptions { get; } = new[]
-    {
-        new CodeNameOption("Instrument", "仪表"),
-        new CodeNameOption("Telecom", "电信"),
-        new CodeNameOption("IT", "IT")
-    };
 
     public IReadOnlyList<CodeNameOption> FilterDisciplineOptions { get; } = new[]
     {
@@ -33,13 +25,6 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         new CodeNameOption("Instrument", "仪表"),
         new CodeNameOption("Telecom", "电信"),
         new CodeNameOption("IT", "IT")
-    };
-
-    public IReadOnlyList<CodeNameOption> StatusOptions { get; } = new[]
-    {
-        new CodeNameOption("Planned", "规划"),
-        new CodeNameOption("Designed", "设计中"),
-        new CodeNameOption("Approved", "已批准")
     };
 
     public IReadOnlyList<CodeNameOption> FilterStatusOptions { get; } = new[]
@@ -66,105 +51,16 @@ public partial class EquipmentIndexViewModel : ViewModelBase
     private PbsNodeOption? filterPbsNode;
 
     [ObservableProperty]
-    private string editorTitle = "新建设备";
-
-    [ObservableProperty]
-    private bool isCreating = true;
-
-    [ObservableProperty]
-    private string editTagNo = string.Empty;
-
-    [ObservableProperty]
-    private string editName = string.Empty;
-
-    [ObservableProperty]
-    private string? editTypeCode;
-
-    [ObservableProperty]
-    private string editDiscipline = "Instrument";
-
-    [ObservableProperty]
-    private string editStatus = "Planned";
-
-    [ObservableProperty]
-    private Guid? editPbsNodeId;
-
-    [ObservableProperty]
-    private string editLocation = string.Empty;
-
-    [ObservableProperty]
-    private string editDescription = string.Empty;
-
-    [ObservableProperty]
-    private string editLoopNo = string.Empty;
-
-    [ObservableProperty]
-    private int editQuantity = 1;
-
-    [ObservableProperty]
-    private string editPipeEquipmentNo = string.Empty;
-
-    [ObservableProperty]
-    private string editPurpose = string.Empty;
-
-    [ObservableProperty]
-    private string editPidDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editSpecNo = string.Empty;
-
-    [ObservableProperty]
-    private string editSpecPageNo = string.Empty;
-
-    [ObservableProperty]
-    private string editLoopDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editInstallDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editElectricalDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editHeatSupplyDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editAirSupplyDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editLayingDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editJunctionBoxDrawingNo = string.Empty;
-
-    [ObservableProperty]
-    private string editKeyword = string.Empty;
-
-    [ObservableProperty]
-    private string editIoSetting = string.Empty;
-
-    [ObservableProperty]
-    private string editIndexNo = string.Empty;
-
-    [ObservableProperty]
-    private int editSortOrder;
-
-    [ObservableProperty]
-    private string editProcessCondition = string.Empty;
-
-    [ObservableProperty]
-    private string editSpecification = string.Empty;
-
-    [ObservableProperty]
     private string? statusMessage;
 
     public ProjectContext Context => _context;
 
-    public EquipmentIndexViewModel(SessionService session, ProjectContext context)
+    public EquipmentIndexViewModel(SessionService session, ProjectContext context, IEquipmentDialogService? dialogs = null)
     {
         _session = session;
         _context = context;
-        Title = "设备索引";
+        _dialogs = dialogs ?? new EquipmentDialogService();
+        Title = "索引表";
         _context.ProjectChanged += OnProjectChanged;
         _ = RefreshAsync();
     }
@@ -204,145 +100,48 @@ public partial class EquipmentIndexViewModel : ViewModelBase
     });
 
     [RelayCommand]
-    private void NewEquipment()
+    private Task NewEquipmentAsync() => OpenEditorAsync(null, false);
+
+    [RelayCommand]
+    private async Task EditEquipmentAsync()
     {
-        SelectedEquipment = null;
-        IsCreating = true;
-        EditorTitle = "新建设备";
-        EditTagNo = string.Empty;
-        EditName = string.Empty;
-        EditTypeCode = null;
-        EditDiscipline = "Instrument";
-        EditStatus = "Planned";
-        EditPbsNodeId = FilterPbsNode?.Id;
-        EditLocation = string.Empty;
-        EditDescription = string.Empty;
-        EditLoopNo = string.Empty;
-        EditQuantity = 1;
-        EditPipeEquipmentNo = string.Empty;
-        EditPurpose = string.Empty;
-        EditPidDrawingNo = string.Empty;
-        EditSpecNo = string.Empty;
-        EditSpecPageNo = string.Empty;
-        EditLoopDrawingNo = string.Empty;
-        EditInstallDrawingNo = string.Empty;
-        EditElectricalDrawingNo = string.Empty;
-        EditHeatSupplyDrawingNo = string.Empty;
-        EditAirSupplyDrawingNo = string.Empty;
-        EditLayingDrawingNo = string.Empty;
-        EditJunctionBoxDrawingNo = string.Empty;
-        EditKeyword = string.Empty;
-        EditIoSetting = string.Empty;
-        EditIndexNo = string.Empty;
-        EditSortOrder = 0;
-        EditProcessCondition = string.Empty;
-        EditSpecification = string.Empty;
-        StatusMessage = null;
+        if (SelectedEquipment is null)
+        {
+            ErrorMessage = "请先选择要编辑的设备";
+            return;
+        }
+
+        await OpenEditorAsync(SelectedEquipment, false);
     }
 
     [RelayCommand]
-    private Task SaveAsync() => RunAsync(async () =>
+    private async Task DuplicateEquipmentAsync()
     {
-        var project = _context.CurrentProject ?? throw new ApiException("请先在顶部选择项目");
-        if (string.IsNullOrWhiteSpace(EditTagNo) || string.IsNullOrWhiteSpace(EditName))
+        if (SelectedEquipment is null)
         {
-            throw new ApiException("设备位号和名称不能为空");
+            ErrorMessage = "请先选择要复制的设备";
+            return;
         }
 
-        EquipmentDto saved;
-        if (IsCreating)
-        {
-            saved = await _session.Api.CreateEquipmentAsync(project.Id, new CreateEquipmentRequest
-            {
-                PbsNodeId = EditPbsNodeId,
-                TagNo = EditTagNo.Trim(),
-                LoopNo = NullIfEmpty(EditLoopNo),
-                Name = EditName.Trim(),
-                TypeCode = NullIfEmpty(EditTypeCode),
-                Discipline = EditDiscipline,
-                Status = EditStatus,
-                Location = NullIfEmpty(EditLocation),
-                PipeEquipmentNo = NullIfEmpty(EditPipeEquipmentNo),
-                Quantity = EditQuantity,
-                Purpose = NullIfEmpty(EditPurpose),
-                PidDrawingNo = NullIfEmpty(EditPidDrawingNo),
-                SpecNo = NullIfEmpty(EditSpecNo),
-                SpecPageNo = NullIfEmpty(EditSpecPageNo),
-                LoopDrawingNo = NullIfEmpty(EditLoopDrawingNo),
-                InstallDrawingNo = NullIfEmpty(EditInstallDrawingNo),
-                ElectricalDrawingNo = NullIfEmpty(EditElectricalDrawingNo),
-                HeatSupplyDrawingNo = NullIfEmpty(EditHeatSupplyDrawingNo),
-                AirSupplyDrawingNo = NullIfEmpty(EditAirSupplyDrawingNo),
-                LayingDrawingNo = NullIfEmpty(EditLayingDrawingNo),
-                JunctionBoxDrawingNo = NullIfEmpty(EditJunctionBoxDrawingNo),
-                Keyword = NullIfEmpty(EditKeyword),
-                IoSetting = NullIfEmpty(EditIoSetting),
-                IndexNo = NullIfEmpty(EditIndexNo),
-                SortOrder = EditSortOrder,
-                Description = NullIfEmpty(EditDescription),
-                ProcessCondition = NullIfEmpty(EditProcessCondition),
-                Specification = NullIfEmpty(EditSpecification)
-            });
-            StatusMessage = "设备已创建";
-        }
-        else
-        {
-            if (SelectedEquipment is null)
-            {
-                throw new ApiException("请选择要编辑的设备");
-            }
-
-            saved = await _session.Api.UpdateEquipmentAsync(SelectedEquipment.Id, new UpdateEquipmentRequest
-            {
-                PbsNodeId = EditPbsNodeId,
-                TagNo = EditTagNo.Trim(),
-                LoopNo = NullIfEmpty(EditLoopNo),
-                Name = EditName.Trim(),
-                TypeCode = NullIfEmpty(EditTypeCode),
-                Discipline = EditDiscipline,
-                Status = EditStatus,
-                Location = NullIfEmpty(EditLocation),
-                PipeEquipmentNo = NullIfEmpty(EditPipeEquipmentNo),
-                Quantity = EditQuantity,
-                Purpose = NullIfEmpty(EditPurpose),
-                PidDrawingNo = NullIfEmpty(EditPidDrawingNo),
-                SpecNo = NullIfEmpty(EditSpecNo),
-                SpecPageNo = NullIfEmpty(EditSpecPageNo),
-                LoopDrawingNo = NullIfEmpty(EditLoopDrawingNo),
-                InstallDrawingNo = NullIfEmpty(EditInstallDrawingNo),
-                ElectricalDrawingNo = NullIfEmpty(EditElectricalDrawingNo),
-                HeatSupplyDrawingNo = NullIfEmpty(EditHeatSupplyDrawingNo),
-                AirSupplyDrawingNo = NullIfEmpty(EditAirSupplyDrawingNo),
-                LayingDrawingNo = NullIfEmpty(EditLayingDrawingNo),
-                JunctionBoxDrawingNo = NullIfEmpty(EditJunctionBoxDrawingNo),
-                Keyword = NullIfEmpty(EditKeyword),
-                IoSetting = NullIfEmpty(EditIoSetting),
-                IndexNo = NullIfEmpty(EditIndexNo),
-                SortOrder = EditSortOrder,
-                Description = NullIfEmpty(EditDescription),
-                ProcessCondition = NullIfEmpty(EditProcessCondition),
-                Specification = NullIfEmpty(EditSpecification)
-            });
-            StatusMessage = "设备已保存";
-        }
-
-        await LoadEquipmentsAsync(project.Id);
-        SelectedEquipment = Equipments.FirstOrDefault(x => x.Id == saved.Id);
-    });
+        await OpenEditorAsync(SelectedEquipment, true);
+    }
 
     [RelayCommand]
-    private Task DeleteAsync() => RunAsync(async () =>
+    private Task DeleteEquipmentAsync() => RunAsync(async () =>
     {
         if (SelectedEquipment is null)
         {
             throw new ApiException("请选择要删除的设备");
         }
 
+        if (!_dialogs.Confirm($"确定删除设备 {SelectedEquipment.TagNo} 吗？"))
+        {
+            return;
+        }
+
         await _session.Api.DeleteEquipmentAsync(SelectedEquipment.Id);
         StatusMessage = "设备已删除";
         SelectedEquipment = null;
-        IsCreating = true;
-        EditorTitle = "新建设备";
         var project = _context.CurrentProject;
         if (project is not null)
         {
@@ -350,49 +149,48 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         }
     });
 
-    private void OnProjectChanged(object? sender, EventArgs e)
+    private async Task OpenEditorAsync(EquipmentDto? equipment, bool isCopy)
     {
-        _ = RefreshAsync();
-    }
+        var project = _context.CurrentProject;
+        if (project is null)
+        {
+            ErrorMessage = "请先在顶部选择项目";
+            return;
+        }
 
-    partial void OnSelectedEquipmentChanged(EquipmentDto? value)
-    {
-        if (value is null)
+        var context = new EquipmentEditorContext(
+            equipment,
+            isCopy,
+            PbsEditorOptions.ToList(),
+            EquipmentTypes.ToList());
+        var request = _dialogs.EditEquipment(context);
+        if (request is null)
         {
             return;
         }
 
-        IsCreating = false;
-        EditorTitle = "编辑设备：" + value.TagNo;
-        EditTagNo = value.TagNo;
-        EditName = value.Name;
-        EditTypeCode = value.TypeCode;
-        EditDiscipline = value.Discipline;
-        EditStatus = value.Status ?? "Planned";
-        EditPbsNodeId = value.PbsNodeId;
-        EditLocation = value.Location ?? string.Empty;
-        EditDescription = value.Description ?? string.Empty;
-        EditLoopNo = value.LoopNo ?? string.Empty;
-        EditQuantity = value.Quantity;
-        EditPipeEquipmentNo = value.PipeEquipmentNo ?? string.Empty;
-        EditPurpose = value.Purpose ?? string.Empty;
-        EditPidDrawingNo = value.PidDrawingNo ?? string.Empty;
-        EditSpecNo = value.SpecNo ?? string.Empty;
-        EditSpecPageNo = value.SpecPageNo ?? string.Empty;
-        EditLoopDrawingNo = value.LoopDrawingNo ?? string.Empty;
-        EditInstallDrawingNo = value.InstallDrawingNo ?? string.Empty;
-        EditElectricalDrawingNo = value.ElectricalDrawingNo ?? string.Empty;
-        EditHeatSupplyDrawingNo = value.HeatSupplyDrawingNo ?? string.Empty;
-        EditAirSupplyDrawingNo = value.AirSupplyDrawingNo ?? string.Empty;
-        EditLayingDrawingNo = value.LayingDrawingNo ?? string.Empty;
-        EditJunctionBoxDrawingNo = value.JunctionBoxDrawingNo ?? string.Empty;
-        EditKeyword = value.Keyword ?? string.Empty;
-        EditIoSetting = value.IoSetting ?? string.Empty;
-        EditIndexNo = value.IndexNo ?? string.Empty;
-        EditSortOrder = value.SortOrder;
-        EditProcessCondition = value.ProcessCondition ?? string.Empty;
-        EditSpecification = value.Specification ?? string.Empty;
-        StatusMessage = null;
+        await RunAsync(async () =>
+        {
+            EquipmentDto saved;
+            if (equipment is null || isCopy)
+            {
+                saved = await _session.Api.CreateEquipmentAsync(project.Id, request);
+                StatusMessage = isCopy ? "设备已复制" : "设备已创建";
+            }
+            else
+            {
+                saved = await _session.Api.UpdateEquipmentAsync(equipment.Id, request);
+                StatusMessage = "设备已保存";
+            }
+
+            await LoadEquipmentsAsync(project.Id);
+            SelectedEquipment = Equipments.FirstOrDefault(x => x.Id == saved.Id);
+        });
+    }
+
+    private void OnProjectChanged(object? sender, EventArgs e)
+    {
+        _ = RefreshAsync();
     }
 
     private async Task LoadEquipmentsAsync(Guid projectId)
