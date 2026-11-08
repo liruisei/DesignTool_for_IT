@@ -17,7 +17,7 @@ public class EquipmentTests : ApiTestBase
     {
         await LoginAsync();
         var project = await GetDemoProjectAsync();
-        var root = await GetRootAsync(project.Id);
+        var root = await GetRootAsync();
         var tagNo = UniqueTag();
 
         var created = await CreateEquipmentAsync(project.Id, root.Id, tagNo);
@@ -85,10 +85,10 @@ public class EquipmentTests : ApiTestBase
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private async Task<PbsNodeDto> GetRootAsync(Guid projectId)
+    private async Task<PbsNodeDto> GetRootAsync()
     {
-        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/projects/{projectId}/pbs");
-        return nodes!.Single(x => x.ParentId is null);
+        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/plants/{PlantId}/pbs");
+        return nodes!.First(x => x.ParentId is null);
     }
 
     private async Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, Guid pbsNodeId, string tagNo)

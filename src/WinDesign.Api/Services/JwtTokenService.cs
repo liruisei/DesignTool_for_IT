@@ -9,7 +9,12 @@ namespace WinDesign.Api.Services;
 
 public interface IJwtTokenService
 {
-    (string Token, DateTime ExpiresAt) Create(User user, IEnumerable<string> roles, IEnumerable<string> permissions);
+    (string Token, DateTime ExpiresAt) Create(
+        User user,
+        IEnumerable<string> roles,
+        IEnumerable<string> permissions,
+        Guid? plantId = null,
+        Guid? projectId = null);
 }
 
 public sealed class JwtTokenService : IJwtTokenService
@@ -24,7 +29,9 @@ public sealed class JwtTokenService : IJwtTokenService
     public (string Token, DateTime ExpiresAt) Create(
         User user,
         IEnumerable<string> roles,
-        IEnumerable<string> permissions)
+        IEnumerable<string> permissions,
+        Guid? plantId = null,
+        Guid? projectId = null)
     {
         var claims = new List<Claim>
         {
@@ -33,6 +40,16 @@ public sealed class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Name, user.UserName),
             new("displayName", user.DisplayName)
         };
+
+        if (plantId is Guid plant)
+        {
+            claims.Add(new Claim("plantId", plant.ToString()));
+        }
+
+        if (projectId is Guid project)
+        {
+            claims.Add(new Claim("projectId", project.ToString()));
+        }
 
         foreach (var role in roles.Distinct(StringComparer.OrdinalIgnoreCase))
         {

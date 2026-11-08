@@ -10,6 +10,10 @@ using WinDesign.Infrastructure;
 
 namespace WinDesign.Api.Controllers;
 
+/// <summary>
+/// 设备归工厂所有，项目通过 project_equipments 决定设计范围。
+/// 索引表按当前工作区项目过滤；PBS 管理按当前工作区工厂校验。
+/// </summary>
 [Route("api")]
 public sealed class EquipmentsController : ApiControllerBase
 {
@@ -32,9 +36,20 @@ public sealed class EquipmentsController : ApiControllerBase
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        if (!await _db.Projects.AnyAsync(x => x.Id == projectId, ct))
+        if (EnsureWorkspaceProject(projectId) is ActionResult denied)
+        {
+            return denied;
+        }
+
+        var project = await _db.Projects.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == projectId, ct);
+        if (project is null)
         {
             return NotFound(new ApiError("项目不存在"));
+        }
+        if (!await CanAccessProjectAsync(projectId, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
         }
 
         page = Math.Max(1, page);
@@ -42,7 +57,8 @@ public sealed class EquipmentsController : ApiControllerBase
 
         var query = _db.Equipments
             .Include(x => x.PbsNode)
-            .Where(x => x.ProjectId == projectId)
+            .Where(x => x.PlantId == project.PlantId &&
+                        x.ProjectEquipments.Any(link => link.ProjectId == projectId))
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -89,7 +105,9 @@ public sealed class EquipmentsController : ApiControllerBase
             .Take(pageSize)
             .ToListAsync(ct);
 
-        return Ok(new PagedResult<EquipmentDto>(items.Select(ToDto).ToList(), total, page, pageSize));
+        var pathMap = await BuildPbsPathMapAsync(project.PlantId, ct);
+        return Ok(new PagedResult<EquipmentDto>(
+            items.Select(x => ToDto(x, projectId, pathMap)).ToList(), total, page, pageSize));
     }
 
     [HttpGet("equipments/{id:guid}")]
@@ -99,19 +117,48 @@ public sealed class EquipmentsController : ApiControllerBase
             .Include(x => x.PbsNode)
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == id, ct);
-        return equipment is null ? NotFound(new ApiError("设备不存在")) : Ok(ToDto(equipment));
+        if (equipment is null)
+        {
+            return NotFound(new ApiError("设备不存在"));
+        }
+        if (CurrentPlantId != equipment.PlantId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只能访问登录工作区中选定的工厂"));
+        }
+        if (!User.IsInRole("Admin") &&
+            CurrentProjectId is Guid projectId &&
+            !await _db.ProjectEquipments.AnyAsync(x => x.ProjectId == projectId && x.EquipmentId == id, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只能访问当前项目范围内的设备"));
+        }
+
+        var pathMap = await BuildPbsPathMapAsync(equipment.PlantId, ct);
+        return Ok(ToDto(equipment, CurrentProjectId, pathMap));
     }
 
     [HttpPost("projects/{projectId:guid}/equipments")]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<EquipmentDto>> Create(
         Guid projectId,
-        [FromBody] CreateEquipmentRequest request,
+        [FromBody] EquipmentUpsertRequest request,
         CancellationToken ct)
     {
-        if (!await _db.Projects.AnyAsync(x => x.Id == projectId, ct))
+        if (EnsureWorkspaceProject(projectId) is ActionResult denied)
+        {
+            return denied;
+        }
+
+        var project = await _db.Projects.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == projectId, ct);
+        if (project is null)
         {
             return NotFound(new ApiError("项目不存在"));
+        }
+        if (!await CanAccessProjectAsync(projectId, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
         }
 
         var tagNo = request.TagNo.Trim();
@@ -119,9 +166,9 @@ public sealed class EquipmentsController : ApiControllerBase
         {
             return BadRequest(new ApiError("设备位号和名称不能为空"));
         }
-        if (await _db.Equipments.AnyAsync(x => x.ProjectId == projectId && x.TagNo == tagNo, ct))
+        if (await _db.Equipments.AnyAsync(x => x.PlantId == project.PlantId && x.TagNo == tagNo, ct))
         {
-            return Conflict(new ApiError("设备位号已存在"));
+            return Conflict(new ApiError("该工厂下设备位号已存在"));
         }
         if (!Enum.TryParse<Discipline>(request.Discipline, true, out var discipline))
         {
@@ -136,16 +183,16 @@ public sealed class EquipmentsController : ApiControllerBase
         if (request.PbsNodeId is Guid pbsNodeId)
         {
             var valid = await _db.PbsNodes
-                .AnyAsync(x => x.Id == pbsNodeId && x.ProjectId == projectId, ct);
+                .AnyAsync(x => x.Id == pbsNodeId && x.PlantId == project.PlantId, ct);
             if (!valid)
             {
-                return BadRequest(new ApiError("PBS 节点不存在或不属于当前项目"));
+                return BadRequest(new ApiError("PBS 节点不存在或不属于当前工厂"));
             }
         }
 
         var equipment = new Equipment
         {
-            ProjectId = projectId,
+            PlantId = project.PlantId,
             PbsNodeId = request.PbsNodeId,
             TagNo = tagNo,
             LoopNo = Clean(request.LoopNo),
@@ -176,19 +223,26 @@ public sealed class EquipmentsController : ApiControllerBase
             Specification = Clean(request.Specification)
         };
         _db.Equipments.Add(equipment);
+        // 在当前项目下创建，设备自动纳入该项目范围。
+        _db.ProjectEquipments.Add(new ProjectEquipment
+        {
+            ProjectId = projectId,
+            EquipmentId = equipment.Id
+        });
         _db.AddAudit(CurrentUserId, CurrentUserName, "Create", "Equipment", equipment.Id.ToString(), tagNo);
         await _db.SaveChangesAsync(ct);
 
         var created = await _db.Equipments.Include(x => x.PbsNode).AsNoTracking()
             .SingleAsync(x => x.Id == equipment.Id, ct);
-        return Ok(ToDto(created));
+        var createdPaths = await BuildPbsPathMapAsync(project.PlantId, ct);
+        return Ok(ToDto(created, projectId, createdPaths));
     }
 
     [HttpPut("equipments/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<EquipmentDto>> Update(
         Guid id,
-        [FromBody] UpdateEquipmentRequest request,
+        [FromBody] EquipmentUpsertRequest request,
         CancellationToken ct)
     {
         var equipment = await _db.Equipments.Include(x => x.PbsNode)
@@ -197,15 +251,32 @@ public sealed class EquipmentsController : ApiControllerBase
         {
             return NotFound(new ApiError("设备不存在"));
         }
+        if (CurrentPlantId != equipment.PlantId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只能访问登录工作区中选定的工厂"));
+        }
+
+        var projectId = CurrentProjectId;
+        if (!User.IsInRole("Admin") && projectId is Guid currentProjectId)
+        {
+            var inScope = await _db.ProjectEquipments
+                .AnyAsync(x => x.ProjectId == currentProjectId && x.EquipmentId == id, ct);
+            if (!inScope)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new ApiError("只能修改当前项目范围内的设备"));
+            }
+        }
 
         var tagNo = request.TagNo.Trim();
         if (string.IsNullOrWhiteSpace(tagNo) || string.IsNullOrWhiteSpace(request.Name))
         {
             return BadRequest(new ApiError("设备位号和名称不能为空"));
         }
-        if (await _db.Equipments.AnyAsync(x => x.ProjectId == equipment.ProjectId && x.TagNo == tagNo && x.Id != id, ct))
+        if (await _db.Equipments.AnyAsync(x => x.PlantId == equipment.PlantId && x.TagNo == tagNo && x.Id != id, ct))
         {
-            return Conflict(new ApiError("设备位号已存在"));
+            return Conflict(new ApiError("该工厂下设备位号已存在"));
         }
         if (!Enum.TryParse<Discipline>(request.Discipline, true, out var discipline))
         {
@@ -220,10 +291,10 @@ public sealed class EquipmentsController : ApiControllerBase
         if (request.PbsNodeId is Guid pbsNodeId)
         {
             var valid = await _db.PbsNodes
-                .AnyAsync(x => x.Id == pbsNodeId && x.ProjectId == equipment.ProjectId, ct);
+                .AnyAsync(x => x.Id == pbsNodeId && x.PlantId == equipment.PlantId, ct);
             if (!valid)
             {
-                return BadRequest(new ApiError("PBS 节点不存在或不属于当前项目"));
+                return BadRequest(new ApiError("PBS 节点不存在或不属于当前工厂"));
             }
         }
 
@@ -262,7 +333,8 @@ public sealed class EquipmentsController : ApiControllerBase
 
         var updated = await _db.Equipments.Include(x => x.PbsNode).AsNoTracking()
             .SingleAsync(x => x.Id == equipment.Id, ct);
-        return Ok(ToDto(updated));
+        var updatedPaths = await BuildPbsPathMapAsync(equipment.PlantId, ct);
+        return Ok(ToDto(updated, projectId, updatedPaths));
     }
 
     [HttpDelete("equipments/{id:guid}")]
@@ -273,6 +345,21 @@ public sealed class EquipmentsController : ApiControllerBase
         if (equipment is null)
         {
             return NotFound(new ApiError("设备不存在"));
+        }
+        if (CurrentPlantId != equipment.PlantId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只能访问登录工作区中选定的工厂"));
+        }
+        if (!User.IsInRole("Admin") && CurrentProjectId is Guid projectId)
+        {
+            var inScope = await _db.ProjectEquipments
+                .AnyAsync(x => x.ProjectId == projectId && x.EquipmentId == id, ct);
+            if (!inScope)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new ApiError("只能删除当前项目范围内的设备"));
+            }
         }
         if (await _db.EquipmentSpecs.AnyAsync(x => x.EquipmentId == id, ct))
         {
@@ -289,12 +376,61 @@ public sealed class EquipmentsController : ApiControllerBase
         return NoContent();
     }
 
-    private static EquipmentDto ToDto(Equipment equipment) => new()
+    private async Task<bool> CanAccessProjectAsync(Guid projectId, CancellationToken ct) =>
+        User.IsInRole("Admin") ||
+        await _db.ProjectMembers.AnyAsync(x => x.ProjectId == projectId && x.UserId == CurrentUserId, ct);
+
+    private async Task<Dictionary<Guid, string>> BuildPbsPathMapAsync(
+        Guid plantId,
+        CancellationToken ct)
+    {
+        var nodes = await _db.PbsNodes
+            .Where(x => x.PlantId == plantId)
+            .AsNoTracking()
+            .ToListAsync(ct);
+        var byId = nodes.ToDictionary(x => x.Id);
+        var cache = new Dictionary<Guid, string>();
+
+        string Build(PbsNode node)
+        {
+            if (cache.TryGetValue(node.Id, out var cached))
+            {
+                return cached;
+            }
+
+            var parts = new List<string>();
+            var current = node;
+            while (current is not null)
+            {
+                parts.Add(current.Code + " " + current.Name);
+                current = current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent)
+                    ? parent
+                    : null!;
+            }
+
+            parts.Reverse();
+            var path = string.Join(" / ", parts);
+            cache[node.Id] = path;
+            return path;
+        }
+
+        return nodes.ToDictionary(x => x.Id, x => Build(x));
+    }
+
+    private static EquipmentDto ToDto(
+        Equipment equipment,
+        Guid? currentProjectId,
+        IReadOnlyDictionary<Guid, string>? pbsPaths = null) => new()
     {
         Id = equipment.Id,
-        ProjectId = equipment.ProjectId,
+        PlantId = equipment.PlantId,
+        ProjectId = currentProjectId ?? Guid.Empty,
         PbsNodeId = equipment.PbsNodeId,
         PbsNodeName = equipment.PbsNode?.Name,
+        PbsPath = equipment.PbsNodeId is Guid pbsNodeId && pbsPaths is not null &&
+                  pbsPaths.TryGetValue(pbsNodeId, out var pbsPath)
+            ? pbsPath
+            : null,
         TagNo = equipment.TagNo,
         LoopNo = equipment.LoopNo,
         Name = equipment.Name,

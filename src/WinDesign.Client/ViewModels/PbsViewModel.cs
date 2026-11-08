@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDesign.Client.Services;
+using WinDesign.Contracts.Dictionaries;
+using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 
 namespace WinDesign.Client.ViewModels;
@@ -13,7 +15,33 @@ public partial class PbsNodeItem : ObservableObject
         Node = node;
     }
 
-    public PbsNodeDto Node { get; }
+    public PbsNodeItem(EquipmentDto equipment)
+    {
+        Equipment = equipment;
+    }
+
+    public PbsNodeDto? Node { get; }
+    public EquipmentDto? Equipment { get; }
+
+    public bool IsNode => Node is not null;
+    public bool IsEquipment => Equipment is not null;
+    public string HeaderCode => Node?.Code ?? Equipment?.TagNo ?? string.Empty;
+    public string HeaderName => Node?.Name ?? Equipment?.Name ?? string.Empty;
+    public int EquipmentCount => Node?.EquipmentCount ?? 0;
+
+    public string Glyph => IsEquipment
+        ? "◦"
+        : Node?.NodeType switch
+        {
+            "Root" => "⌂",
+            "Area" => "▦",
+            "Unit" => "▣",
+            "Loop" => "◇",
+            "System" => "◇",
+            "SubSystem" => "·",
+            _ => "·"
+        };
+
     public ObservableCollection<PbsNodeItem> Children { get; } = new();
 
     [ObservableProperty]
@@ -21,16 +49,6 @@ public partial class PbsNodeItem : ObservableObject
 
     [ObservableProperty]
     private bool isSelected;
-
-    public string Glyph => Node.NodeType switch
-    {
-        "Root" => "⌂",
-        "Area" => "▦",
-        "Unit" => "▣",
-        "System" => "◇",
-        "SubSystem" => "·",
-        _ => "·"
-    };
 }
 
 public sealed record PbsNodeOption(Guid? Id, string Display);
@@ -42,15 +60,19 @@ public partial class PbsViewModel : ViewModelBase
     private readonly SessionService _session;
     private readonly ProjectContext _context;
     private readonly IPbsDialogService _dialogs;
+    private readonly IEquipmentDialogService _equipmentDialogs;
+    private Dictionary<Guid, PbsNodeDto> _nodes = new();
 
     public ObservableCollection<PbsNodeItem> Roots { get; } = new();
     public ObservableCollection<PbsNodeOption> ParentOptions { get; } = new();
+    public ObservableCollection<PbsNodeOption> PbsEditorOptions { get; } = new();
+    public ObservableCollection<DictionaryItemDto> EquipmentTypes { get; } = new();
 
     public IReadOnlyList<PbsNodeTypeOption> NodeTypeOptions { get; } = new[]
     {
-        new PbsNodeTypeOption("Root", "根节点"),
         new PbsNodeTypeOption("Area", "区域"),
         new PbsNodeTypeOption("Unit", "装置"),
+        new PbsNodeTypeOption("Loop", "回路"),
         new PbsNodeTypeOption("System", "系统"),
         new PbsNodeTypeOption("SubSystem", "子系统")
     };
@@ -63,46 +85,74 @@ public partial class PbsViewModel : ViewModelBase
 
     public ProjectContext Context => _context;
 
-    public PbsViewModel(SessionService session, ProjectContext context, IPbsDialogService? dialogs = null)
+    public string PlantName => _session.Plant?.Name ?? "未选择工厂";
+
+    public string ProjectName => _session.Project?.Name ?? "未选择项目";
+
+    public PbsViewModel(
+        SessionService session,
+        ProjectContext context,
+        IPbsDialogService? dialogs = null,
+        IEquipmentDialogService? equipmentDialogs = null)
     {
         _session = session;
         _context = context;
         _dialogs = dialogs ?? new PbsDialogService();
-        Title = "工厂 PBS";
+        _equipmentDialogs = equipmentDialogs ?? new EquipmentDialogService();
+        Title = "PBS管理";
         _context.ProjectChanged += OnProjectChanged;
         _ = RefreshAsync();
     }
 
+    public override void Dispose() => _context.ProjectChanged -= OnProjectChanged;
+
     public override Task RefreshAsync() => RunAsync(async () =>
     {
         var project = _context.CurrentProject;
-        if (project is null)
+        var plantId = _session.PlantId;
+        if (project is null || plantId is null)
         {
             Roots.Clear();
             ParentOptions.Clear();
+            PbsEditorOptions.Clear();
+            EquipmentTypes.Clear();
             SelectedNode = null;
             return;
         }
 
-        var nodes = await _session.Api.GetPbsNodesAsync(project.Id);
-        BuildTree(nodes);
+        var types = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
+        EquipmentTypes.Clear();
+        foreach (var type in types)
+        {
+            EquipmentTypes.Add(type);
+        }
+
+        var nodes = await _session.Api.GetPbsNodesAsync(plantId.Value);
+        var equipments = await _session.Api.GetEquipmentsAsync(project.Id, pageSize: 2000);
+        _nodes = nodes.ToDictionary(x => x.Id);
+
+        BuildTree(nodes, equipments.Items);
         BuildParentOptions();
 
-        if (SelectedNode is not null)
+        if (SelectedNode?.Node is { } selectedNode && _nodes.ContainsKey(selectedNode.Id))
         {
-            SelectedNode = FindItem(Roots, SelectedNode.Node.Id);
+            SelectedNode = FindNodeItem(Roots, selectedNode.Id);
+        }
+        else if (SelectedNode?.Equipment is { } selectedEquipment)
+        {
+            SelectedNode = FindEquipmentItem(Roots, selectedEquipment.Id);
         }
     });
 
     [RelayCommand]
-    private Task NewRootAsync() => OpenEditorAsync(null, null);
+    private Task NewTopLevelAsync() => OpenEditorAsync(null, null);
 
     [RelayCommand]
     private async Task NewChildAsync()
     {
-        if (SelectedNode is null)
+        if (SelectedNode?.Node is null)
         {
-            ErrorMessage = "请先选择一个上级节点";
+            ErrorMessage = "请先选择一个 PBS 节点";
             return;
         }
 
@@ -112,26 +162,26 @@ public partial class PbsViewModel : ViewModelBase
     [RelayCommand]
     private async Task NewSiblingAsync()
     {
-        if (SelectedNode is null)
+        if (SelectedNode?.Node is null)
         {
-            ErrorMessage = "请先选择一个节点";
+            ErrorMessage = "请先选择一个 PBS 节点";
             return;
         }
-        if (SelectedNode.Node.ParentId is null)
-        {
-            ErrorMessage = "根节点没有同级节点，请使用“新建子节点”";
-            return;
-        }
-
+        // 顶层节点（ParentId 为空）也可以新建同级，即工厂下的另一个区域。
         await OpenEditorAsync(null, SelectedNode.Node.ParentId);
     }
 
     [RelayCommand]
     private async Task EditNodeAsync()
     {
-        if (SelectedNode is null)
+        if (SelectedNode?.Equipment is not null)
         {
-            ErrorMessage = "请选择要编辑的节点";
+            await EditEquipmentAsync();
+            return;
+        }
+        if (SelectedNode?.Node is null)
+        {
+            ErrorMessage = "请选择要编辑的节点或设备";
             return;
         }
 
@@ -141,9 +191,14 @@ public partial class PbsViewModel : ViewModelBase
     [RelayCommand]
     private Task DeleteNodeAsync() => RunAsync(async () =>
     {
-        if (SelectedNode is null)
+        if (SelectedNode?.Equipment is not null)
         {
-            throw new ApiException("请选择要删除的节点");
+            await DeleteEquipmentCoreAsync(SelectedNode.Equipment);
+            return;
+        }
+        if (SelectedNode?.Node is null)
+        {
+            throw new ApiException("请选择要删除的节点或设备");
         }
 
         if (!_dialogs.Confirm($"确定删除节点“{SelectedNode.Node.Code} {SelectedNode.Node.Name}”吗？"))
@@ -158,17 +213,88 @@ public partial class PbsViewModel : ViewModelBase
     });
 
     [RelayCommand]
+    private Task AddEquipmentAsync() => RunAsync(async () =>
+    {
+        var project = _context.CurrentProject ?? throw new ApiException("请先选择工作区项目");
+        var pbsNodeId = SelectedNode?.Node?.Id ?? SelectedNode?.Equipment?.PbsNodeId;
+        if (pbsNodeId is null)
+        {
+            throw new ApiException("请选择一个装置或回路节点");
+        }
+
+        var context = new EquipmentEditorContext(
+            null,
+            false,
+            PbsEditorOptions.ToList(),
+            EquipmentTypes.ToList(),
+            pbsNodeId,
+            FindLoopNo(pbsNodeId.Value));
+        var request = _equipmentDialogs.EditEquipment(context);
+        if (request is null)
+        {
+            return;
+        }
+
+        var saved = await _session.Api.CreateEquipmentAsync(project.Id, request);
+        await RefreshAsync();
+        SelectedNode = FindEquipmentItem(Roots, saved.Id);
+        StatusMessage = "设备已创建并写入索引表";
+    });
+
+    [RelayCommand]
     private void ExpandAll() => SetExpanded(true);
 
     [RelayCommand]
     private void CollapseAll() => SetExpanded(false);
 
+    private async Task EditEquipmentAsync()
+    {
+        var equipment = SelectedNode?.Equipment;
+        if (equipment is null)
+        {
+            ErrorMessage = "请选择要编辑的设备";
+            return;
+        }
+
+        var context = new EquipmentEditorContext(
+            equipment,
+            false,
+            PbsEditorOptions.ToList(),
+            EquipmentTypes.ToList());
+        var request = _equipmentDialogs.EditEquipment(context);
+        if (request is null)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var saved = await _session.Api.UpdateEquipmentAsync(equipment.Id, request);
+            await RefreshAsync();
+            SelectedNode = FindEquipmentItem(Roots, saved.Id);
+            StatusMessage = "设备已保存";
+        });
+    }
+
+    private async Task DeleteEquipmentCoreAsync(EquipmentDto equipment)
+    {
+        if (!_dialogs.Confirm($"确定删除设备 {equipment.TagNo} 吗？"))
+        {
+            return;
+        }
+
+        await _session.Api.DeleteEquipmentAsync(equipment.Id);
+        StatusMessage = "设备已删除";
+        SelectedNode = null;
+        await RefreshAsync();
+    }
+
     private async Task OpenEditorAsync(PbsNodeDto? node, Guid? defaultParentId)
     {
-        var project = _context.CurrentProject;
-        if (project is null)
+        var plantId = _session.PlantId;
+        if (plantId is null)
         {
-            ErrorMessage = "请先在顶部选择项目";
+            ErrorMessage = "请先选择工作区工厂";
             return;
         }
 
@@ -184,7 +310,7 @@ public partial class PbsViewModel : ViewModelBase
             PbsNodeDto saved;
             if (node is null)
             {
-                saved = await _session.Api.CreatePbsNodeAsync(project.Id, new CreatePbsNodeRequest(
+                saved = await _session.Api.CreatePbsNodeAsync(plantId.Value, new CreatePbsNodeRequest(
                     result.ParentId,
                     result.Code,
                     result.Name,
@@ -206,7 +332,7 @@ public partial class PbsViewModel : ViewModelBase
             }
 
             await RefreshAsync();
-            SelectedNode = FindItem(Roots, saved.Id);
+            SelectedNode = FindNodeItem(Roots, saved.Id);
         });
     }
 
@@ -215,15 +341,15 @@ public partial class PbsViewModel : ViewModelBase
         _ = RefreshAsync();
     }
 
-    private void BuildTree(IReadOnlyList<PbsNodeDto> nodes)
+    private void BuildTree(IReadOnlyList<PbsNodeDto> nodes, IReadOnlyList<EquipmentDto> equipments)
     {
         Roots.Clear();
         var map = nodes.ToDictionary(x => x.Id, x => new PbsNodeItem(x));
         foreach (var item in map.Values
-                     .OrderBy(x => x.Node.SortOrder)
-                     .ThenBy(x => x.Node.Code, StringComparer.OrdinalIgnoreCase))
+                     .OrderBy(x => x.Node!.SortOrder)
+                     .ThenBy(x => x.Node!.Code, StringComparer.OrdinalIgnoreCase))
         {
-            if (item.Node.ParentId is Guid parentId && map.TryGetValue(parentId, out var parent))
+            if (item.Node!.ParentId is Guid parentId && map.TryGetValue(parentId, out var parent))
             {
                 parent.Children.Add(item);
             }
@@ -232,19 +358,43 @@ public partial class PbsViewModel : ViewModelBase
                 Roots.Add(item);
             }
         }
+
+        var equipmentByNode = equipments
+            .Where(x => x.PbsNodeId is not null)
+            .GroupBy(x => x.PbsNodeId!.Value);
+        foreach (var group in equipmentByNode)
+        {
+            if (!map.TryGetValue(group.Key, out var parent))
+            {
+                continue;
+            }
+            foreach (var equipment in group.OrderBy(x => x.TagNo, StringComparer.OrdinalIgnoreCase))
+            {
+                parent.Children.Add(new PbsNodeItem(equipment));
+            }
+        }
     }
 
     private void BuildParentOptions()
     {
         ParentOptions.Clear();
         ParentOptions.Add(new PbsNodeOption(null, "（无 / 根节点）"));
+        PbsEditorOptions.Clear();
+        PbsEditorOptions.Add(new PbsNodeOption(null, "（未分配）"));
 
         void Walk(IEnumerable<PbsNodeItem> items, int depth)
         {
             foreach (var item in items)
             {
+                if (item.Node is null)
+                {
+                    continue;
+                }
+
                 var indent = depth == 0 ? string.Empty : new string('·', depth * 2) + " ";
-                ParentOptions.Add(new PbsNodeOption(item.Node.Id, indent + item.Node.Code + "  " + item.Node.Name));
+                var display = indent + item.Node.Code + "  " + item.Node.Name;
+                ParentOptions.Add(new PbsNodeOption(item.Node.Id, display));
+                PbsEditorOptions.Add(new PbsNodeOption(item.Node.Id, display));
                 Walk(item.Children, depth + 1);
             }
         }
@@ -252,15 +402,47 @@ public partial class PbsViewModel : ViewModelBase
         Walk(Roots, 0);
     }
 
-    private static PbsNodeItem? FindItem(IEnumerable<PbsNodeItem> items, Guid id)
+    private string? FindLoopNo(Guid nodeId)
+    {
+        var current = _nodes.GetValueOrDefault(nodeId);
+        var guard = 0;
+        while (current is not null && guard++ < 200)
+        {
+            if (current.NodeType == "Loop")
+            {
+                return current.Code;
+            }
+            current = current.ParentId is Guid parentId ? _nodes.GetValueOrDefault(parentId) : null;
+        }
+        return null;
+    }
+
+    private static PbsNodeItem? FindNodeItem(IEnumerable<PbsNodeItem> items, Guid id)
     {
         foreach (var item in items)
         {
-            if (item.Node.Id == id)
+            if (item.Node?.Id == id)
             {
                 return item;
             }
-            var found = FindItem(item.Children, id);
+            var found = FindNodeItem(item.Children, id);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static PbsNodeItem? FindEquipmentItem(IEnumerable<PbsNodeItem> items, Guid id)
+    {
+        foreach (var item in items)
+        {
+            if (item.Equipment?.Id == id)
+            {
+                return item;
+            }
+            var found = FindEquipmentItem(item.Children, id);
             if (found is not null)
             {
                 return found;

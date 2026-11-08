@@ -3,11 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="370" />
+            <ColumnDefinition Width="*" MinWidth="320" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition x:Name="EditorColumn" Width="380" MinWidth="0" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,16,0">
+        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -20,14 +21,22 @@
                         <ColumnDefinition Width="220" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="项目列表" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="项目配置" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+                        <TextBlock Style="{StaticResource MutedText}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding PlantName, StringFormat=工厂：{0}}" />
+                    </StackPanel>
                     <TextBox Grid.Column="1" Style="{StaticResource Input}"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
                     <Button Grid.Column="2" Content="查询" Command="{Binding SearchCommand}"
                             Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
                     <Button Grid.Column="3" Content="新建" Command="{Binding NewProjectCommand}"
                             Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
+                    <Button Grid.Column="4" x:Name="ToggleEditorButton" Content="收起编辑"
+                            Style="{StaticResource ToolButton}" Margin="8,0,0,0"
+                            Click="OnToggleEditorClick" ToolTip="收起/展开右侧编辑栏" />
                 </Grid>
 
                 <DataGrid Grid.Row="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}">
@@ -47,7 +56,14 @@
             </Grid>
         </Border>
 
-        <Border Grid.Column="1" Style="{StaticResource Card}">
+        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      Background="{StaticResource BorderBrush}" Cursor="SizeWE"
+                      ResizeBehavior="PreviousAndNext" ResizeDirection="Columns"
+                      ToolTip="拖动调整编辑栏宽度；向左拖到底可收起" />
+
+        <Border Grid.Column="2" x:Name="EditorPanel" ClipToBounds="True"
+                Style="{StaticResource Card}" Margin="4,0,0,0" SizeChanged="OnEditorPanelSizeChanged"
+                LostKeyboardFocus="OnEditorLostKeyboardFocus">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource SectionTitle}" />

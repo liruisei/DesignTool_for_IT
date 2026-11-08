@@ -19,10 +19,13 @@
     <SolidColorBrush x:Key="SuccessBrush" Color="#067647" />
     <SolidColorBrush x:Key="WarningBrush" Color="#B54708" />
 
+    <!-- 表格网格线：纵向线需比横向线更清晰，便于定位列边界、拖动列宽 -->
+    <SolidColorBrush x:Key="GridLineHorizontalBrush" Color="#EDEDED" />
+    <SolidColorBrush x:Key="GridLineVerticalBrush" Color="#D0D0D0" />
+
     <Style TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
         <Setter Property="FontSize" Value="12.5" />
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="PageTitle" TargetType="TextBlock">
@@ -74,7 +77,8 @@
                 <ControlTemplate TargetType="Button">
                     <Border Background="{TemplateBinding Background}" CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -103,7 +107,8 @@
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -200,7 +205,7 @@
     <Style TargetType="DataGrid">
         <Setter Property="Background" Value="White" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="GridLinesVisibility" Value="All" />
         <Setter Property="HeadersVisibility" Value="Column" />
         <Setter Property="RowHeight" Value="28" />
         <Setter Property="ColumnHeaderHeight" Value="30" />
@@ -209,19 +214,23 @@
         <Setter Property="IsReadOnly" Value="True" />
         <Setter Property="SelectionMode" Value="Single" />
         <Setter Property="AlternatingRowBackground" Value="#FAFAFA" />
-        <Setter Property="HorizontalGridLinesBrush" Value="#EDEDED" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource GridLineHorizontalBrush}" />
+        <Setter Property="VerticalGridLinesBrush" Value="{StaticResource GridLineVerticalBrush}" />
+        <Setter Property="CanUserResizeColumns" Value="True" />
+        <Setter Property="CanUserSortColumns" Value="True" />
+        <Setter Property="MinColumnWidth" Value="40" />
         <Setter Property="ColumnHeaderStyle">
             <Setter.Value>
                 <Style TargetType="DataGridColumnHeader">
                     <Setter Property="Background" Value="#FAFAFA" />
-                    <Setter Property="Height" Value="34" />
                     <Setter Property="Padding" Value="8,0" />
                     <Setter Property="FontWeight" Value="SemiBold" />
                     <Setter Property="FontSize" Value="11.5" />
                     <Setter Property="VerticalContentAlignment" Value="Center" />
-                    <Setter Property="HorizontalContentAlignment" Value="Left" />
-                    <Setter Property="BorderThickness" Value="0,0,0,1" />
-                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <!-- 右边框即列分隔线，也是默认模板中列宽拖动手柄的位置 -->
+                    <Setter Property="BorderThickness" Value="0,0,1,1" />
+                    <Setter Property="BorderBrush" Value="{StaticResource GridLineVerticalBrush}" />
                 </Style>
             </Setter.Value>
         </Setter>
@@ -252,7 +261,7 @@
                 <ControlTemplate TargetType="ListBoxItem">
                     <Border x:Name="Bd" Background="Transparent" CornerRadius="8"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter />
+                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -294,7 +303,8 @@
                 <ControlTemplate TargetType="Button">
                     <Border Background="{TemplateBinding Background}" CornerRadius="3"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -339,7 +349,8 @@
                         <Grid>
                             <Border x:Name="Accent" Height="2" VerticalAlignment="Top" Background="Transparent" />
                             <ContentPresenter ContentSource="Header" Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="Center" />
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -370,7 +381,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border Background="{TemplateBinding Background}" CornerRadius="2">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -380,6 +392,14 @@
                 <Setter Property="Background" Value="#E8E8E8" />
             </Trigger>
         </Style.Triggers>
+    </Style>
+
+    <Style x:Key="HeaderFilterBox" TargetType="TextBox" BasedOn="{StaticResource Input}">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="4,0" />
+        <Setter Property="Margin" Value="0,3,0,0" />
+        <Setter Property="FontWeight" Value="Normal" />
     </Style>
 
     <Style x:Key="ExplorerTree" TargetType="TreeView">

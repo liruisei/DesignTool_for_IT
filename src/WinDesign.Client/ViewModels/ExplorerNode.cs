@@ -19,4 +19,5 @@ public sealed class DocumentTab
     public required string Title { get; init; }
     public required ViewModelBase ViewModel { get; init; }
     public bool IsClosable { get; init; } = true;
+    public bool HasBeenActivated { get; set; }
 }

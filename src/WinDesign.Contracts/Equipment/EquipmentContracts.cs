@@ -34,18 +34,13 @@ public record EquipmentUpsertRequest
     public string? Specification { get; init; }
 }
 
-public sealed record CreateEquipmentRequest : EquipmentUpsertRequest
-{
-}
-
-public sealed record UpdateEquipmentRequest : EquipmentUpsertRequest
-{
-}
-
 public sealed record EquipmentDto : EquipmentUpsertRequest
 {
     public Guid Id { get; init; }
+    public Guid PlantId { get; init; }
+    /// <summary>当前项目范围（登录时选定的项目）；设备本身归工厂所有。</summary>
     public Guid ProjectId { get; init; }
     public string? PbsNodeName { get; init; }
+    public string? PbsPath { get; init; }
     public DateTime CreatedAt { get; init; }
 }

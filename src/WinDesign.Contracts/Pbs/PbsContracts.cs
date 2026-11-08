@@ -2,7 +2,7 @@ namespace WinDesign.Contracts.Pbs;
 
 public sealed record PbsNodeDto(
     Guid Id,
-    Guid ProjectId,
+    Guid PlantId,
     Guid? ParentId,
     string Code,
     string Name,

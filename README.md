@@ -4,7 +4,7 @@
 
 C/S 架构的工程设计软件骨架：WPF 桌面客户端 + ASP.NET Core 服务端 + PostgreSQL（开发环境可切 SQLite）。
 
-当前为 **v0.4 第一阶段**：项目信息录入、工厂 PBS 搭建、索引表录入已打通；界面按 SmartPlant Instrumentation 的“Explorer + 多文档 + 高密度网格”模式重做；设备规格、材料附件、报表输出作为第二阶段。
+当前为 **v0.7 工厂—项目模型重构**：**工厂（企业）就是 PBS 根节点**，一个工厂可以承载多个项目；PBS 与设备归工厂所有，项目只是设计与报表范围（同一设备可纳入多个项目）。登录后必须依次选择「工厂 → 项目」，服务端按所选项目范围过滤数据；左侧导航调整为：项目下保留索引表/规格/材料/报表，**项目配置**与 **PBS管理** 移入「系统」。设备规格、材料附件、报表输出仍为第二阶段。
 
 ---
 
@@ -56,6 +56,7 @@ dotnet run --project src/WinDesign.Api --launch-profile http
 - Swagger：<http://localhost:5080/swagger>
 - 健康检查：<http://localhost:5080/health>
 - 首次启动自动创建 `src/WinDesign.Api/windesign.db` 并写入种子数据。
+- 种子数据：2 个工厂（PLANT-A / PLANT-B）；PLANT-A 下 2 个项目（DEMO-001 / DEMO-002），设备 PT-1001 同时纳入两个项目。
 
 ### 3.2 启动客户端
 
@@ -65,6 +66,12 @@ dotnet run --project src/WinDesign.Api --launch-profile http
 cd WinDesign
 dotnet run --project src/WinDesign.Client
 ```
+
+登录成功后会弹出**工作区选择**：先单击工厂（PBS 根节点），再在项目列表中单击选中、**双击直接进入**（也可点「进入工作区」）。非管理员只会看到自己参与的项目；进入主界面后，所有数据接口都按该工厂/项目范围授权。
+
+进入主界面后，可通过工具栏的 **⇄ 切换工作区** 或「文件 → 切换工作区」在同厂不同项目（或不同工厂）之间切换。选择窗口会预选当前工厂/项目；**切换前会先自动保存**当前打开文档中尚未提交的表单编辑（索引表、PBS 等弹窗式编辑本身即时保存），若保存失败则取消切换。切换成功后重新签发令牌，并关闭旧文档、按新工作区打开索引表。
+
+表单模块的保存规则：**编辑已有记录**时，鼠标点击表单外的其他区域即自动保存；**新建记录**必须点击「保存」按钮才会创建，切换工作区也不会自动创建半成品记录。
 
 ### 3.3 默认账号
 
@@ -81,13 +88,16 @@ dotnet run --project src/WinDesign.Client
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 登录 | ✅ | 服务器地址、账号密码、JWT、错误提示、记住服务器/用户名 |
-| 主界面 | ✅ | 左侧导航、顶部项目选择、刷新、当前用户/角色、退出 |
-| 工作台 | ✅ | 用户/项目/编码类型/设备统计、最近项目 |
-| 项目信息录入 | ✅ | 项目代号/名称/客户/地点/阶段/开工与完成日期/说明，列表、搜索、编辑、归档 |
+| 工作区选择 | ✅ | 登录后先选工厂（PBS 根节点）再选项目；非管理员只看到参与的项目；换取带范围声明的新令牌 |
+| 切换工作区 | ✅ | 主界面工具栏/文件菜单可随时切换工厂或项目（预选当前工作区）；切换前自动保存待提交编辑，成功后关闭并重建当前文档，无需重新登录 |
+| 表单自动保存 | ✅ | 项目配置/编码定义/用户管理：编辑已有记录后，点击表单外的任意区域即自动保存；新建记录必须点击「保存」按钮才会创建 |
+| 主界面 | ✅ | 左侧导航、顶部工厂/项目上下文、刷新、当前用户/角色、退出 |
+| 工作台 | ✅ | 按当前工厂/项目统计用户、项目、编码类型、设备 |
+| 项目配置 | ✅ | 系统下的项目维护：项目代号/名称/客户/地点/阶段/日期/状态，列表、搜索、编辑、归档（只显示当前工厂） |
 | 编码定义 | ✅ | 编码类型 + 编码项两级维护，系统类型保护 |
 | 用户管理 | ✅ | 列表、搜索、新建、编辑、角色分配、重置密码、启用/停用、管理员保护 |
-| 工厂 PBS | ✅ | 树形维护、区域/装置/系统/子系统、节点编码、设备挂接与设备计数 |
-| 索引表录入 | ✅ | 位号/回路号/名称/类型/专业/状态/数量/用途/安装位置/PBS/管道设备号/图纸文档/IO/KeyWord/Index/备注/工艺条件/规格书；位号查重与多维过滤 |
+| PBS管理 | ✅ | 工厂即根节点；区域 → 装置 → 回路 → 设备目录树；右键新建顶层/子/同级、添加设备、编辑、删除；设备计数按子树汇总 |
+| 索引表录入 | ✅ | 设备归工厂并纳入当前项目范围；自动显示完整 PBS 路径（区域/装置/回路）；网格浏览、双击属性弹窗、新建/编辑/复制/删除、位号查重与多维过滤 |
 | 设备规格 | 🟡 第二阶段 | 实体与表已建，模板/版本下一阶段 |
 | 材料附件 | 🟡 第二阶段 | 实体与表已建，汇总下一阶段 |
 | 报表输出 | 🟡 第二阶段 | 导航与页面占位，下一阶段接 Excel/Word/PDF |
@@ -123,8 +133,12 @@ docker compose up -d
 
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
-| POST | `/api/auth/login` | 匿名 | 登录，返回 JWT |
+| POST | `/api/auth/login` | 匿名 | 登录，返回身份 JWT（尚未绑定工厂/项目） |
+| GET | `/api/auth/workspaces` | 登录 | 当前用户可访问的工厂与项目 |
+| POST | `/api/auth/workspace` | 登录 | 选择工厂+项目，返回带 `plantId` / `projectId` 声明的工作区 JWT |
 | GET | `/api/auth/me` | 登录 | 当前用户与权限 |
+| GET | `/api/plants` | 登录 | 可访问的工厂列表 |
+| POST/PUT | `/api/plants`、`/api/plants/{id}` | Admin/Designer | 新建/编辑工厂 |
 | GET | `/api/dashboard` | 登录 | 统计与最近项目 |
 | GET | `/api/users` | Admin | 分页查询用户 |
 | POST/PUT | `/api/users`、`/api/users/{id}` | Admin | 新建/编辑用户 |
@@ -138,12 +152,12 @@ docker compose up -d
 | POST/PUT/DELETE | `/api/dictionaries/types...` | Admin/Designer | 类型维护 |
 | GET | `/api/dictionaries/types/{code}/items` | 登录 | 编码项 |
 | POST/PUT/DELETE | `/api/dictionaries/items...` | Admin/Designer | 编码项维护 |
-| GET | `/api/projects/{id}/pbs` | 登录 | PBS 节点（平铺，含设备数） |
-| POST | `/api/projects/{id}/pbs` | Admin/Designer | 新建 PBS 节点 |
+| GET | `/api/plants/{id}/pbs` | 登录（当前工厂） | PBS 节点（平铺，含设备数） |
+| POST | `/api/plants/{id}/pbs` | Admin/Designer | 新建 PBS 节点（工厂即根节点，不接受 Root 类型） |
 | PUT/DELETE | `/api/pbs/{id}` | Admin/Designer | 编辑/删除 PBS 节点 |
-| GET | `/api/projects/{id}/equipments` | 登录 | 索引表查询（搜索/回路号/专业/状态/PBS 过滤） |
-| POST | `/api/projects/{id}/equipments` | Admin/Designer | 新建设备 |
-| GET/PUT/DELETE | `/api/equipments/{id}` | 登录 / Admin/Designer | 设备详情/编辑/删除 |
+| GET | `/api/projects/{id}/equipments` | 登录（当前项目） | 索引表查询，只返回纳入当前项目的设备 |
+| POST | `/api/projects/{id}/equipments` | Admin/Designer | 在工厂下新建设备并纳入当前项目 |
+| GET/PUT/DELETE | `/api/equipments/{id}` | 登录 / Admin/Designer | 设备详情/编辑/删除；非管理员限当前项目范围 |
 
 请求示例见 `src/WinDesign.Api/WinDesign.Api.http`。
 
@@ -165,8 +179,9 @@ docker compose up -d
 
 ## 9. 已知限制
 
-- 第一阶段只覆盖项目信息、PBS、索引表；设备规格、材料附件、报表输出为第二阶段。
-- 开发库已重建以加入新字段；旧库备份在 `%TEMP%\windesign_phase1_backup.db`。
+- 当前覆盖工厂与多项目、工作区授权、项目配置、PBS管理、索引表；设备规格、材料附件、报表输出为第二阶段。
+- 设备的跨项目范围已有数据模型（`project_equipments`）与种子数据，但暂未提供「把已有设备加入其他项目」的界面；工厂新建/编辑暂只有 API，没有客户端界面。
+- 开发库已按工厂—项目模型重建；旧库不再兼容，需要重新初始化。
 - 未实现刷新令牌；JWT 过期后需重新登录。
 - 使用 `EnsureCreated` 建库，暂不支持数据库版本升级。
 - WPF 的密码框通过 code-behind 传值，未做附加属性绑定。
@@ -174,13 +189,13 @@ docker compose up -d
 
 ## 10. 测试
 
-已部署三层测试，共 **37 个用例**，全部通过：
+已部署三层测试，共 **69 个用例**，全部通过：
 
 | 项目 | 内容 | 依赖 |
 |------|------|------|
-| `WinDesign.UnitTests` | 密码哈希、JWT 签发与声明 | 无 |
-| `WinDesign.Api.Tests` | 登录/权限、PBS 约束、设备索引 CRUD | 进程内 TestServer + 临时 SQLite |
-| `WinDesign.Client.Tests` | 登录、PBS 树与节点弹窗、索引表 ViewModel | FakeApiClient，无 UI/服务端 |
+| `WinDesign.UnitTests` | 密码哈希、JWT 签发（含 plantId/projectId 声明） | 无 |
+| `WinDesign.Api.Tests` | 登录、工作区选择与范围授权、PBS 约束、设备索引 CRUD | 进程内 TestServer + 临时 SQLite |
+| `WinDesign.Client.Tests` | 登录、导航结构、工作区选择/切换与切换前自动保存、PBS 树与节点/设备弹窗、索引网格与属性弹窗 ViewModel | FakeApiClient，无 UI/服务端 |
 
 运行：
 
@@ -204,7 +219,7 @@ CI：`.github/workflows/dotnet-tests.yml`（windows-latest，推送/PR 自动运
 
 - 顶部菜单栏 + 工具栏 + 项目选择
 - 左侧 **Domain Explorer** 导航树
-- 中部多文档标签页（项目信息 / 工厂 PBS / 索引表 / 规格 / 材料 / 报表）
+- 中部多文档标签页（索引表 / 规格 / 材料 / 报表 / 项目配置 / PBS管理）
 - 底部状态栏（项目、当前文档、用户、服务器）
 - 高密度 DataGrid、紧凑字体、工业蓝灰配色
 

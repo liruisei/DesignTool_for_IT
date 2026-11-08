@@ -8,4 +8,7 @@ public partial class DictionaryView : UserControl
     {
         InitializeComponent();
     }
+
+    private void OnEditorLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+        => EditorAutoSave.OnLostKeyboardFocus(sender, e);
 }

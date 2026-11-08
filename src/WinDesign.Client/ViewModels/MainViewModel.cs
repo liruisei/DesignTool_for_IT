@@ -10,14 +10,9 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly SessionService _session;
     private readonly ProjectContext _projectContext = new();
-    private bool _startupDocumentOpened;
 
-    public ObservableCollection<ProjectDto> Projects { get; } = new();
     public ObservableCollection<ExplorerNode> ExplorerNodes { get; } = new();
     public ObservableCollection<DocumentTab> Documents { get; } = new();
-
-    [ObservableProperty]
-    private ProjectDto? selectedProject;
 
     [ObservableProperty]
     private ExplorerNode? selectedExplorerNode;
@@ -33,15 +28,23 @@ public partial class MainViewModel : ObservableObject
     public string RoleText => string.Join(" / ", _session.User?.Roles ?? new List<string>());
     public string ServerUrl => _session.Api.BaseUrl;
     public bool IsAdmin => _session.IsAdmin;
-    public string CurrentProjectName => SelectedProject?.Name ?? "未选择项目";
+    public string PlantName => _session.Plant?.Name ?? "未选择工厂";
+    public string ProjectName => _session.Project?.Name ?? "未选择项目";
+    public string WorkspaceText => PlantName + " / " + ProjectName;
+    public string CurrentProjectName => _session.Project?.Name ?? "未选择项目";
 
     public event EventHandler? LogoutRequested;
+    public event EventHandler? SwitchWorkspaceRequested;
+
+    /// <summary>供窗口层打开工作区选择窗口。</summary>
+    public SessionService Session => _session;
 
     public MainViewModel(SessionService session)
     {
         _session = session;
+        _projectContext.CurrentProject = ToProjectDto(session);
         BuildExplorer();
-        _ = LoadProjectsAsync();
+        OpenIndex();
     }
 
     private void BuildExplorer()
@@ -53,20 +56,6 @@ public partial class MainViewModel : ObservableObject
             Glyph = "▣",
             IsFolder = true
         };
-        project.Children.Add(new ExplorerNode
-        {
-            Key = "project-info",
-            Title = "项目信息",
-            Glyph = "▤",
-            Open = OpenProjectInfo
-        });
-        project.Children.Add(new ExplorerNode
-        {
-            Key = "pbs",
-            Title = "工厂 PBS",
-            Glyph = "◇",
-            Open = OpenPbs
-        });
         project.Children.Add(new ExplorerNode
         {
             Key = "index",
@@ -106,6 +95,20 @@ public partial class MainViewModel : ObservableObject
         };
         system.Children.Add(new ExplorerNode
         {
+            Key = "project-config",
+            Title = "项目配置",
+            Glyph = "▤",
+            Open = OpenProjectConfig
+        });
+        system.Children.Add(new ExplorerNode
+        {
+            Key = "pbs",
+            Title = "PBS管理",
+            Glyph = "◇",
+            Open = OpenPbs
+        });
+        system.Children.Add(new ExplorerNode
+        {
             Key = "dictionaries",
             Title = "编码定义",
             Glyph = "☰",
@@ -125,12 +128,12 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenProjectInfo() =>
-        OpenDocument("project-info", "项目信息", () => new ProjectManagementViewModel(_session), closable: false);
+    private void OpenProjectConfig() =>
+        OpenDocument("project-config", "项目配置", () => new ProjectManagementViewModel(_session));
 
     [RelayCommand]
     private void OpenPbs() =>
-        OpenDocument("pbs", "工厂 PBS", () => new PbsViewModel(_session, _projectContext));
+        OpenDocument("pbs", "PBS管理", () => new PbsViewModel(_session, _projectContext));
 
     [RelayCommand]
     private void OpenIndex() =>
@@ -204,6 +207,7 @@ public partial class MainViewModel : ObservableObject
 
         var index = Documents.IndexOf(tab);
         Documents.Remove(tab);
+        tab.ViewModel.Dispose();
         if (ReferenceEquals(SelectedDocument, tab))
         {
             SelectedDocument = Documents.ElementAtOrDefault(Math.Max(0, index - 1))
@@ -221,8 +225,64 @@ public partial class MainViewModel : ObservableObject
         {
             await SelectedDocument.ViewModel.RefreshAsync();
         }
-        await LoadProjectsAsync();
         StatusText = "已刷新 " + DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    [RelayCommand]
+    private void SwitchWorkspace() =>
+        SwitchWorkspaceRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// 切换工作区前自动保存所有打开文档中的待提交编辑。
+    /// 返回第一个错误信息；null 表示全部保存成功。
+    /// </summary>
+    public async Task<string?> SavePendingDocumentsAsync()
+    {
+        foreach (var document in Documents)
+        {
+            if (document.ViewModel is not IPendingChanges pending)
+            {
+                continue;
+            }
+
+            try
+            {
+                await pending.SavePendingAsync();
+            }
+            catch (ApiException ex)
+            {
+                return document.Title + "：" + ex.Message;
+            }
+            catch (Exception ex)
+            {
+                return document.Title + "：" + ex.Message;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 工作区选择窗口已经换发新令牌后调用：重建项目上下文并重开默认文档，
+    /// 避免旧工厂/旧项目的文档与缓存继续显示。
+    /// </summary>
+    public void ApplyWorkspaceChange()
+    {
+        SelectedDocument = null;
+        foreach (var document in Documents)
+        {
+            document.ViewModel.Dispose();
+        }
+        Documents.Clear();
+
+        _projectContext.CurrentProject = ToProjectDto(_session);
+        OnPropertyChanged(nameof(PlantName));
+        OnPropertyChanged(nameof(ProjectName));
+        OnPropertyChanged(nameof(WorkspaceText));
+        OnPropertyChanged(nameof(CurrentProjectName));
+
+        OpenIndex();
+        StatusText = "已切换工作区：" + WorkspaceText;
     }
 
     [RelayCommand]
@@ -232,15 +292,23 @@ public partial class MainViewModel : ObservableObject
         LogoutRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    partial void OnSelectedProjectChanged(ProjectDto? value)
-    {
-        _projectContext.CurrentProject = value;
-        OnPropertyChanged(nameof(CurrentProjectName));
-    }
-
     partial void OnSelectedDocumentChanged(DocumentTab? value)
     {
-        StatusText = value is null ? "就绪" : "当前文档：" + value.Title;
+        if (value is null)
+        {
+            StatusText = "就绪";
+            return;
+        }
+
+        StatusText = "当前文档：" + value.Title;
+        if (value.HasBeenActivated)
+        {
+            _ = RefreshDocumentAsync(value);
+        }
+        else
+        {
+            value.HasBeenActivated = true;
+        }
     }
 
     private void OpenDocument(string key, string title, Func<ViewModelBase> factory, bool closable = true)
@@ -248,7 +316,12 @@ public partial class MainViewModel : ObservableObject
         var existing = Documents.FirstOrDefault(x => x.Key == key);
         if (existing is not null)
         {
+            var alreadySelected = ReferenceEquals(SelectedDocument, existing);
             SelectedDocument = existing;
+            if (alreadySelected)
+            {
+                _ = RefreshDocumentAsync(existing);
+            }
             return;
         }
 
@@ -263,27 +336,35 @@ public partial class MainViewModel : ObservableObject
         SelectedDocument = tab;
     }
 
-    private async Task LoadProjectsAsync()
+    private static async Task RefreshDocumentAsync(DocumentTab tab)
     {
         try
         {
-            var result = await _session.Api.GetProjectsAsync();
-            Projects.Clear();
-            foreach (var project in result.Items)
-            {
-                Projects.Add(project);
-            }
-
-            SelectedProject ??= Projects.FirstOrDefault();
-            if (!_startupDocumentOpened)
-            {
-                _startupDocumentOpened = true;
-                OpenProjectInfo();
-            }
+            await tab.ViewModel.RefreshAsync();
         }
         catch
         {
-            // the shell remains usable even if the project list cannot be loaded
+            // individual modules surface their own error messages
         }
+    }
+
+    private static ProjectDto? ToProjectDto(SessionService session)
+    {
+        if (session.Project is not { } project)
+        {
+            return null;
+        }
+
+        return new ProjectDto
+        {
+            Id = project.Id,
+            PlantId = session.Plant?.Id ?? Guid.Empty,
+            PlantName = session.Plant?.Name,
+            Code = project.Code,
+            Name = project.Name,
+            Phase = project.Phase,
+            Status = project.Status,
+            CreatedAt = DateTime.UtcNow
+        };
     }
 }

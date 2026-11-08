@@ -21,7 +21,7 @@ public partial class RoleOption : ObservableObject
     private bool isSelected;
 }
 
-public partial class UserManagementViewModel : ViewModelBase
+public partial class UserManagementViewModel : ViewModelBase, IPendingChanges
 {
     private readonly SessionService _session;
 
@@ -82,6 +82,21 @@ public partial class UserManagementViewModel : ViewModelBase
     [RelayCommand]
     private Task SearchAsync() => RunAsync(LoadUsersAsync);
 
+    /// <summary>编辑已有用户时自动保存；新建未保存的用户不自动创建。</summary>
+    public async Task SavePendingAsync()
+    {
+        if (IsCreating || SelectedUser is null)
+        {
+            return;
+        }
+
+        await SaveAsync();
+        if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            throw new ApiException(ErrorMessage);
+        }
+    }
+
     [RelayCommand]
     private void NewUser()
     {
@@ -104,6 +119,8 @@ public partial class UserManagementViewModel : ViewModelBase
     [RelayCommand]
     private Task SaveAsync() => RunAsync(async () =>
     {
+        // 记录保存开始时正在编辑的用户，保存完成后若用户已切换选择则不要抢回。
+        var editedUserId = SelectedUser?.Id;
         var roles = RoleOptions.Where(x => x.IsSelected).Select(x => x.Code).ToList();
         if (roles.Count == 0)
         {
@@ -149,7 +166,10 @@ public partial class UserManagementViewModel : ViewModelBase
 
         EditPassword = string.Empty;
         await LoadUsersAsync();
-        SelectedUser = Users.FirstOrDefault(x => x.Id == saved.Id);
+        if (SelectedUser is null || SelectedUser.Id == editedUserId)
+        {
+            SelectedUser = Users.FirstOrDefault(x => x.Id == saved.Id);
+        }
     });
 
     [RelayCommand]

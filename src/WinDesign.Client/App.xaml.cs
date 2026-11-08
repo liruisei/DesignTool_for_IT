@@ -28,6 +28,27 @@ public partial class App : Application
             settings = new AppSettings(session.Api.BaseUrl, session.User?.UserName ?? settings.UserName);
             SettingsService.Save(settings);
 
+            // 登录成功后必须先选择工作区：工厂（PBS 根节点）→ 项目。
+            var workspaceSelected = false;
+            while (!workspaceSelected)
+            {
+                var workspaceViewModel = new WorkspaceSelectionViewModel(session);
+                var workspaceWindow = new WorkspaceSelectionWindow { DataContext = workspaceViewModel };
+                if (workspaceWindow.ShowDialog() != true)
+                {
+                    // 取消选择：退回登录界面。
+                    session.SignOut();
+                    break;
+                }
+
+                workspaceSelected = true;
+            }
+
+            if (!workspaceSelected)
+            {
+                continue;
+            }
+
             var mainViewModel = new MainViewModel(session);
             var mainWindow = new MainWindow { DataContext = mainViewModel };
             var logout = false;

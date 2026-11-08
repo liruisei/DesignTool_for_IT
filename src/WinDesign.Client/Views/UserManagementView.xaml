@@ -44,7 +44,8 @@
             </Grid>
         </Border>
 
-        <Border Grid.Column="1" Style="{StaticResource Card}">
+        <Border Grid.Column="1" Style="{StaticResource Card}"
+                LostKeyboardFocus="OnEditorLostKeyboardFocus">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource SectionTitle}" />

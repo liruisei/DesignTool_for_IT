@@ -43,6 +43,40 @@ public class JwtTokenServiceTests
     }
 
     [Fact]
+    public void Create_WithWorkspace_AddsPlantAndProjectClaims()
+    {
+        var user = new User { UserName = "carol", DisplayName = "Carol" };
+        var plantId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var (token, _) = Service.Create(
+            user,
+            new[] { "Designer" },
+            new[] { "projects.read" },
+            plantId,
+            projectId);
+
+        var principal = Validate(token);
+        Assert.Equal(plantId.ToString(), principal.FindFirst("plantId")?.Value);
+        Assert.Equal(projectId.ToString(), principal.FindFirst("projectId")?.Value);
+    }
+
+    [Fact]
+    public void Create_WithoutWorkspace_OmitsPlantAndProjectClaims()
+    {
+        var user = new User { UserName = "dave", DisplayName = "Dave" };
+
+        var (token, _) = Service.Create(
+            user,
+            new[] { "Viewer" },
+            new[] { "projects.read" });
+
+        var principal = Validate(token);
+        Assert.Null(principal.FindFirst("plantId"));
+        Assert.Null(principal.FindFirst("projectId"));
+    }
+
+    [Fact]
     public void Create_DeduplicatesRolesAndPermissions()
     {
         var user = new User { UserName = "bob", DisplayName = "Bob" };
