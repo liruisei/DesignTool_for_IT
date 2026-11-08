@@ -6,7 +6,7 @@ using WinDesign.Contracts.Dictionaries;
 
 namespace WinDesign.Client.ViewModels;
 
-public partial class DictionaryViewModel : ViewModelBase
+public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
 {
     private readonly SessionService _session;
 
@@ -82,6 +82,31 @@ public partial class DictionaryViewModel : ViewModelBase
         SelectedType = Types.FirstOrDefault(x => x.Id == currentId);
     });
 
+    /// <summary>先保存编码项，再保存编码类型（类型保存会刷新列表）。新建表单不自动创建。</summary>
+    public async Task SavePendingAsync()
+    {
+        var editingTypeId = IsCreatingType ? (Guid?)null : SelectedType?.Id;
+
+        if (!IsCreatingItem && SelectedItem is not null)
+        {
+            await SaveItemAsync();
+            if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                throw new ApiException("编码项：" + ErrorMessage);
+            }
+        }
+
+        // 保存期间用户可能已切换到其他类型，此时不要覆盖其编辑内容。
+        if (editingTypeId is not null && SelectedType?.Id == editingTypeId)
+        {
+            await SaveTypeAsync();
+            if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                throw new ApiException("编码类型：" + ErrorMessage);
+            }
+        }
+    }
+
     [RelayCommand]
     private void NewType()
     {
@@ -108,6 +133,8 @@ public partial class DictionaryViewModel : ViewModelBase
     [RelayCommand]
     private Task SaveTypeAsync() => RunAsync(async () =>
     {
+        // 记录保存开始时正在编辑的类型，保存完成后若用户已切换选择则不要抢回。
+        var editedTypeId = SelectedType?.Id;
         DictionaryTypeDto saved;
         if (IsCreatingType)
         {
@@ -138,7 +165,10 @@ public partial class DictionaryViewModel : ViewModelBase
         }
 
         await RefreshAsync();
-        SelectedType = Types.FirstOrDefault(x => x.Id == saved.Id);
+        if (SelectedType is null || SelectedType.Id == editedTypeId)
+        {
+            SelectedType = Types.FirstOrDefault(x => x.Id == saved.Id);
+        }
     });
 
     [RelayCommand]
@@ -223,7 +253,9 @@ public partial class DictionaryViewModel : ViewModelBase
             StatusMessage = "编码项已保存";
         }
 
-        await LoadItemsAsync(SelectedType.Code, saved.Id);
+        // 保存期间用户可能已选中另一条编码项，此时保持其选择。
+        var selectionBeforeReload = SelectedItem?.Id;
+        await LoadItemsAsync(SelectedType.Code, selectionBeforeReload ?? saved.Id);
     });
 
     [RelayCommand]

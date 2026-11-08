@@ -145,13 +145,14 @@ public class EquipmentIndexViewModelTests
     {
         var api = new FakeApiClient();
         var project = api.Project;
-        var root = new PbsNodeDto(Guid.NewGuid(), project.Id, null, "ROOT", "全厂", "Root", 0, null, 0, 1);
+        var root = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, null, "AREA-A", "A 区", "Area", 0, null, 0, 1);
         api.PbsNodes.Add(root);
         api.EquipmentTypes.Add(new DictionaryItemDto(
             Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE", "PT", "压力变送器", 1, true, null));
         api.Equipments.Add(new EquipmentDto
         {
             Id = Guid.NewGuid(),
+            PlantId = api.Plant.Id,
             ProjectId = project.Id,
             PbsNodeId = root.Id,
             PbsNodeName = root.Name,
@@ -173,7 +174,7 @@ public class EquipmentIndexViewModelTests
         ProjectDto project,
         IEquipmentDialogService? dialogs = null)
     {
-        var session = new SessionService(api);
+        var session = api.CreateSession();
         var context = new ProjectContext { CurrentProject = project };
         return new EquipmentIndexViewModel(session, context, dialogs ?? new FakeEquipmentDialogService());
     }

@@ -6,15 +6,15 @@ namespace WinDesign.Client.Tests;
 public class PbsNodeEditorViewModelTests
 {
     [Fact]
-    public void NewRoot_DefaultsToRootType()
+    public void NewTopLevel_DefaultsToAreaType()
     {
         var options = CreateOptions(out _);
 
         var viewModel = new PbsNodeEditorViewModel(new PbsNodeEditorContext(null, null, options));
 
         Assert.True(viewModel.IsRoot);
-        Assert.False(viewModel.CanChooseNodeType);
-        Assert.Equal("Root", viewModel.EditNodeType);
+        Assert.True(viewModel.CanChooseNodeType);
+        Assert.Equal("Area", viewModel.EditNodeType);
         Assert.Null(viewModel.SelectedParentOption!.Id);
     }
 

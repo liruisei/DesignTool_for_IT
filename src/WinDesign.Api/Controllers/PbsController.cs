@@ -10,6 +10,9 @@ using WinDesign.Infrastructure;
 
 namespace WinDesign.Api.Controllers;
 
+/// <summary>
+/// 工厂 PBS。根节点是工厂本身，因此节点接口挂在工厂下，而不是项目下。
+/// </summary>
 [Route("api")]
 public sealed class PbsController : ApiControllerBase
 {
@@ -20,23 +23,27 @@ public sealed class PbsController : ApiControllerBase
         _db = db;
     }
 
-    [HttpGet("projects/{projectId:guid}/pbs")]
-    public async Task<ActionResult<IReadOnlyList<PbsNodeDto>>> Get(Guid projectId, CancellationToken ct)
+    [HttpGet("plants/{plantId:guid}/pbs")]
+    public async Task<ActionResult<IReadOnlyList<PbsNodeDto>>> Get(Guid plantId, CancellationToken ct)
     {
-        if (!await _db.Projects.AnyAsync(x => x.Id == projectId, ct))
+        if (EnsureWorkspacePlant(plantId) is ActionResult denied)
         {
-            return NotFound(new ApiError("项目不存在"));
+            return denied;
+        }
+        if (!await _db.Plants.AnyAsync(x => x.Id == plantId, ct))
+        {
+            return NotFound(new ApiError("工厂不存在"));
         }
 
         var nodes = await _db.PbsNodes
-            .Where(x => x.ProjectId == projectId)
+            .Where(x => x.PlantId == plantId)
             .AsNoTracking()
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Code)
             .ToListAsync(ct);
 
         var equipNodeIds = await _db.Equipments
-            .Where(x => x.ProjectId == projectId && x.PbsNodeId != null)
+            .Where(x => x.PlantId == plantId && x.PbsNodeId != null)
             .Select(x => x.PbsNodeId!.Value)
             .ToListAsync(ct);
 
@@ -79,16 +86,20 @@ public sealed class PbsController : ApiControllerBase
         return Ok(result);
     }
 
-    [HttpPost("projects/{projectId:guid}/pbs")]
+    [HttpPost("plants/{plantId:guid}/pbs")]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<PbsNodeDto>> Create(
-        Guid projectId,
+        Guid plantId,
         [FromBody] CreatePbsNodeRequest request,
         CancellationToken ct)
     {
-        if (!await _db.Projects.AnyAsync(x => x.Id == projectId, ct))
+        if (EnsureWorkspacePlant(plantId) is ActionResult denied)
         {
-            return NotFound(new ApiError("项目不存在"));
+            return denied;
+        }
+        if (!await _db.Plants.AnyAsync(x => x.Id == plantId, ct))
+        {
+            return NotFound(new ApiError("工厂不存在"));
         }
 
         var code = request.Code.Trim();
@@ -96,40 +107,29 @@ public sealed class PbsController : ApiControllerBase
         {
             return BadRequest(new ApiError("节点编码和名称不能为空"));
         }
-        if (await _db.PbsNodes.AnyAsync(x => x.ProjectId == projectId && x.Code == code, ct))
+        if (await _db.PbsNodes.AnyAsync(x => x.PlantId == plantId && x.Code == code, ct))
         {
             return Conflict(new ApiError("节点编码已存在"));
         }
-        if (!Enum.TryParse<PbsNodeType>(request.NodeType, true, out var nodeType))
+        if (!Enum.TryParse<PbsNodeType>(request.NodeType, true, out var nodeType) ||
+            nodeType == PbsNodeType.Root)
         {
-            return BadRequest(new ApiError("节点类型无效"));
+            return BadRequest(new ApiError("节点类型无效；工厂已是根节点，请选择区域/装置/回路等层级"));
         }
 
-        if (request.ParentId is null)
-        {
-            if (await _db.PbsNodes.AnyAsync(x => x.ProjectId == projectId && x.ParentId == null, ct))
-            {
-                return BadRequest(new ApiError("项目已存在根节点"));
-            }
-            nodeType = PbsNodeType.Root;
-        }
-        else
+        if (request.ParentId is Guid parentId)
         {
             var parentExists = await _db.PbsNodes
-                .AnyAsync(x => x.Id == request.ParentId && x.ProjectId == projectId, ct);
+                .AnyAsync(x => x.Id == parentId && x.PlantId == plantId, ct);
             if (!parentExists)
             {
-                return BadRequest(new ApiError("上级节点不存在或不属于当前项目"));
-            }
-            if (nodeType == PbsNodeType.Root)
-            {
-                return BadRequest(new ApiError("根节点不能再指定上级节点"));
+                return BadRequest(new ApiError("上级节点不存在或不属于当前工厂"));
             }
         }
 
         var node = new PbsNode
         {
-            ProjectId = projectId,
+            PlantId = plantId,
             ParentId = request.ParentId,
             Code = code,
             Name = request.Name.Trim(),
@@ -156,19 +156,24 @@ public sealed class PbsController : ApiControllerBase
         {
             return NotFound(new ApiError("PBS 节点不存在"));
         }
+        if (EnsureWorkspacePlant(node.PlantId) is ActionResult denied)
+        {
+            return denied;
+        }
 
         var code = request.Code.Trim();
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name))
         {
             return BadRequest(new ApiError("节点编码和名称不能为空"));
         }
-        if (await _db.PbsNodes.AnyAsync(x => x.ProjectId == node.ProjectId && x.Code == code && x.Id != id, ct))
+        if (await _db.PbsNodes.AnyAsync(x => x.PlantId == node.PlantId && x.Code == code && x.Id != id, ct))
         {
             return Conflict(new ApiError("节点编码已存在"));
         }
-        if (!Enum.TryParse<PbsNodeType>(request.NodeType, true, out var nodeType))
+        if (!Enum.TryParse<PbsNodeType>(request.NodeType, true, out var nodeType) ||
+            nodeType == PbsNodeType.Root)
         {
-            return BadRequest(new ApiError("节点类型无效"));
+            return BadRequest(new ApiError("节点类型无效；工厂已是根节点"));
         }
 
         if (request.ParentId is Guid parentId)
@@ -178,27 +183,15 @@ public sealed class PbsController : ApiControllerBase
                 return BadRequest(new ApiError("上级节点不能是自己"));
             }
             var parentExists = await _db.PbsNodes
-                .AnyAsync(x => x.Id == parentId && x.ProjectId == node.ProjectId, ct);
+                .AnyAsync(x => x.Id == parentId && x.PlantId == node.PlantId, ct);
             if (!parentExists)
             {
-                return BadRequest(new ApiError("上级节点不存在或不属于当前项目"));
-            }
-            if (nodeType == PbsNodeType.Root)
-            {
-                return BadRequest(new ApiError("根节点不能再指定上级节点"));
+                return BadRequest(new ApiError("上级节点不存在或不属于当前工厂"));
             }
             if (await WouldCreateCycleAsync(id, parentId, ct))
             {
                 return BadRequest(new ApiError("上级节点不能是当前节点的下级"));
             }
-        }
-        else
-        {
-            if (await _db.PbsNodes.AnyAsync(x => x.ProjectId == node.ProjectId && x.ParentId == null && x.Id != id, ct))
-            {
-                return BadRequest(new ApiError("项目已存在根节点"));
-            }
-            nodeType = PbsNodeType.Root;
         }
 
         node.ParentId = request.ParentId;
@@ -225,6 +218,10 @@ public sealed class PbsController : ApiControllerBase
         if (node is null)
         {
             return NotFound(new ApiError("PBS 节点不存在"));
+        }
+        if (EnsureWorkspacePlant(node.PlantId) is ActionResult denied)
+        {
+            return denied;
         }
         if (await _db.PbsNodes.AnyAsync(x => x.ParentId == id, ct))
         {
@@ -261,7 +258,7 @@ public sealed class PbsController : ApiControllerBase
 
     private static PbsNodeDto ToDto(PbsNode node, int childrenCount, int equipmentCount) => new(
         node.Id,
-        node.ProjectId,
+        node.PlantId,
         node.ParentId,
         node.Code,
         node.Name,

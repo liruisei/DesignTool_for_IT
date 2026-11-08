@@ -42,13 +42,14 @@
 
         <Menu Grid.Row="0" Padding="4,2">
             <MenuItem Header="文件(_F)">
-                <MenuItem Header="项目信息" Command="{Binding OpenProjectInfoCommand}" />
+                <MenuItem Header="项目配置" Command="{Binding OpenProjectConfigCommand}" />
+                <MenuItem Header="切换工作区..." Command="{Binding SwitchWorkspaceCommand}" />
                 <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
                 <Separator />
                 <MenuItem Header="退出" Command="{Binding LogoutCommand}" />
             </MenuItem>
             <MenuItem Header="视图(_V)">
-                <MenuItem Header="工厂 PBS" Command="{Binding OpenPbsCommand}" />
+                <MenuItem Header="PBS管理" Command="{Binding OpenPbsCommand}" />
                 <MenuItem Header="索引表" Command="{Binding OpenIndexCommand}" />
                 <MenuItem Header="编码定义" Command="{Binding OpenDictionariesCommand}" />
                 <MenuItem Header="用户管理" Command="{Binding OpenUsersCommand}" IsEnabled="{Binding IsAdmin}" />
@@ -76,15 +77,15 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="项目" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <ComboBox Width="250" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}"
-                              DisplayMemberPath="Name" />
+                    <TextBlock Text="工厂" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding PlantName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text=" / 项目" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="10,0,6,0" />
+                    <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                    <Button Content="▤ 项目信息" Command="{Binding OpenProjectInfoCommand}" Style="{StaticResource ToolButton}" />
-                    <Button Content="◇ 工厂 PBS" Command="{Binding OpenPbsCommand}" Style="{StaticResource ToolButton}" />
-                    <Button Content="▦ 索引表" Command="{Binding OpenIndexCommand}" Style="{StaticResource ToolButton}" />
+                    <Button x:Name="SwitchWorkspaceButton" Content="⇄ 切换工作区"
+                            Command="{Binding SwitchWorkspaceCommand}" Style="{StaticResource ToolButton}" />
                     <Button Content="⟳ 刷新" Command="{Binding RefreshCommand}" Style="{StaticResource ToolButton}" />
                 </StackPanel>
 
@@ -175,8 +176,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="项目：" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding CurrentProjectName}" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Text="工作区：" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding WorkspaceText}" FontSize="12" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding StatusText}" Style="{StaticResource MutedText}"
                            VerticalAlignment="Center" Margin="24,0,0,0" TextTrimming="CharacterEllipsis" />

@@ -14,8 +14,10 @@ public class WinDesignDbContext : DbContext
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Plant> Plants => Set<Plant>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<ProjectEquipment> ProjectEquipments => Set<ProjectEquipment>();
     public DbSet<PbsNode> PbsNodes => Set<PbsNode>();
     public DbSet<Equipment> Equipments => Set<Equipment>();
     public DbSet<EquipmentSpec> EquipmentSpecs => Set<EquipmentSpec>();
@@ -70,10 +72,22 @@ public class WinDesignDbContext : DbContext
             e.HasOne(x => x.Permission).WithMany(x => x.RolePermissions).HasForeignKey(x => x.PermissionId);
         });
 
+        modelBuilder.Entity<Plant>(e =>
+        {
+            e.ToTable("plants");
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.ClientName).HasMaxLength(200);
+            e.Property(x => x.Location).HasMaxLength(200);
+        });
+
         modelBuilder.Entity<Project>(e =>
         {
             e.ToTable("projects");
-            e.HasIndex(x => x.Code).IsUnique();
+            e.HasIndex(x => new { x.PlantId, x.Code }).IsUnique();
+            e.HasOne(x => x.Plant).WithMany(x => x.Projects).HasForeignKey(x => x.PlantId)
+                .OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.Code).HasMaxLength(64).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.ClientName).HasMaxLength(200);
@@ -93,14 +107,22 @@ public class WinDesignDbContext : DbContext
             e.Property(x => x.RoleInProject).HasMaxLength(64);
         });
 
+        modelBuilder.Entity<ProjectEquipment>(e =>
+        {
+            e.ToTable("project_equipments");
+            e.HasKey(x => new { x.ProjectId, x.EquipmentId });
+            e.HasOne(x => x.Project).WithMany(x => x.ProjectEquipments).HasForeignKey(x => x.ProjectId);
+            e.HasOne(x => x.Equipment).WithMany(x => x.ProjectEquipments).HasForeignKey(x => x.EquipmentId);
+        });
+
         modelBuilder.Entity<PbsNode>(e =>
         {
             e.ToTable("pbs_nodes");
-            e.HasIndex(x => new { x.ProjectId, x.Code });
+            e.HasIndex(x => new { x.PlantId, x.Code });
             e.Property(x => x.Code).HasMaxLength(64).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.NodeType).HasConversion<string>().HasMaxLength(32);
-            e.HasOne(x => x.Project).WithMany(x => x.PbsNodes).HasForeignKey(x => x.ProjectId);
+            e.HasOne(x => x.Plant).WithMany(x => x.PbsNodes).HasForeignKey(x => x.PlantId);
             e.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
@@ -108,7 +130,7 @@ public class WinDesignDbContext : DbContext
         modelBuilder.Entity<Equipment>(e =>
         {
             e.ToTable("equipments");
-            e.HasIndex(x => new { x.ProjectId, x.TagNo }).IsUnique();
+            e.HasIndex(x => new { x.PlantId, x.TagNo }).IsUnique();
             e.Property(x => x.TagNo).HasMaxLength(64).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.TypeCode).HasMaxLength(64);
@@ -130,7 +152,7 @@ public class WinDesignDbContext : DbContext
             e.Property(x => x.IndexNo).HasMaxLength(64);
             e.Property(x => x.Discipline).HasConversion<string>().HasMaxLength(32);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
-            e.HasOne(x => x.Project).WithMany(x => x.Equipments).HasForeignKey(x => x.ProjectId);
+            e.HasOne(x => x.Plant).WithMany(x => x.Equipments).HasForeignKey(x => x.PlantId);
             e.HasOne(x => x.PbsNode).WithMany().HasForeignKey(x => x.PbsNodeId)
                 .OnDelete(DeleteBehavior.SetNull);
         });

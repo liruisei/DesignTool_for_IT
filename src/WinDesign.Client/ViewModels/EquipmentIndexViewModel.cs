@@ -65,10 +65,13 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         _ = RefreshAsync();
     }
 
+    public override void Dispose() => _context.ProjectChanged -= OnProjectChanged;
+
     public override Task RefreshAsync() => RunAsync(async () =>
     {
         var project = _context.CurrentProject;
-        if (project is null)
+        var plantId = _session.PlantId;
+        if (project is null || plantId is null)
         {
             Equipments.Clear();
             PbsFilterOptions.Clear();
@@ -78,7 +81,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             return;
         }
 
-        var nodes = await _session.Api.GetPbsNodesAsync(project.Id);
+        var nodes = await _session.Api.GetPbsNodesAsync(plantId.Value);
         BuildPbsOptions(nodes);
 
         var types = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
@@ -95,7 +98,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
     [RelayCommand]
     private Task SearchAsync() => RunAsync(async () =>
     {
-        var project = _context.CurrentProject ?? throw new ApiException("请先在顶部选择项目");
+        var project = _context.CurrentProject ?? throw new ApiException("请先选择工作区项目");
         await LoadEquipmentsAsync(project.Id);
     });
 
@@ -154,7 +157,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         var project = _context.CurrentProject;
         if (project is null)
         {
-            ErrorMessage = "请先在顶部选择项目";
+            ErrorMessage = "请先选择工作区项目";
             return;
         }
 

@@ -5,6 +5,7 @@ using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Users;
+using WinDesign.Contracts.Workspaces;
 
 namespace WinDesign.Client.Services;
 
@@ -17,6 +18,8 @@ public interface IApiClient
     void SetToken(string? token);
 
     Task<LoginResponse> LoginAsync(string userName, string password, CancellationToken ct = default);
+    Task<IReadOnlyList<WorkspacePlantDto>> GetWorkspacesAsync(CancellationToken ct = default);
+    Task<WorkspaceResponse> SelectWorkspaceAsync(Guid plantId, Guid projectId, CancellationToken ct = default);
     Task<CurrentUserDto> GetMeAsync(CancellationToken ct = default);
     Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default);
 
@@ -41,8 +44,8 @@ public interface IApiClient
     Task<DictionaryItemDto> UpdateDictionaryItemAsync(Guid id, UpdateDictionaryItemRequest request, CancellationToken ct = default);
     Task DeleteDictionaryItemAsync(Guid id, CancellationToken ct = default);
 
-    Task<IReadOnlyList<PbsNodeDto>> GetPbsNodesAsync(Guid projectId, CancellationToken ct = default);
-    Task<PbsNodeDto> CreatePbsNodeAsync(Guid projectId, CreatePbsNodeRequest request, CancellationToken ct = default);
+    Task<IReadOnlyList<PbsNodeDto>> GetPbsNodesAsync(Guid plantId, CancellationToken ct = default);
+    Task<PbsNodeDto> CreatePbsNodeAsync(Guid plantId, CreatePbsNodeRequest request, CancellationToken ct = default);
     Task<PbsNodeDto> UpdatePbsNodeAsync(Guid id, UpdatePbsNodeRequest request, CancellationToken ct = default);
     Task DeletePbsNodeAsync(Guid id, CancellationToken ct = default);
 

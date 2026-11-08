@@ -15,12 +15,14 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="PBS 目录树" Style="{StaticResource SectionTitle}" />
                         <TextBlock Style="{StaticResource MutedText}" Margin="14,0,0,0" VerticalAlignment="Center"
-                                   Text="{Binding Context.CurrentProject.Name, TargetNullValue=请先在顶部选择项目}" />
+                                   Text="{Binding PlantName, StringFormat=工厂：{0}}" />
+                        <TextBlock Style="{StaticResource MutedText}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding ProjectName, StringFormat=/ 项目：{0}}" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                 IsEnabled="{Binding Context.HasProject}">
-                        <Button Content="新建根节点" Command="{Binding NewRootCommand}"
+                        <Button Content="新建区域" Command="{Binding NewTopLevelCommand}"
                                 Style="{StaticResource PrimaryButton}" Padding="12,6" />
                         <Button Content="新建子节点" Command="{Binding NewChildCommand}"
                                 Style="{StaticResource SecondaryButton}" Margin="6,0,0,0" Padding="12,6" />
@@ -40,7 +42,7 @@
                 </Grid>
 
                 <TextBlock Grid.Row="1" Style="{StaticResource MutedText}" Margin="0,0,0,10"
-                           Text="右键节点：新建根/子/同级、添加设备、编辑、删除；双击设备编辑属性。" />
+                           Text="工厂就是 PBS 根节点；右键节点可新建顶层/子/同级、添加设备、编辑、删除；双击设备编辑属性。" />
 
                 <TreeView Grid.Row="2" ItemsSource="{Binding Roots}" BorderThickness="0" Background="Transparent"
                           SelectedItemChanged="OnSelectedItemChanged"
@@ -48,7 +50,7 @@
                           ContextMenuOpening="OnTreeContextMenuOpening">
                     <TreeView.ContextMenu>
                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="新建根节点" Command="{Binding NewRootCommand}" />
+                            <MenuItem Header="新建区域（顶层）" Command="{Binding NewTopLevelCommand}" />
                             <MenuItem Header="新建子节点" Command="{Binding NewChildCommand}" />
                             <MenuItem Header="新建同级节点" Command="{Binding NewSiblingCommand}" />
                             <MenuItem Header="添加设备" Command="{Binding AddEquipmentCommand}" />

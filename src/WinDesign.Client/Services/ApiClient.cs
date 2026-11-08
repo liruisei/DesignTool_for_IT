@@ -10,6 +10,7 @@ using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Users;
+using WinDesign.Contracts.Workspaces;
 
 namespace WinDesign.Client.Services;
 
@@ -113,6 +114,23 @@ public sealed class ApiClient : IApiClient
 
     public Task<CurrentUserDto> GetMeAsync(CancellationToken ct = default) =>
         SendAsync<CurrentUserDto>(Request(HttpMethod.Get, "api/auth/me"), ct);
+
+    // ---------- workspace ----------
+    public Task<IReadOnlyList<WorkspacePlantDto>> GetWorkspacesAsync(CancellationToken ct = default) =>
+        SendAsync<IReadOnlyList<WorkspacePlantDto>>(
+            Request(HttpMethod.Get, "api/auth/workspaces"), ct);
+
+    public async Task<WorkspaceResponse> SelectWorkspaceAsync(
+        Guid plantId,
+        Guid projectId,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, "api/auth/workspace");
+        message.Content = JsonContent.Create(new SelectWorkspaceRequest(plantId, projectId), options: JsonOptions);
+        var result = await SendAsync<WorkspaceResponse>(message, ct);
+        Token = result.AccessToken;
+        return result;
+    }
 
     // ---------- dashboard ----------
     public Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default) =>
@@ -231,16 +249,16 @@ public sealed class ApiClient : IApiClient
         SendNoContentAsync(Request(HttpMethod.Delete, $"api/dictionaries/items/{id}"), ct);
 
     // ---------- PBS ----------
-    public Task<IReadOnlyList<PbsNodeDto>> GetPbsNodesAsync(Guid projectId, CancellationToken ct = default) =>
+    public Task<IReadOnlyList<PbsNodeDto>> GetPbsNodesAsync(Guid plantId, CancellationToken ct = default) =>
         SendAsync<IReadOnlyList<PbsNodeDto>>(
-            Request(HttpMethod.Get, $"api/projects/{projectId}/pbs"), ct);
+            Request(HttpMethod.Get, $"api/plants/{plantId}/pbs"), ct);
 
     public Task<PbsNodeDto> CreatePbsNodeAsync(
-        Guid projectId,
+        Guid plantId,
         CreatePbsNodeRequest request,
         CancellationToken ct = default)
     {
-        var message = Request(HttpMethod.Post, $"api/projects/{projectId}/pbs");
+        var message = Request(HttpMethod.Post, $"api/plants/{plantId}/pbs");
         message.Content = JsonContent.Create(request, options: JsonOptions);
         return SendAsync<PbsNodeDto>(message, ct);
     }

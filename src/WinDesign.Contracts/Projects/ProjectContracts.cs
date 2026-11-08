@@ -3,6 +3,8 @@ namespace WinDesign.Contracts.Projects;
 public sealed record ProjectDto
 {
     public Guid Id { get; init; }
+    public Guid PlantId { get; init; }
+    public string? PlantName { get; init; }
     public string Code { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
     public string? ClientName { get; init; }

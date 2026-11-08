@@ -21,8 +21,8 @@ public static class DatabaseSeeder
             ("projects.write", "维护项目", "项目管理"),
             ("dictionaries.read", "查看编码定义", "编码定义"),
             ("dictionaries.write", "维护编码定义", "编码定义"),
-            ("pbs.read", "查看 PBS", "工厂 PBS"),
-            ("pbs.write", "维护 PBS", "工厂 PBS"),
+            ("pbs.read", "查看 PBS", "PBS管理"),
+            ("pbs.write", "维护 PBS", "PBS管理"),
             ("equipment.read", "查看设备索引", "设备索引"),
             ("equipment.write", "维护设备索引", "设备索引"),
             ("specs.read", "查看设备规格", "设备规格"),
@@ -96,8 +96,28 @@ public static class DatabaseSeeder
             new UserRole { UserId = designer.Id, RoleId = designerRole.Id },
             new UserRole { UserId = viewer.Id, RoleId = viewerRole.Id });
 
+        // 工厂（PBS 根节点）；一个工厂可以承载多个项目。
+        var plantA = new Plant
+        {
+            Code = "PLANT-A",
+            Name = "某石化厂",
+            ClientName = "示范客户",
+            Location = "华东",
+            Description = "演示工厂：包含常减压等装置。"
+        };
+        var plantB = new Plant
+        {
+            Code = "PLANT-B",
+            Name = "某 LNG 接收站",
+            ClientName = "示范客户",
+            Location = "华南",
+            Description = "演示工厂：电信及 IT 设计。"
+        };
+        db.Plants.AddRange(plantA, plantB);
+
         var project1 = new Project
         {
+            PlantId = plantA.Id,
             Code = "DEMO-001",
             Name = "某石化仪表改造项目",
             ClientName = "示范客户",
@@ -108,29 +128,44 @@ public static class DatabaseSeeder
         };
         var project2 = new Project
         {
+            PlantId = plantA.Id,
             Code = "DEMO-002",
-            Name = "某 LNG 接收站电信设计",
+            Name = "常减压装置扩能改造",
+            ClientName = "示范客户",
+            Phase = "基础设计",
+            Status = ProjectStatus.Active,
+            OwnerUserId = designer.Id,
+            Description = "同一工厂下的第二个项目，与 DEMO-001 共享设备。"
+        };
+        var project3 = new Project
+        {
+            PlantId = plantB.Id,
+            Code = "DEMO-003",
+            Name = "LNG 接收站电信设计",
             ClientName = "示范客户",
             Phase = "基础设计",
             Status = ProjectStatus.Active,
             OwnerUserId = designer.Id,
             Description = "演示项目：电信及 IT 设计。"
         };
-        db.Projects.AddRange(project1, project2);
+        db.Projects.AddRange(project1, project2, project3);
         db.ProjectMembers.AddRange(
             new ProjectMember { ProjectId = project1.Id, UserId = admin.Id, RoleInProject = "Owner" },
             new ProjectMember { ProjectId = project1.Id, UserId = designer.Id, RoleInProject = "Designer" },
-            new ProjectMember { ProjectId = project2.Id, UserId = designer.Id, RoleInProject = "Owner" });
+            new ProjectMember { ProjectId = project1.Id, UserId = viewer.Id, RoleInProject = "Viewer" },
+            new ProjectMember { ProjectId = project2.Id, UserId = designer.Id, RoleInProject = "Owner" },
+            new ProjectMember { ProjectId = project3.Id, UserId = designer.Id, RoleInProject = "Owner" });
 
-        var root = new PbsNode { ProjectId = project1.Id, Code = "ROOT", Name = "全厂", NodeType = PbsNodeType.Root, SortOrder = 0 };
-        var area = new PbsNode { ProjectId = project1.Id, ParentId = root.Id, Code = "AREA-A", Name = "A 区", NodeType = PbsNodeType.Area, SortOrder = 1 };
-        var unit = new PbsNode { ProjectId = project1.Id, ParentId = area.Id, Code = "CDU", Name = "常减压装置", NodeType = PbsNodeType.Unit, SortOrder = 2 };
-        var loop = new PbsNode { ProjectId = project1.Id, ParentId = unit.Id, Code = "L-1001", Name = "压力控制回路", NodeType = PbsNodeType.Loop, SortOrder = 3 };
-        db.PbsNodes.AddRange(root, area, unit, loop);
+        // PBS 节点归工厂；根节点由工厂本身承载，不再单独建 Root 节点。
+        var area = new PbsNode { PlantId = plantA.Id, Code = "AREA-A", Name = "A 区", NodeType = PbsNodeType.Area, SortOrder = 1 };
+        var unit = new PbsNode { PlantId = plantA.Id, ParentId = area.Id, Code = "CDU", Name = "常减压装置", NodeType = PbsNodeType.Unit, SortOrder = 2 };
+        var loop = new PbsNode { PlantId = plantA.Id, ParentId = unit.Id, Code = "L-1001", Name = "压力控制回路", NodeType = PbsNodeType.Loop, SortOrder = 3 };
+        var areaB = new PbsNode { PlantId = plantB.Id, Code = "AREA-LNG", Name = "接收站区", NodeType = PbsNodeType.Area, SortOrder = 1 };
+        db.PbsNodes.AddRange(area, unit, loop, areaB);
 
         var equipment = new Equipment
         {
-            ProjectId = project1.Id,
+            PlantId = plantA.Id,
             PbsNodeId = loop.Id,
             TagNo = "PT-1001",
             LoopNo = "L-1001",
@@ -141,6 +176,12 @@ public static class DatabaseSeeder
             Location = "A 区 / 常减压装置"
         };
         db.Equipments.Add(equipment);
+
+        // 同一台设备同时纳入两个项目的设计范围。
+        db.ProjectEquipments.AddRange(
+            new ProjectEquipment { ProjectId = project1.Id, EquipmentId = equipment.Id },
+            new ProjectEquipment { ProjectId = project2.Id, EquipmentId = equipment.Id });
+
         db.EquipmentSpecs.Add(new EquipmentSpec
         {
             EquipmentId = equipment.Id,

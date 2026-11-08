@@ -34,6 +34,9 @@ public partial class ProjectManagementView : UserControl
         UpdateToggleText();
     }
 
+    private void OnEditorLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+        => EditorAutoSave.OnLostKeyboardFocus(sender, e);
+
     private void UpdateToggleText()
     {
         if (ToggleEditorButton is null)

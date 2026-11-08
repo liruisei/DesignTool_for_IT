@@ -70,7 +70,6 @@ public partial class PbsViewModel : ViewModelBase
 
     public IReadOnlyList<PbsNodeTypeOption> NodeTypeOptions { get; } = new[]
     {
-        new PbsNodeTypeOption("Root", "根节点"),
         new PbsNodeTypeOption("Area", "区域"),
         new PbsNodeTypeOption("Unit", "装置"),
         new PbsNodeTypeOption("Loop", "回路"),
@@ -86,6 +85,10 @@ public partial class PbsViewModel : ViewModelBase
 
     public ProjectContext Context => _context;
 
+    public string PlantName => _session.Plant?.Name ?? "未选择工厂";
+
+    public string ProjectName => _session.Project?.Name ?? "未选择项目";
+
     public PbsViewModel(
         SessionService session,
         ProjectContext context,
@@ -96,15 +99,18 @@ public partial class PbsViewModel : ViewModelBase
         _context = context;
         _dialogs = dialogs ?? new PbsDialogService();
         _equipmentDialogs = equipmentDialogs ?? new EquipmentDialogService();
-        Title = "工厂 PBS";
+        Title = "PBS管理";
         _context.ProjectChanged += OnProjectChanged;
         _ = RefreshAsync();
     }
 
+    public override void Dispose() => _context.ProjectChanged -= OnProjectChanged;
+
     public override Task RefreshAsync() => RunAsync(async () =>
     {
         var project = _context.CurrentProject;
-        if (project is null)
+        var plantId = _session.PlantId;
+        if (project is null || plantId is null)
         {
             Roots.Clear();
             ParentOptions.Clear();
@@ -121,7 +127,7 @@ public partial class PbsViewModel : ViewModelBase
             EquipmentTypes.Add(type);
         }
 
-        var nodes = await _session.Api.GetPbsNodesAsync(project.Id);
+        var nodes = await _session.Api.GetPbsNodesAsync(plantId.Value);
         var equipments = await _session.Api.GetEquipmentsAsync(project.Id, pageSize: 2000);
         _nodes = nodes.ToDictionary(x => x.Id);
 
@@ -139,7 +145,7 @@ public partial class PbsViewModel : ViewModelBase
     });
 
     [RelayCommand]
-    private Task NewRootAsync() => OpenEditorAsync(null, null);
+    private Task NewTopLevelAsync() => OpenEditorAsync(null, null);
 
     [RelayCommand]
     private async Task NewChildAsync()
@@ -161,12 +167,7 @@ public partial class PbsViewModel : ViewModelBase
             ErrorMessage = "请先选择一个 PBS 节点";
             return;
         }
-        if (SelectedNode.Node.ParentId is null)
-        {
-            ErrorMessage = "根节点没有同级节点，请使用“新建子节点”";
-            return;
-        }
-
+        // 顶层节点（ParentId 为空）也可以新建同级，即工厂下的另一个区域。
         await OpenEditorAsync(null, SelectedNode.Node.ParentId);
     }
 
@@ -214,7 +215,7 @@ public partial class PbsViewModel : ViewModelBase
     [RelayCommand]
     private Task AddEquipmentAsync() => RunAsync(async () =>
     {
-        var project = _context.CurrentProject ?? throw new ApiException("请先在顶部选择项目");
+        var project = _context.CurrentProject ?? throw new ApiException("请先选择工作区项目");
         var pbsNodeId = SelectedNode?.Node?.Id ?? SelectedNode?.Equipment?.PbsNodeId;
         if (pbsNodeId is null)
         {
@@ -290,10 +291,10 @@ public partial class PbsViewModel : ViewModelBase
 
     private async Task OpenEditorAsync(PbsNodeDto? node, Guid? defaultParentId)
     {
-        var project = _context.CurrentProject;
-        if (project is null)
+        var plantId = _session.PlantId;
+        if (plantId is null)
         {
-            ErrorMessage = "请先在顶部选择项目";
+            ErrorMessage = "请先选择工作区工厂";
             return;
         }
 
@@ -309,7 +310,7 @@ public partial class PbsViewModel : ViewModelBase
             PbsNodeDto saved;
             if (node is null)
             {
-                saved = await _session.Api.CreatePbsNodeAsync(project.Id, new CreatePbsNodeRequest(
+                saved = await _session.Api.CreatePbsNodeAsync(plantId.Value, new CreatePbsNodeRequest(
                     result.ParentId,
                     result.Code,
                     result.Name,

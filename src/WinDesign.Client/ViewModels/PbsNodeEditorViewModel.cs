@@ -21,7 +21,6 @@ public partial class PbsNodeEditorViewModel : ObservableObject
 {
     public IReadOnlyList<PbsNodeTypeOption> NodeTypeOptions { get; } = new[]
     {
-        new PbsNodeTypeOption("Root", "根节点"),
         new PbsNodeTypeOption("Area", "区域"),
         new PbsNodeTypeOption("Unit", "装置"),
         new PbsNodeTypeOption("System", "系统"),
@@ -69,10 +68,10 @@ public partial class PbsNodeEditorViewModel : ObservableObject
 
         if (context.Node is null)
         {
-            Title = context.DefaultParentId is null ? "新建根节点" : "新建子节点";
+            Title = context.DefaultParentId is null ? "新建顶层节点" : "新建子节点";
             SelectedParentOption = ParentOptions.FirstOrDefault(x => x.Id == context.DefaultParentId)
                                    ?? ParentOptions.FirstOrDefault();
-            EditNodeType = context.DefaultParentId is null ? "Root" : "System";
+            EditNodeType = context.DefaultParentId is null ? "Area" : "System";
         }
         else
         {
@@ -101,10 +100,11 @@ public partial class PbsNodeEditorViewModel : ObservableObject
         }
 
         var parentId = SelectedParentOption?.Id;
-        var nodeType = parentId is null ? "Root" : EditNodeType;
-        if (parentId is not null && nodeType == "Root")
+        var nodeType = string.IsNullOrWhiteSpace(EditNodeType) ? "Area" : EditNodeType;
+        // 工厂本身就是 PBS 根节点，历史数据中的 Root 类型要归一化为具体层级。
+        if (nodeType == "Root")
         {
-            nodeType = "System";
+            nodeType = parentId is null ? "Area" : "System";
         }
 
         result = new PbsNodeEditorResult(
@@ -125,14 +125,11 @@ public partial class PbsNodeEditorViewModel : ObservableObject
     private void UpdateRootState()
     {
         IsRoot = SelectedParentOption?.Id is null;
-        CanChooseNodeType = !IsRoot;
-        if (IsRoot)
+        // 工厂本身就是根节点，顶层节点也需要明确层级（区域/装置/系统等）。
+        CanChooseNodeType = true;
+        if (string.IsNullOrWhiteSpace(EditNodeType) || EditNodeType == "Root")
         {
-            EditNodeType = "Root";
-        }
-        else if (EditNodeType == "Root")
-        {
-            EditNodeType = "System";
+            EditNodeType = IsRoot ? "Area" : "System";
         }
     }
 }

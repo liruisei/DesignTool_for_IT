@@ -11,34 +11,33 @@ public class PbsTests : ApiTestBase
     }
 
     [Fact]
-    public async Task Pbs_InitialTree_ContainsRootAndSeedNodes()
+    public async Task Pbs_InitialTree_ContainsTopLevelAndSeedNodes()
     {
         await LoginAsync();
-        var project = await GetDemoProjectAsync();
 
-        var nodes = await GetNodesAsync(project.Id);
+        var nodes = await GetNodesAsync();
 
         Assert.Contains(nodes, x => x.ParentId is null);
         Assert.Contains(nodes, x => x.NodeType == "Loop");
-        Assert.True(nodes.Count >= 4);
+        Assert.DoesNotContain(nodes, x => x.NodeType == "Root");
+        Assert.True(nodes.Count >= 3);
     }
 
     [Fact]
     public async Task Pbs_Crud_RoundTrip()
     {
         await LoginAsync();
-        var project = await GetDemoProjectAsync();
-        var root = await GetRootAsync(project.Id);
+        var topLevel = await GetTopLevelAsync();
         var code = UniqueCode("T");
 
-        var created = await CreateNodeAsync(project.Id, root.Id, code);
+        var created = await CreateNodeAsync(topLevel.Id, code);
         try
         {
             Assert.Equal(code, created.Code);
 
             var update = await Client.PutAsJsonAsync($"/api/pbs/{created.Id}", new
             {
-                parentId = root.Id,
+                parentId = topLevel.Id,
                 code,
                 name = "测试节点-更新",
                 nodeType = "SubSystem",
@@ -59,16 +58,15 @@ public class PbsTests : ApiTestBase
     public async Task Pbs_DuplicateCode_ReturnsConflict()
     {
         await LoginAsync();
-        var project = await GetDemoProjectAsync();
-        var root = await GetRootAsync(project.Id);
+        var topLevel = await GetTopLevelAsync();
         var code = UniqueCode("D");
 
-        var created = await CreateNodeAsync(project.Id, root.Id, code);
+        var created = await CreateNodeAsync(topLevel.Id, code);
         try
         {
-            var duplicate = await Client.PostAsJsonAsync($"/api/projects/{project.Id}/pbs", new
+            var duplicate = await Client.PostAsJsonAsync($"/api/plants/{PlantId}/pbs", new
             {
-                parentId = root.Id,
+                parentId = topLevel.Id,
                 code,
                 name = "重复节点",
                 nodeType = "SubSystem",
@@ -88,11 +86,10 @@ public class PbsTests : ApiTestBase
     public async Task Pbs_Cycle_ReturnsBadRequest()
     {
         await LoginAsync();
-        var project = await GetDemoProjectAsync();
-        var root = await GetRootAsync(project.Id);
+        var topLevel = await GetTopLevelAsync();
 
-        var parent = await CreateNodeAsync(project.Id, root.Id, UniqueCode("P"));
-        var child = await CreateNodeAsync(project.Id, parent.Id, UniqueCode("C"));
+        var parent = await CreateNodeAsync(topLevel.Id, UniqueCode("P"));
+        var child = await CreateNodeAsync(parent.Id, UniqueCode("C"));
         try
         {
             var response = await Client.PutAsJsonAsync($"/api/pbs/{parent.Id}", new
@@ -118,11 +115,10 @@ public class PbsTests : ApiTestBase
     public async Task Pbs_DeleteWithChildren_ReturnsBadRequest()
     {
         await LoginAsync();
-        var project = await GetDemoProjectAsync();
-        var root = await GetRootAsync(project.Id);
+        var topLevel = await GetTopLevelAsync();
 
-        var parent = await CreateNodeAsync(project.Id, root.Id, UniqueCode("P"));
-        var child = await CreateNodeAsync(project.Id, parent.Id, UniqueCode("C"));
+        var parent = await CreateNodeAsync(topLevel.Id, UniqueCode("P"));
+        var child = await CreateNodeAsync(parent.Id, UniqueCode("C"));
         try
         {
             var response = await Client.DeleteAsync($"/api/pbs/{parent.Id}");
@@ -136,18 +132,18 @@ public class PbsTests : ApiTestBase
         }
     }
 
-    private async Task<List<PbsNodeDto>> GetNodesAsync(Guid projectId)
+    private async Task<List<PbsNodeDto>> GetNodesAsync()
     {
-        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/projects/{projectId}/pbs");
+        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/plants/{PlantId}/pbs");
         return nodes ?? new List<PbsNodeDto>();
     }
 
-    private async Task<PbsNodeDto> GetRootAsync(Guid projectId) =>
-        (await GetNodesAsync(projectId)).Single(x => x.ParentId is null);
+    private async Task<PbsNodeDto> GetTopLevelAsync() =>
+        (await GetNodesAsync()).First(x => x.ParentId is null);
 
-    private async Task<PbsNodeDto> CreateNodeAsync(Guid projectId, Guid? parentId, string code)
+    private async Task<PbsNodeDto> CreateNodeAsync(Guid? parentId, string code)
     {
-        var response = await Client.PostAsJsonAsync($"/api/projects/{projectId}/pbs", new
+        var response = await Client.PostAsJsonAsync($"/api/plants/{PlantId}/pbs", new
         {
             parentId,
             code,

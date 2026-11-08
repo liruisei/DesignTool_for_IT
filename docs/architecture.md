@@ -4,15 +4,16 @@
 
 ```
 ┌───────────────────────────── WPF 客户端 ─────────────────────────────┐
-│ LoginWindow → MainWindow（导航壳） → Dashboard / 项目管理 / 编码定义   │
-│                         / 用户管理 / 占位业务模块                     │
+│ LoginWindow → WorkspaceSelectionWindow（工厂 → 项目） → MainWindow      │
+│  MainWindow（导航壳） → 索引表 / 设备规格 / 材料 / 报表                │
+│                         系统：项目配置 / PBS管理 / 编码定义 / 用户管理  │
 │  MVVM：View ←→ ViewModel ←→ ApiClient（HttpClient + JWT）             │
 └───────────────────────────────────┬──────────────────────────────────┘
                                     │ HTTPS / JSON
 ┌───────────────────────────────────▼──────────────────────────────────┐
 │                      ASP.NET Core Web API                            │
-│  Controllers（Auth / Users / Roles / Projects / Dictionaries /       │
-│               Dashboard）                                            │
+│  Controllers（Auth / Plants / Projects / Pbs / Equipments / Users /  │
+│               Roles / Dictionaries / Dashboard）                     │
 │  JWT 认证 + 角色授权 + 审计日志                                        │
 │  EF Core（Npgsql / Sqlite）                                           │
 └───────────────────────────────────┬──────────────────────────────────┘
@@ -35,29 +36,38 @@
 ## 3. 认证与权限
 
 1. 客户端 `POST /api/auth/login`，服务端校验 PBKDF2 密码哈希。
-2. 服务端签发 JWT，包含：
+2. 服务端签发**身份令牌**，包含：
    - `sub` / `nameidentifier`：用户 ID
    - `name`：用户名
    - `role`：Admin / Designer / Viewer
    - `permission`：细粒度权限码（如 `projects.write`）
-3. 客户端把 Token 放在 `Authorization: Bearer <token>`。
-4. 服务端：
+3. 登录后客户端调用 `GET /api/auth/workspaces`，只返回当前用户参与的工厂与项目。
+4. 客户端选择「工厂 → 项目」后调用 `POST /api/auth/workspace`，服务端校验成员身份并签发**工作区令牌**，额外包含：
+   - `plantId`：所选工厂（PBS 根节点）
+   - `projectId`：所选项目（设计与报表范围）
+5. 客户端把令牌放在 `Authorization: Bearer <token>`。所有数据接口从令牌中取工厂/项目并强制过滤：
+   - 未选择工作区 → `400`；
+   - 请求其他工厂或项目 → `403`。
+   - 主界面内切换工作区时，复用 `POST /api/auth/workspace` 换发新令牌，并关闭旧文档、按新范围重建，无需重新登录。
+6. 服务端：
    - `[Authorize]`：登录即可。
    - `[Authorize(Roles = "Admin")]`：用户管理、项目归档。
-   - `[Authorize(Roles = "Admin,Designer")]`：项目/编码写入。
-5. 权限码同时写入数据库 `permissions / role_permissions`，为后续菜单/按钮级授权预留。
+   - `[Authorize(Roles = "Admin,Designer")]`：工厂/项目/PBS/设备写入。
+7. 权限码同时写入数据库 `permissions / role_permissions`，为后续菜单/按钮级授权预留。
 
-## 4. 数据模型（v0.1）
+## 4. 数据模型（v0.7：工厂 → 项目 → PBS）
+
+工厂是 PBS 的根节点，PBS 与设备归工厂所有；项目只是设计与报表范围，通过 `project_equipments` 引用工厂设备，同一设备可被多个项目共享。
 
 ```
 users ──< user_roles >── roles ──< role_permissions >── permissions
-  │
-  └──< projects (owner)
-          ├──< project_members
-          ├──< pbs_nodes（自关联树）
-          ├──< equipments ──< equipment_specs
-          │        └──< material_items
-          └──< material_items
+
+plants（工厂 = PBS 根节点）
+  ├──< pbs_nodes（自关联树：区域 → 装置 → 回路 → ...）
+  ├──< equipments ──< equipment_specs
+  │        ├──< project_equipments >── projects
+  │        └──< material_items
+  └──< projects (owner) ──< project_members
 
 dictionary_types ──< dictionary_items
 audit_logs（独立流水）
@@ -68,9 +78,11 @@ audit_logs（独立流水）
 | User | UserName、DisplayName、PasswordHash、IsActive | 账号 |
 | Role | Code、Name | Admin / Designer / Viewer |
 | Permission | Code、Module | 细粒度权限 |
-| Project | Code、Name、ClientName、Location、Phase、StartDate、EndDate、Status、OwnerUserId | 项目主数据 |
-| PbsNode | ProjectId、ParentId、Code、Name、NodeType | 工厂分解结构 |
-| Equipment | ProjectId、PbsNodeId、TagNo、LoopNo、Name、TypeCode、Discipline、Status、Quantity、用途、安装位置、管道设备号、图纸/文档号、IO/KeyWord/Index、工艺条件/规格书 | 索引表；PBS 路径由节点祖先计算 |
+| Plant | Code、Name、ClientName、Location、IsActive | 工厂 / 企业，PBS 根节点；一个工厂承载多个项目 |
+| Project | PlantId、Code、Name、ClientName、Location、Phase、StartDate、EndDate、Status、OwnerUserId | 项目（设计 / 报表范围） |
+| PbsNode | PlantId、ParentId、Code、Name、NodeType | 工厂分解结构；根节点由 Plant 承载 |
+| Equipment | PlantId、PbsNodeId、TagNo、LoopNo、Name、TypeCode、Discipline、Status、Quantity、用途、安装位置、管道设备号、图纸/文档号、IO/KeyWord/Index、工艺条件/规格书 | 设备归工厂；PBS 路径由节点祖先计算；位号工厂内唯一 |
+| ProjectEquipment | ProjectId、EquipmentId、AddedAt | 设备的项目范围，支持跨项目共享 |
 | EquipmentSpec | EquipmentId、SpecCode、ContentJson、Version | 规格书 |
 | MaterialItem | ProjectId、EquipmentId、Code、Name、Qty | 材料/附件 |
 | DictionaryType/Item | Code、Name、SortOrder、IsActive | 编码定义 |
@@ -81,14 +93,21 @@ audit_logs（独立流水）
 ## 5. 客户端结构
 
 ```
-Views/                 LoginWindow、MainWindow、Dashboard、项目管理、编码定义、用户管理、占位页
-ViewModels/            Login、Main、Dashboard、Project、Dictionary、User、Placeholder
-Services/              ApiClient、SessionService、SettingsService
+Views/                 LoginWindow、WorkspaceSelectionWindow、MainWindow、
+                       Dashboard、项目配置、PBS管理、编码定义、用户管理、占位页
+ViewModels/            Login、Main、Dashboard、WorkspaceSelection、Project、Pbs、
+                       Dictionary、User、Placeholder
+Services/              ApiClient、SessionService、ProjectContext、SettingsService
 Converters/            StringToVisibilityConverter
 Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 ```
 
-导航：`MainViewModel.NavigationItems` 按角色动态生成；`CurrentViewModel` 由 `DataTemplate` 映射到对应 View。
+导航：左侧 `Domain Explorer` 分两组——
+
+- **项目**：索引表、设备规格、材料附件、报表输出；
+- **系统**：项目配置、PBS管理、编码定义、用户管理（仅 Admin）。
+
+`MainViewModel` 按角色动态生成节点，`ExplorerNode.Open` 决定打开哪个文档。
 
 ## 6. 服务端接口约定
 
@@ -98,17 +117,26 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 - 写操作记录 `audit_logs`。
 - 用户管理仅 Admin；项目/编码写入为 Admin/Designer；只读用户只能查询。
 
-## 6.1 PBS 与设备索引接口
+## 6.1 工作区与工厂接口
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/projects/{id}/pbs` | PBS 节点平铺列表（含子节点数与设备数） |
-| POST | `/api/projects/{id}/pbs` | 新建节点；校验根节点唯一、编码唯一、上级归属 |
-| PUT | `/api/pbs/{id}` | 编辑节点；校验循环引用、根节点唯一 |
+| GET | `/api/auth/workspaces` | 当前用户可访问的工厂与项目（非管理员只返回已加入的项目） |
+| POST | `/api/auth/workspace` | 选择工厂 + 项目，校验成员身份后签发带 `plantId` / `projectId` 的令牌 |
+| GET | `/api/plants` | 当前用户可访问的工厂列表 |
+| POST/PUT | `/api/plants`、`/api/plants/{id}` | 新建/编辑工厂（Admin/Designer） |
+
+## 6.2 PBS 与设备索引接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/plants/{id}/pbs` | 工厂 PBS 节点平铺列表（含子节点数与设备数） |
+| POST | `/api/plants/{id}/pbs` | 新建节点；校验编码唯一、上级归属；工厂即根节点，不接受 Root 类型 |
+| PUT | `/api/pbs/{id}` | 编辑节点；校验循环引用、所属工厂 |
 | DELETE | `/api/pbs/{id}` | 删除节点；有子节点或设备时拒绝 |
-| GET | `/api/projects/{id}/equipments` | 索引表分页查询，支持 search/loopNo/discipline/status/pbsNodeId |
-| POST | `/api/projects/{id}/equipments` | 新建设备；位号项目内唯一 |
-| GET/PUT/DELETE | `/api/equipments/{id}` | 设备详情/编辑/删除；有规格或材料时拒绝删除 |
+| GET | `/api/projects/{id}/equipments` | 索引表分页查询，只返回纳入当前项目的设备；支持 search/loopNo/discipline/status/pbsNodeId |
+| POST | `/api/projects/{id}/equipments` | 在工厂下新建设备并自动纳入当前项目；位号工厂内唯一 |
+| GET/PUT/DELETE | `/api/equipments/{id}` | 设备详情/编辑/删除；非管理员只能操作当前项目范围内的设备 |
 
 ## 7. 部署
 
@@ -135,7 +163,7 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 
 ## 9. 下一阶段
 
-第一阶段已完成：项目信息录入、工厂 PBS 搭建（区域 → 装置 → 回路 → 设备）、索引表录入（设备可在 PBS 中创建，索引表浏览/修改）。
+已完成：工厂（PBS 根节点）与多项目管理、登录工作区选择（工厂 → 项目）、按项目范围的数据授权、PBS 管理（区域 → 装置 → 回路 → 设备）、索引表录入（设备可在 PBS 中创建，索引表浏览/修改）、项目配置。
 
 第二阶段：
 1. 设备规格模板/版本 + 缺项校验。

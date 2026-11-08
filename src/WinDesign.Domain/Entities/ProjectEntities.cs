@@ -2,8 +2,31 @@ using WinDesign.Domain.Common;
 
 namespace WinDesign.Domain.Entities;
 
+/// <summary>
+/// 工厂 / 企业。PBS 的根节点就是工厂，一个工厂可以承载多个项目（或项目群）。
+/// </summary>
+public class Plant : EntityBase
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? ClientName { get; set; }
+    public string? Location { get; set; }
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public ICollection<PbsNode> PbsNodes { get; set; } = new List<PbsNode>();
+    public ICollection<Project> Projects { get; set; } = new List<Project>();
+    public ICollection<Equipment> Equipments { get; set; } = new List<Equipment>();
+}
+
+/// <summary>
+/// 项目。设备与 PBS 归工厂所有，项目只是设计 / 报表范围。
+/// </summary>
 public class Project : EntityBase
 {
+    public Guid PlantId { get; set; }
+    public Plant Plant { get; set; } = null!;
+
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? ClientName { get; set; }
@@ -17,8 +40,7 @@ public class Project : EntityBase
     public User? Owner { get; set; }
 
     public ICollection<ProjectMember> Members { get; set; } = new List<ProjectMember>();
-    public ICollection<PbsNode> PbsNodes { get; set; } = new List<PbsNode>();
-    public ICollection<Equipment> Equipments { get; set; } = new List<Equipment>();
+    public ICollection<ProjectEquipment> ProjectEquipments { get; set; } = new List<ProjectEquipment>();
 }
 
 public class ProjectMember
@@ -30,10 +52,25 @@ public class ProjectMember
     public string RoleInProject { get; set; } = "Designer";
 }
 
-public class PbsNode : EntityBase
+/// <summary>
+/// 项目—设备范围。设备归工厂，同一设备可纳入多个项目共享。
+/// </summary>
+public class ProjectEquipment
 {
     public Guid ProjectId { get; set; }
     public Project Project { get; set; } = null!;
+    public Guid EquipmentId { get; set; }
+    public Equipment Equipment { get; set; } = null!;
+    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// 工厂 PBS 节点。根节点由 <see cref="Plant"/> 承载，本表只存工厂下的层级节点。
+/// </summary>
+public class PbsNode : EntityBase
+{
+    public Guid PlantId { get; set; }
+    public Plant Plant { get; set; } = null!;
     public Guid? ParentId { get; set; }
     public PbsNode? Parent { get; set; }
     public ICollection<PbsNode> Children { get; set; } = new List<PbsNode>();
@@ -47,8 +84,8 @@ public class PbsNode : EntityBase
 
 public class Equipment : EntityBase
 {
-    public Guid ProjectId { get; set; }
-    public Project Project { get; set; } = null!;
+    public Guid PlantId { get; set; }
+    public Plant Plant { get; set; } = null!;
     public Guid? PbsNodeId { get; set; }
     public PbsNode? PbsNode { get; set; }
 
@@ -84,6 +121,7 @@ public class Equipment : EntityBase
 
     public ICollection<EquipmentSpec> Specs { get; set; } = new List<EquipmentSpec>();
     public ICollection<MaterialItem> Materials { get; set; } = new List<MaterialItem>();
+    public ICollection<ProjectEquipment> ProjectEquipments { get; set; } = new List<ProjectEquipment>();
 }
 
 public class EquipmentSpec : EntityBase

@@ -8,7 +8,7 @@ namespace WinDesign.Client.ViewModels;
 
 public sealed record StatusOption(string Code, string Name);
 
-public partial class ProjectManagementViewModel : ViewModelBase
+public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
 {
     private readonly SessionService _session;
 
@@ -63,10 +63,12 @@ public partial class ProjectManagementViewModel : ViewModelBase
     [ObservableProperty]
     private string? statusMessage;
 
+    public string PlantName => _session.Plant?.Name ?? "未选择工厂";
+
     public ProjectManagementViewModel(SessionService session)
     {
         _session = session;
-        Title = "项目管理";
+        Title = "项目配置";
         _ = RefreshAsync();
     }
 
@@ -74,6 +76,21 @@ public partial class ProjectManagementViewModel : ViewModelBase
 
     [RelayCommand]
     private Task SearchAsync() => RunAsync(LoadProjectsAsync);
+
+    /// <summary>编辑已有项目时自动保存；新建未保存的项目不自动创建。</summary>
+    public async Task SavePendingAsync()
+    {
+        if (IsCreating || SelectedProject is null)
+        {
+            return;
+        }
+
+        await SaveAsync();
+        if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            throw new ApiException(ErrorMessage);
+        }
+    }
 
     [RelayCommand]
     private void NewProject()
@@ -101,6 +118,8 @@ public partial class ProjectManagementViewModel : ViewModelBase
             throw new ApiException("计划完成日期不能早于开工日期");
         }
 
+        // 记录保存开始时正在编辑的项目，保存完成后若用户已切换选择则不要抢回。
+        var editedProjectId = SelectedProject?.Id;
         ProjectDto saved;
         if (IsCreating)
         {
@@ -144,7 +163,10 @@ public partial class ProjectManagementViewModel : ViewModelBase
         }
 
         await LoadProjectsAsync();
-        SelectedProject = Projects.FirstOrDefault(x => x.Id == saved.Id);
+        if (SelectedProject is null || SelectedProject.Id == editedProjectId)
+        {
+            SelectedProject = Projects.FirstOrDefault(x => x.Id == saved.Id);
+        }
     });
 
     [RelayCommand]

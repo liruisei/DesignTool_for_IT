@@ -6,6 +6,7 @@ using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Users;
+using WinDesign.Contracts.Workspaces;
 
 namespace WinDesign.Client.Tests;
 
@@ -16,17 +17,52 @@ public sealed class FakeApiClient : IApiClient
 
     public LoginResponse? LoginResult { get; set; }
     public ApiException? LoginError { get; set; }
-    public ProjectDto Project { get; set; } = new()
+
+    public WorkspacePlantDto Plant { get; set; } = new(
+        Guid.NewGuid(),
+        "PLANT-A",
+        "演示工厂",
+        "演示客户",
+        "演示地点",
+        Array.Empty<WorkspaceProjectDto>());
+
+    public ProjectDto Project { get; set; }
+
+    public FakeApiClient()
     {
-        Id = Guid.NewGuid(),
-        Code = "DEMO-001",
-        Name = "演示项目",
-        ClientName = "演示客户",
-        Location = "演示地点",
-        Phase = "详细设计",
-        Status = "Active",
-        CreatedAt = DateTime.UtcNow
-    };
+        Project = new ProjectDto
+        {
+            Id = Guid.NewGuid(),
+            PlantId = Plant.Id,
+            PlantName = Plant.Name,
+            Code = "DEMO-001",
+            Name = "演示项目",
+            ClientName = "演示客户",
+            Location = "演示地点",
+            Phase = "详细设计",
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>构造一个已登录并已选择工作区的测试会话。</summary>
+    public SessionService CreateSession()
+    {
+        var session = new SessionService(this);
+        var user = new CurrentUserDto(Guid.NewGuid(), "admin", "测试用户",
+            new[] { "Admin" }, new[] { "projects.read", "pbs.write", "equipment.write" });
+        session.SignIn(new LoginResponse("fake-token", DateTime.UtcNow.AddHours(1), user));
+
+        var projectRef = new WorkspaceProjectDto(
+            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status);
+        session.SetWorkspace(new WorkspaceResponse(
+            "fake-workspace-token",
+            DateTime.UtcNow.AddHours(1),
+            user,
+            Plant with { Projects = new[] { projectRef } },
+            projectRef));
+        return session;
+    }
 
     public List<PbsNodeDto> PbsNodes { get; } = new();
     public List<EquipmentDto> Equipments { get; } = new();
@@ -53,6 +89,31 @@ public sealed class FakeApiClient : IApiClient
 
     public Task<CurrentUserDto> GetMeAsync(CancellationToken ct = default) =>
         throw new NotSupportedException();
+
+    public Task<IReadOnlyList<WorkspacePlantDto>> GetWorkspacesAsync(CancellationToken ct = default)
+    {
+        var projectRef = new WorkspaceProjectDto(
+            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status);
+        IReadOnlyList<WorkspacePlantDto> result = new[]
+        {
+            Plant with { Projects = new[] { projectRef } }
+        };
+        return Task.FromResult(result);
+    }
+
+    public Task<WorkspaceResponse> SelectWorkspaceAsync(Guid plantId, Guid projectId, CancellationToken ct = default)
+    {
+        var projectRef = new WorkspaceProjectDto(
+            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status);
+        var plant = Plant with { Projects = new[] { projectRef } };
+        return Task.FromResult(new WorkspaceResponse(
+            "fake-workspace-token",
+            DateTime.UtcNow.AddHours(1),
+            LoginResult?.User ?? new CurrentUserDto(Guid.NewGuid(), "admin", "测试用户",
+                new[] { "Admin" }, Array.Empty<string>()),
+            plant,
+            projectRef));
+    }
 
     public Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default) =>
         Task.FromResult(new DashboardDto(0, 1, 0, 0, new[] { Project }));
@@ -81,8 +142,21 @@ public sealed class FakeApiClient : IApiClient
     public Task<ProjectDto> CreateProjectAsync(CreateProjectRequest request, CancellationToken ct = default) =>
         throw new NotSupportedException();
 
-    public Task<ProjectDto> UpdateProjectAsync(Guid id, UpdateProjectRequest request, CancellationToken ct = default) =>
-        throw new NotSupportedException();
+    public Task<ProjectDto> UpdateProjectAsync(Guid id, UpdateProjectRequest request, CancellationToken ct = default)
+    {
+        Project = Project with
+        {
+            Name = request.Name,
+            ClientName = request.ClientName,
+            Location = request.Location,
+            Phase = request.Phase,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            Status = request.Status ?? Project.Status,
+            Description = request.Description
+        };
+        return Task.FromResult(Project);
+    }
 
     public Task ArchiveProjectAsync(Guid id, CancellationToken ct = default) =>
         throw new NotSupportedException();
@@ -112,14 +186,14 @@ public sealed class FakeApiClient : IApiClient
     public Task DeleteDictionaryItemAsync(Guid id, CancellationToken ct = default) =>
         throw new NotSupportedException();
 
-    public Task<IReadOnlyList<PbsNodeDto>> GetPbsNodesAsync(Guid projectId, CancellationToken ct = default) =>
+    public Task<IReadOnlyList<PbsNodeDto>> GetPbsNodesAsync(Guid plantId, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<PbsNodeDto>>(
-            PbsNodes.Where(x => x.ProjectId == projectId).ToList());
+            PbsNodes.Where(x => x.PlantId == plantId).ToList());
 
-    public Task<PbsNodeDto> CreatePbsNodeAsync(Guid projectId, CreatePbsNodeRequest request, CancellationToken ct = default)
+    public Task<PbsNodeDto> CreatePbsNodeAsync(Guid plantId, CreatePbsNodeRequest request, CancellationToken ct = default)
     {
         var dto = new PbsNodeDto(
-            Guid.NewGuid(), projectId, request.ParentId, request.Code, request.Name,
+            Guid.NewGuid(), plantId, request.ParentId, request.Code, request.Name,
             request.NodeType, request.SortOrder, request.Description, 0, 0);
         PbsNodes.Add(dto);
         return Task.FromResult(dto);
