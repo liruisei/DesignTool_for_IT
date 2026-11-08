@@ -28,21 +28,25 @@ public sealed class ProjectsController : ApiControllerBase
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        if (CurrentPlantId is not Guid plantId)
+        var userId = CurrentUserId;
+        var isAdmin = User.IsInRole("Admin");
+        if (CurrentPlantId is null && !isAdmin)
         {
             return BadRequest(new ApiError("请先选择工作区工厂"));
         }
 
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
-        var userId = CurrentUserId;
-        var isAdmin = User.IsInRole("Admin");
 
         var query = _db.Projects
             .Include(x => x.Owner)
             .Include(x => x.Plant)
-            .Where(x => x.PlantId == plantId)
             .AsNoTracking();
+
+        if (CurrentPlantId is Guid plantId)
+        {
+            query = query.Where(x => x.PlantId == plantId);
+        }
 
         if (!isAdmin)
         {
@@ -79,7 +83,11 @@ public sealed class ProjectsController : ApiControllerBase
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == id, ct);
 
-        if (project is null || project.PlantId != CurrentPlantId)
+        if (project is null)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
         {
             return NotFound(new ApiError("项目不存在"));
         }
@@ -95,9 +103,20 @@ public sealed class ProjectsController : ApiControllerBase
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<ProjectDto>> Create([FromBody] CreateProjectRequest request, CancellationToken ct)
     {
-        if (CurrentPlantId is not Guid plantId)
+        var isAdmin = User.IsInRole("Admin");
+        var plantId = CurrentPlantId ?? request.PlantId;
+        if (plantId is null)
         {
-            return BadRequest(new ApiError("请先选择工作区工厂"));
+            return BadRequest(new ApiError("请选择项目所属工厂"));
+        }
+        if (CurrentPlantId is null && !isAdmin)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只有管理员可以在管理模块下创建项目"));
+        }
+        if (!await _db.Plants.AnyAsync(x => x.Id == plantId.Value, ct))
+        {
+            return NotFound(new ApiError("工厂不存在"));
         }
 
         var code = request.Code.Trim();
@@ -105,14 +124,14 @@ public sealed class ProjectsController : ApiControllerBase
         {
             return BadRequest(new ApiError("项目代号和项目名称不能为空"));
         }
-        if (await _db.Projects.AnyAsync(x => x.PlantId == plantId && x.Code == code, ct))
+        if (await _db.Projects.AnyAsync(x => x.PlantId == plantId.Value && x.Code == code, ct))
         {
             return Conflict(new ApiError("该工厂下项目代号已存在"));
         }
 
         var project = new Project
         {
-            PlantId = plantId,
+            PlantId = plantId.Value,
             Code = code,
             Name = request.Name.Trim(),
             ClientName = string.IsNullOrWhiteSpace(request.ClientName) ? null : request.ClientName.Trim(),
@@ -150,9 +169,18 @@ public sealed class ProjectsController : ApiControllerBase
             .Include(x => x.Owner)
             .Include(x => x.Plant)
             .SingleOrDefaultAsync(x => x.Id == id, ct);
-        if (project is null || project.PlantId != CurrentPlantId)
+        if (project is null)
         {
             return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is null && !User.IsInRole("Admin"))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只有管理员可以在管理模块下编辑项目"));
         }
         if (!await CanAccessAsync(project.Id, ct))
         {
@@ -186,9 +214,18 @@ public sealed class ProjectsController : ApiControllerBase
     public async Task<IActionResult> Archive(Guid id, CancellationToken ct)
     {
         var project = await _db.Projects.SingleOrDefaultAsync(x => x.Id == id, ct);
-        if (project is null || project.PlantId != CurrentPlantId)
+        if (project is null)
         {
             return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is null && !User.IsInRole("Admin"))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只有管理员可以在管理模块下归档项目"));
         }
 
         project.Status = ProjectStatus.Archived;

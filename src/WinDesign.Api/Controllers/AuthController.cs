@@ -167,6 +167,37 @@ public sealed class AuthController : ApiControllerBase
             projectDto));
     }
 
+    /// <summary>
+    /// 管理员进入管理模块：不绑定工厂/项目，仅保留身份与权限，用于系统配置。
+    /// </summary>
+    [HttpPost("management")]
+    public async Task<ActionResult<ManagementSessionResponse>> EnterManagement(CancellationToken ct)
+    {
+        if (!User.IsInRole("Admin"))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("只有管理员可以进入管理模块"));
+        }
+
+        var user = await LoadUserAsync(x => x.Id == CurrentUserId, ct);
+        if (user is null || !user.IsActive)
+        {
+            return Unauthorized(new ApiError("用户不存在或已停用"));
+        }
+
+        var roles = SelectRoles(user);
+        var permissions = await SelectPermissionsAsync(user, ct);
+        var (token, expiresAt) = _jwt.Create(user, roles, permissions);
+
+        _db.AddAudit(user.Id, user.UserName, "EnterManagement", "Workspace", user.Id.ToString());
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new ManagementSessionResponse(
+            token,
+            expiresAt,
+            new CurrentUserDto(user.Id, user.UserName, user.DisplayName, roles, permissions)));
+    }
+
     [HttpGet("me")]
     public ActionResult<CurrentUserDto> Me()
     {

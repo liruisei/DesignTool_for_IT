@@ -129,6 +129,43 @@ public class MainViewModelTests
         Assert.Equal(0, later.SaveCount);
     }
 
+    [Fact]
+    public void ManagementMode_OnlyShowsSystem_AndOpensProjectConfig()
+    {
+        var api = new FakeApiClient();
+        var viewModel = new MainViewModel(api.CreateManagementSession());
+
+        Assert.DoesNotContain(viewModel.ExplorerNodes, x => x.Key == "project");
+        var system = viewModel.ExplorerNodes.Single(x => x.Key == "system");
+        Assert.Contains(system.Children, x => x.Key == "project-config");
+        Assert.Contains(system.Children, x => x.Key == "pbs");
+        Assert.Contains(viewModel.Documents, x => x.Key == "project-config");
+        Assert.Equal("管理模块", viewModel.WorkspaceText);
+    }
+
+    [Fact]
+    public void ApplyWorkspaceChange_FromManagementToWorkspace_RebuildsProjectNav()
+    {
+        var api = new FakeApiClient();
+        var session = api.CreateManagementSession();
+        var viewModel = new MainViewModel(session);
+
+        var projectRef = new WorkspaceProjectDto(
+            api.Project.Id, api.Project.Code, api.Project.Name, api.Project.Phase, api.Project.Status);
+        session.SetWorkspace(new WorkspaceResponse(
+            "fake-workspace-token",
+            DateTime.UtcNow.AddHours(1),
+            session.User!,
+            api.Plant with { Projects = new[] { projectRef } },
+            projectRef));
+
+        viewModel.ApplyWorkspaceChange();
+
+        Assert.Contains(viewModel.ExplorerNodes, x => x.Key == "project");
+        Assert.Equal(api.Project.Name, viewModel.ProjectName);
+        Assert.Contains(viewModel.Documents, x => x.Key == "index");
+    }
+
     private sealed class TrackingPendingViewModel : ViewModelBase, IPendingChanges
     {
         public int SaveCount { get; private set; }

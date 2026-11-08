@@ -28,10 +28,12 @@ public partial class MainViewModel : ObservableObject
     public string RoleText => string.Join(" / ", _session.User?.Roles ?? new List<string>());
     public string ServerUrl => _session.Api.BaseUrl;
     public bool IsAdmin => _session.IsAdmin;
-    public string PlantName => _session.Plant?.Name ?? "未选择工厂";
-    public string ProjectName => _session.Project?.Name ?? "未选择项目";
-    public string WorkspaceText => PlantName + " / " + ProjectName;
-    public string CurrentProjectName => _session.Project?.Name ?? "未选择项目";
+    public bool IsManagementMode => _session.IsManagementMode;
+    public bool ShowWorkspaceProject => !IsManagementMode;
+    public string PlantName => IsManagementMode ? "管理模块" : _session.Plant?.Name ?? "未选择工厂";
+    public string ProjectName => IsManagementMode ? "未选择项目" : _session.Project?.Name ?? "未选择项目";
+    public string WorkspaceText => IsManagementMode ? "管理模块" : PlantName + " / " + ProjectName;
+    public string CurrentProjectName => IsManagementMode ? "管理模块" : _session.Project?.Name ?? "未选择项目";
 
     public event EventHandler? LogoutRequested;
     public event EventHandler? SwitchWorkspaceRequested;
@@ -42,49 +44,62 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(SessionService session)
     {
         _session = session;
-        _projectContext.CurrentProject = ToProjectDto(session);
+        _projectContext.CurrentProject = IsManagementMode ? null : ToProjectDto(session);
         BuildExplorer();
-        OpenIndex();
+        if (IsManagementMode)
+        {
+            OpenProjectConfig();
+        }
+        else
+        {
+            OpenIndex();
+        }
     }
 
     private void BuildExplorer()
     {
-        var project = new ExplorerNode
+        ExplorerNodes.Clear();
+        SelectedExplorerNode = null;
+
+        if (!IsManagementMode)
         {
-            Key = "project",
-            Title = "项目",
-            Glyph = "▣",
-            IsFolder = true
-        };
-        project.Children.Add(new ExplorerNode
-        {
-            Key = "index",
-            Title = "索引表",
-            Glyph = "▦",
-            Open = OpenIndex
-        });
-        project.Children.Add(new ExplorerNode
-        {
-            Key = "specs",
-            Title = "设备规格",
-            Glyph = "✎",
-            Open = OpenSpecs
-        });
-        project.Children.Add(new ExplorerNode
-        {
-            Key = "materials",
-            Title = "材料附件",
-            Glyph = "▣",
-            Open = OpenMaterials
-        });
-        project.Children.Add(new ExplorerNode
-        {
-            Key = "reports",
-            Title = "报表输出",
-            Glyph = "▥",
-            Open = OpenReports
-        });
-        ExplorerNodes.Add(project);
+            var project = new ExplorerNode
+            {
+                Key = "project",
+                Title = "项目",
+                Glyph = "▣",
+                IsFolder = true
+            };
+            project.Children.Add(new ExplorerNode
+            {
+                Key = "index",
+                Title = "索引表",
+                Glyph = "▦",
+                Open = OpenIndex
+            });
+            project.Children.Add(new ExplorerNode
+            {
+                Key = "specs",
+                Title = "设备规格",
+                Glyph = "✎",
+                Open = OpenSpecs
+            });
+            project.Children.Add(new ExplorerNode
+            {
+                Key = "materials",
+                Title = "材料附件",
+                Glyph = "▣",
+                Open = OpenMaterials
+            });
+            project.Children.Add(new ExplorerNode
+            {
+                Key = "reports",
+                Title = "报表输出",
+                Glyph = "▥",
+                Open = OpenReports
+            });
+            ExplorerNodes.Add(project);
+        }
 
         var system = new ExplorerNode
         {
@@ -276,12 +291,23 @@ public partial class MainViewModel : ObservableObject
         Documents.Clear();
 
         _projectContext.CurrentProject = ToProjectDto(_session);
+        OnPropertyChanged(nameof(IsManagementMode));
+        OnPropertyChanged(nameof(ShowWorkspaceProject));
         OnPropertyChanged(nameof(PlantName));
         OnPropertyChanged(nameof(ProjectName));
         OnPropertyChanged(nameof(WorkspaceText));
         OnPropertyChanged(nameof(CurrentProjectName));
+        BuildExplorer();
 
-        OpenIndex();
+        if (IsManagementMode)
+        {
+            OpenProjectConfig();
+        }
+        else
+        {
+            OpenIndex();
+        }
+
         StatusText = "已切换工作区：" + WorkspaceText;
     }
 

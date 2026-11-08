@@ -39,6 +39,20 @@ public class ProjectManagementViewModelTests
     }
 
     [Fact]
+    public async Task ManagementMode_LoadsAllProjectsAndPlants()
+    {
+        var api = new FakeApiClient();
+        var viewModel = new ProjectManagementViewModel(api.CreateManagementSession());
+
+        await viewModel.RefreshAsync();
+
+        Assert.True(viewModel.IsManagementMode);
+        Assert.Single(viewModel.Plants);
+        Assert.True(viewModel.CanSelectPlant);
+        Assert.Single(viewModel.Projects);
+    }
+
+    [Fact]
     public async Task SavePending_InvalidExistingProject_ThrowsAndKeepsData()
     {
         var api = new FakeApiClient();

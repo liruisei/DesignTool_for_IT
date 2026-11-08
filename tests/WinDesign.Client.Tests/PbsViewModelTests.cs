@@ -2,6 +2,7 @@ using WinDesign.Client.Services;
 using WinDesign.Client.ViewModels;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
 
 namespace WinDesign.Client.Tests;
@@ -10,12 +11,20 @@ public sealed class FakePbsDialogService : IPbsDialogService
 {
     public PbsNodeEditorContext? LastContext { get; private set; }
     public PbsNodeEditorResult? NextResult { get; set; }
+    public PlantEditorContext? LastPlantContext { get; private set; }
+    public PlantEditorResult? NextPlantResult { get; set; }
     public bool ConfirmResult { get; set; } = true;
 
     public PbsNodeEditorResult? EditPbsNode(PbsNodeEditorContext context)
     {
         LastContext = context;
         return NextResult;
+    }
+
+    public PlantEditorResult? EditPlant(PlantEditorContext context)
+    {
+        LastPlantContext = context;
+        return NextPlantResult;
     }
 
     public bool Confirm(string message) => ConfirmResult;
@@ -32,8 +41,10 @@ public class PbsViewModelTests
         await viewModel.RefreshAsync();
 
         Assert.Single(viewModel.Roots);
+        Assert.True(viewModel.Roots[0].IsPlant);
         Assert.Single(viewModel.Roots[0].Children);
         Assert.Single(viewModel.Roots[0].Children[0].Children);
+        Assert.Single(viewModel.Roots[0].Children[0].Children[0].Children);
         Assert.Contains(viewModel.ParentOptions, x => x.Id == system.Id);
         Assert.Contains(viewModel.ParentOptions, x => x.Id == unit.Id);
         Assert.Contains(viewModel.ParentOptions, x => x.Id == area.Id);
@@ -49,12 +60,13 @@ public class PbsViewModelTests
         };
         var viewModel = CreateViewModel(api, project, dialogs);
         await viewModel.RefreshAsync();
-        viewModel.SelectedNode = viewModel.Roots[0];
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0];
 
         await viewModel.NewChildCommand.ExecuteAsync(null);
 
         Assert.NotNull(dialogs.LastContext);
         Assert.Equal(area.Id, dialogs.LastContext!.DefaultParentId);
+        Assert.Equal("Unit", dialogs.LastContext.DefaultNodeType);
         Assert.Contains(api.PbsNodes, x => x.Code == "NEW-CHILD");
     }
 
@@ -68,11 +80,12 @@ public class PbsViewModelTests
         };
         var viewModel = CreateViewModel(api, project, dialogs);
         await viewModel.RefreshAsync();
-        viewModel.SelectedNode = viewModel.Roots[0].Children[0];
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0].Children[0];
 
         await viewModel.NewSiblingCommand.ExecuteAsync(null);
 
         Assert.Equal(area.Id, dialogs.LastContext!.DefaultParentId);
+        Assert.Equal("Unit", dialogs.LastContext.DefaultNodeType);
         Assert.Contains(api.PbsNodes, x => x.Code == "SIBLING");
     }
 
@@ -86,11 +99,12 @@ public class PbsViewModelTests
         };
         var viewModel = CreateViewModel(api, project, dialogs);
         await viewModel.RefreshAsync();
-        viewModel.SelectedNode = viewModel.Roots[0];
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0];
 
         await viewModel.NewSiblingCommand.ExecuteAsync(null);
 
         Assert.Null(dialogs.LastContext!.DefaultParentId);
+        Assert.Equal("Area", dialogs.LastContext.DefaultNodeType);
         Assert.Contains(api.PbsNodes, x => x.Code == "AREA-B" && x.ParentId is null);
     }
 
@@ -104,7 +118,7 @@ public class PbsViewModelTests
         };
         var viewModel = CreateViewModel(api, project, dialogs);
         await viewModel.RefreshAsync();
-        viewModel.SelectedNode = viewModel.Roots[0];
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0];
 
         await viewModel.EditNodeCommand.ExecuteAsync(null);
 
@@ -118,7 +132,7 @@ public class PbsViewModelTests
         var dialogs = new FakePbsDialogService { ConfirmResult = true };
         var viewModel = CreateViewModel(api, project, dialogs);
         await viewModel.RefreshAsync();
-        viewModel.SelectedNode = viewModel.Roots[0].Children[0];
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0].Children[0];
 
         await viewModel.DeleteNodeCommand.ExecuteAsync(null);
 
@@ -146,7 +160,7 @@ public class PbsViewModelTests
 
         await viewModel.RefreshAsync();
 
-        var systemItem = viewModel.Roots[0].Children[0].Children[0];
+        var systemItem = viewModel.Roots[0].Children[0].Children[0].Children[0];
         Assert.Contains(systemItem.Children, x => x.Equipment?.TagNo == "PT-9001");
     }
 
@@ -170,7 +184,7 @@ public class PbsViewModelTests
         };
         var viewModel = CreateViewModel(api, project, equipmentDialogs: equipmentDialogs);
         await viewModel.RefreshAsync();
-        viewModel.SelectedNode = viewModel.Roots[0].Children[0].Children[0].Children[0];
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0].Children[0].Children[0].Children[0];
 
         await viewModel.AddEquipmentCommand.ExecuteAsync(null);
 
@@ -178,6 +192,72 @@ public class PbsViewModelTests
         Assert.Equal(loop.Id, equipmentDialogs.LastContext!.DefaultPbsNodeId);
         Assert.Equal("L-1001", equipmentDialogs.LastContext.DefaultLoopNo);
         Assert.Contains(api.Equipments, x => x.TagNo == "PT-9101");
+    }
+
+    [Fact]
+    public async Task Selection_DrivesContextMenuScope()
+    {
+        var (api, project, area, _, _) = CreateTree();
+        var viewModel = CreateViewModel(api, project);
+        await viewModel.RefreshAsync();
+
+        // 默认选中工厂根节点：只能维护区域，不能维护工厂（工作区模式）。
+        Assert.True(viewModel.IsFactoryNodeSelected);
+        Assert.False(viewModel.IsPbsNodeSelected);
+        Assert.False(viewModel.CanManageFactoriesHere);
+
+        // 选中区域后：只提供节点操作，不再提供工厂操作。
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0];
+        Assert.False(viewModel.IsFactoryNodeSelected);
+        Assert.True(viewModel.IsPbsNodeSelected);
+        Assert.False(viewModel.CanManageFactoriesHere);
+        Assert.Equal(area.Id, viewModel.SelectedNode.Node!.Id);
+    }
+
+    [Fact]
+    public async Task Refresh_ShowsFactoryAsPbsRoot()
+    {
+        var (api, project, _, _, _) = CreateTree();
+        var viewModel = CreateViewModel(api, project);
+
+        await viewModel.RefreshAsync();
+
+        Assert.Single(viewModel.Roots);
+        Assert.True(viewModel.Roots[0].IsPlant);
+        Assert.Equal(api.Plant.Code, viewModel.Roots[0].HeaderCode);
+        Assert.Equal(api.Plant.Name, viewModel.Roots[0].HeaderName);
+    }
+
+    [Fact]
+    public async Task ManagementMode_ShowsAllPlants_AndCannotAddEquipment()
+    {
+        var api = new FakeApiClient();
+        api.PlantDtos.Add(new PlantDto(Guid.NewGuid(), "PLANT-A", "A 厂", null, null, null, true, 1, 0, DateTime.UtcNow));
+        api.PlantDtos.Add(new PlantDto(Guid.NewGuid(), "PLANT-B", "B 厂", null, null, null, true, 0, 0, DateTime.UtcNow));
+
+        var viewModel = new PbsViewModel(
+            api.CreateManagementSession(),
+            new ProjectContext(),
+            new FakePbsDialogService(),
+            new FakeEquipmentDialogService());
+
+        await viewModel.RefreshAsync();
+
+        Assert.True(viewModel.IsManagementMode);
+        Assert.True(viewModel.CanManagePlants);
+        Assert.Equal(2, viewModel.Plants.Count);
+        Assert.Equal(2, viewModel.Roots.Count);
+        Assert.All(viewModel.Roots, x => Assert.True(x.IsPlant));
+        Assert.All(viewModel.Roots, x => Assert.True(x.IsExpanded));
+        Assert.False(viewModel.CanAddEquipment);
+        Assert.True(viewModel.IsFactoryNodeSelected);
+        Assert.True(viewModel.CanManageFactoriesHere);
+
+        viewModel.CollapseAllCommand.Execute(null);
+        Assert.All(viewModel.Roots, x => Assert.False(x.IsExpanded));
+
+        viewModel.ExpandAllCommand.Execute(null);
+        Assert.All(viewModel.Roots, x => Assert.True(x.IsExpanded));
     }
 
     private static (FakeApiClient Api, ProjectDto Project,

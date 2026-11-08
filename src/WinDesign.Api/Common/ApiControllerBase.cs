@@ -28,6 +28,12 @@ public abstract class ApiControllerBase : ControllerBase
     protected bool IsSystemAdmin => User.IsInRole("Admin");
 
     /// <summary>
+    /// 管理员未选择工厂/项目时进入“管理模块”，只开放系统配置类功能。
+    /// </summary>
+    protected bool IsManagementMode =>
+        IsSystemAdmin && CurrentPlantId is null && CurrentProjectId is null;
+
+    /// <summary>
     /// 校验请求中的项目是否就是当前工作区项目；不匹配时返回 403。
     /// </summary>
     protected ActionResult? EnsureWorkspaceProject(Guid projectId)
@@ -53,7 +59,10 @@ public abstract class ApiControllerBase : ControllerBase
     {
         if (CurrentPlantId is null)
         {
-            return BadRequest(new ApiError("请先选择工作区（工厂与项目）"));
+            // 管理模块（管理员未选工厂）可以管理任意工厂的 PBS。
+            return IsManagementMode
+                ? null
+                : BadRequest(new ApiError("请先选择工作区（工厂与项目）"));
         }
 
         if (CurrentPlantId != plantId)

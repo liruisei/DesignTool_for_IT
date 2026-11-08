@@ -49,6 +49,7 @@
    - 未选择工作区 → `400`；
    - 请求其他工厂或项目 → `403`。
    - 主界面内切换工作区时，复用 `POST /api/auth/workspace` 换发新令牌，并关闭旧文档、按新范围重建，无需重新登录。
+6. 管理员可调用 `POST /api/auth/management` 进入**管理模块**：令牌不含 `plantId` / `projectId`，只开放系统配置类接口；服务端把“管理员 + 无工作区”识别为管理模块，允许跨工厂维护 PBS 与项目。
 6. 服务端：
    - `[Authorize]`：登录即可。
    - `[Authorize(Roles = "Admin")]`：用户管理、项目归档。
@@ -107,7 +108,9 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 - **项目**：索引表、设备规格、材料附件、报表输出；
 - **系统**：项目配置、PBS管理、编码定义、用户管理（仅 Admin）。
 
-`MainViewModel` 按角色动态生成节点，`ExplorerNode.Open` 决定打开哪个文档。
+管理员进入**管理模块**时只生成「系统」分组，不显示「项目」分组；PBS管理在该模式下可在多个工厂之间切换并维护工厂本身。
+
+`MainViewModel` 按角色与工作区模式动态生成节点，`ExplorerNode.Open` 决定打开哪个文档。
 
 ## 6. 服务端接口约定
 
@@ -123,8 +126,10 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 |------|------|------|
 | GET | `/api/auth/workspaces` | 当前用户可访问的工厂与项目（非管理员只返回已加入的项目） |
 | POST | `/api/auth/workspace` | 选择工厂 + 项目，校验成员身份后签发带 `plantId` / `projectId` 的令牌 |
-| GET | `/api/plants` | 当前用户可访问的工厂列表 |
+| POST | `/api/auth/management` | 管理员进入管理模块，签发不带工厂/项目范围的令牌 |
+| GET | `/api/plants` | 当前用户可访问的工厂列表（管理员为全部） |
 | POST/PUT | `/api/plants`、`/api/plants/{id}` | 新建/编辑工厂（Admin/Designer） |
+| DELETE | `/api/plants/{id}` | 删除空工厂（Admin；有项目/PBS/设备时拒绝） |
 
 ## 6.2 PBS 与设备索引接口
 

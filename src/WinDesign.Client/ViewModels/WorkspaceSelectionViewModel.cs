@@ -15,6 +15,7 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
     private readonly SessionService _session;
     private readonly Guid? _initialPlantId;
     private readonly Guid? _initialProjectId;
+    private readonly bool _isSwitching;
 
     public ObservableCollection<WorkspacePlantDto> Plants { get; } = new();
     public ObservableCollection<WorkspaceProjectDto> Projects { get; } = new();
@@ -37,23 +38,26 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
     public string UserDisplayName => _session.User?.DisplayName ?? string.Empty;
 
     /// <summary>登录后的首次选择，还是主界面内的切换。</summary>
-    public bool IsSwitching => _initialPlantId is not null;
+    public bool IsSwitching => _isSwitching;
+    public bool CanUseManagementMode => _session.IsAdmin;
     public string WindowTitle => IsSwitching ? "切换工作区" : "选择工作区";
     public string HeadingText => IsSwitching ? "切换工作区" : "选择工作区";
     public string HintText => IsSwitching
-        ? "选择要切换到的工厂与项目，双击项目或点击「进入工作区」。切换后当前打开的设计文档会被关闭，并按新工作区重新加载。"
-        : "先选择工厂（PBS 根节点），再选择项目。双击项目或点击「进入工作区」继续；登录后只能查看该项目范围内的数据。";
+        ? "选择要切换到的工厂与项目，双击项目或点击「进入工作区」。管理员也可进入管理模块。切换后当前打开的设计文档会被关闭，并按新工作区重新加载。"
+        : "先选择工厂（PBS 根节点），再选择项目。双击项目或点击「进入工作区」继续；管理员也可以不选工厂/项目，直接进入管理模块。";
 
     public event EventHandler? SelectionSucceeded;
 
     public WorkspaceSelectionViewModel(
         SessionService session,
         Guid? initialPlantId = null,
-        Guid? initialProjectId = null)
+        Guid? initialProjectId = null,
+        bool isSwitching = false)
     {
         _session = session;
         _initialPlantId = initialPlantId;
         _initialProjectId = initialProjectId;
+        _isSwitching = isSwitching || initialPlantId is not null;
         _ = LoadAsync();
     }
 
@@ -108,6 +112,39 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
             }
         }
         SelectedProject = Projects.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// 管理员进入管理模块：不选择工厂/项目，只开放系统配置功能。
+    /// </summary>
+    [RelayCommand]
+    private async Task EnterManagementAsync()
+    {
+        if (!CanUseManagementMode || IsBusy)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        ErrorMessage = null;
+        try
+        {
+            var response = await _session.Api.EnterManagementModeAsync();
+            _session.SetManagementMode(response);
+            SelectionSucceeded?.Invoke(this, EventArgs.Empty);
+        }
+        catch (ApiException ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "无法进入管理模块：" + ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand]

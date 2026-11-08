@@ -39,10 +39,6 @@ public partial class MainWindow : Window
         }
 
         var session = _viewModel.Session;
-        if (!session.HasWorkspace)
-        {
-            return;
-        }
 
         // 切换前自动保存当前打开文档中的待提交编辑；保存失败则取消切换。
         var saveError = await _viewModel.SavePendingDocumentsAsync();
@@ -58,7 +54,7 @@ public partial class MainWindow : Window
 
         // 复用登录后的工作区选择窗口，并预选当前工厂/项目。
         var workspaceViewModel = new WorkspaceSelectionViewModel(
-            session, session.PlantId, session.ProjectId);
+            session, session.PlantId, session.ProjectId, isSwitching: true);
         var window = new WorkspaceSelectionWindow
         {
             DataContext = workspaceViewModel,

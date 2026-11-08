@@ -7,7 +7,8 @@ namespace WinDesign.Client.ViewModels;
 public sealed record PbsNodeEditorContext(
     PbsNodeDto? Node,
     Guid? DefaultParentId,
-    IReadOnlyList<PbsNodeOption> ParentOptions);
+    IReadOnlyList<PbsNodeOption> ParentOptions,
+    string? DefaultNodeType = null);
 
 public sealed record PbsNodeEditorResult(
     Guid? ParentId,
@@ -71,7 +72,8 @@ public partial class PbsNodeEditorViewModel : ObservableObject
             Title = context.DefaultParentId is null ? "新建顶层节点" : "新建子节点";
             SelectedParentOption = ParentOptions.FirstOrDefault(x => x.Id == context.DefaultParentId)
                                    ?? ParentOptions.FirstOrDefault();
-            EditNodeType = context.DefaultParentId is null ? "Area" : "System";
+            EditNodeType = context.DefaultNodeType
+                           ?? (context.DefaultParentId is null ? "Area" : "System");
         }
         else
         {

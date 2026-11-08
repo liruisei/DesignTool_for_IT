@@ -9,6 +9,7 @@ using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
+using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Users;
 using WinDesign.Contracts.Workspaces;
 
@@ -132,6 +133,14 @@ public sealed class ApiClient : IApiClient
         return result;
     }
 
+    public async Task<ManagementSessionResponse> EnterManagementModeAsync(CancellationToken ct = default)
+    {
+        var result = await SendAsync<ManagementSessionResponse>(
+            Request(HttpMethod.Post, "api/auth/management"), ct);
+        Token = result.AccessToken;
+        return result;
+    }
+
     // ---------- dashboard ----------
     public Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default) =>
         SendAsync<DashboardDto>(Request(HttpMethod.Get, "api/dashboard"), ct);
@@ -173,6 +182,27 @@ public sealed class ApiClient : IApiClient
 
     public Task<IReadOnlyList<RoleDto>> GetRolesAsync(CancellationToken ct = default) =>
         SendAsync<IReadOnlyList<RoleDto>>(Request(HttpMethod.Get, "api/roles"), ct);
+
+    // ---------- plants ----------
+    public Task<IReadOnlyList<PlantDto>> GetPlantsAsync(CancellationToken ct = default) =>
+        SendAsync<IReadOnlyList<PlantDto>>(Request(HttpMethod.Get, "api/plants"), ct);
+
+    public Task<PlantDto> CreatePlantAsync(CreatePlantRequest request, CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, "api/plants");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<PlantDto>(message, ct);
+    }
+
+    public Task<PlantDto> UpdatePlantAsync(Guid id, UpdatePlantRequest request, CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/plants/{id}");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<PlantDto>(message, ct);
+    }
+
+    public Task DeletePlantAsync(Guid id, CancellationToken ct = default) =>
+        SendNoContentAsync(Request(HttpMethod.Delete, $"api/plants/{id}"), ct);
 
     // ---------- projects ----------
     public Task<PagedResult<ProjectDto>> GetProjectsAsync(string? search = null, string? status = null, CancellationToken ct = default)

@@ -29,3 +29,11 @@ public sealed record WorkspaceResponse(
     Auth.CurrentUserDto User,
     WorkspacePlantDto Plant,
     WorkspaceProjectDto Project);
+
+/// <summary>
+/// 管理模块会话：不绑定工厂与项目，仅管理员可用，只有系统配置类功能。
+/// </summary>
+public sealed record ManagementSessionResponse(
+    string AccessToken,
+    DateTime ExpiresAt,
+    Auth.CurrentUserDto User);

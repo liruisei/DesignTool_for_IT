@@ -79,8 +79,11 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="工厂" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <TextBlock Text="{Binding PlantName}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Text=" / 项目" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                Visibility="{Binding ShowWorkspaceProject, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text=" / 项目" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="10,0,6,0" />
+                        <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">

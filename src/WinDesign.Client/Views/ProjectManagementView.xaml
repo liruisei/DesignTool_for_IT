@@ -41,6 +41,7 @@
 
                 <DataGrid Grid.Row="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}">
                     <DataGrid.Columns>
+                        <DataGridTextColumn Header="工厂" Binding="{Binding PlantName}" Width="140" />
                         <DataGridTextColumn Header="项目代号" Binding="{Binding Code}" Width="120" />
                         <DataGridTextColumn Header="项目名称" Binding="{Binding Name}" Width="*" />
                         <DataGridTextColumn Header="客户" Binding="{Binding ClientName}" Width="150" />
@@ -68,6 +69,12 @@
                 <StackPanel>
                     <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource SectionTitle}" />
                     <TextBlock Text="项目代号创建后不可修改。" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+
+                    <StackPanel Visibility="{Binding IsManagementMode, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="所属工厂" Style="{StaticResource FieldLabel}" />
+                        <ComboBox ItemsSource="{Binding Plants}" SelectedItem="{Binding SelectedPlant}"
+                                  DisplayMemberPath="Name" IsEnabled="{Binding CanSelectPlant}" />
+                    </StackPanel>
 
                     <TextBlock Text="项目代号" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreating}"

@@ -26,10 +26,16 @@ public sealed class SessionService
     public bool IsDesigner => User?.Roles.Contains("Designer", StringComparer.OrdinalIgnoreCase) == true;
     public bool HasWorkspace => Plant is not null && Project is not null;
 
+    /// <summary>管理员未选择工厂/项目，仅使用系统配置功能。</summary>
+    public bool IsManagementMode { get; private set; }
+
     /// <summary>登录成功后只保存身份令牌，尚未选择工作区。</summary>
     public void SignIn(LoginResponse response)
     {
         User = response.User;
+        Plant = null;
+        Project = null;
+        IsManagementMode = false;
         Api.SetToken(response.AccessToken);
     }
 
@@ -39,6 +45,17 @@ public sealed class SessionService
         User = response.User;
         Plant = response.Plant;
         Project = response.Project;
+        IsManagementMode = false;
+        Api.SetToken(response.AccessToken);
+    }
+
+    /// <summary>管理员进入管理模块：不绑定工厂/项目，只有系统配置功能。</summary>
+    public void SetManagementMode(ManagementSessionResponse response)
+    {
+        User = response.User;
+        Plant = null;
+        Project = null;
+        IsManagementMode = true;
         Api.SetToken(response.AccessToken);
     }
 
@@ -47,6 +64,7 @@ public sealed class SessionService
         User = null;
         Plant = null;
         Project = null;
+        IsManagementMode = false;
         Api.SetToken(null);
     }
 }

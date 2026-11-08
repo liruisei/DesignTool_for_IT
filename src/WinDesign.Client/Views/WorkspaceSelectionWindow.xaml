@@ -85,6 +85,10 @@
                 <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}"
                            VerticalAlignment="Center" Margin="0,0,14,0"
                            Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVis}}" />
+                <Button Content="进入管理模块" Command="{Binding EnterManagementCommand}"
+                        Style="{StaticResource SecondaryButton}" Height="36" Padding="14,0" Margin="0,0,8,0"
+                        Visibility="{Binding CanUseManagementMode, Converter={StaticResource BoolToVis}}"
+                        ToolTip="仅管理员：不选择工厂/项目，只使用系统配置功能" />
                 <Button Content="取消" IsCancel="True" IsDefault="False"
                         Style="{StaticResource SecondaryButton}" Width="90" Height="36" Margin="0,0,8,0" />
                 <Button Content="进入工作区" Command="{Binding ConfirmCommand}"

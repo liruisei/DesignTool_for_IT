@@ -4,6 +4,7 @@ using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
+using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Users;
 using WinDesign.Contracts.Workspaces;
 
@@ -20,6 +21,7 @@ public interface IApiClient
     Task<LoginResponse> LoginAsync(string userName, string password, CancellationToken ct = default);
     Task<IReadOnlyList<WorkspacePlantDto>> GetWorkspacesAsync(CancellationToken ct = default);
     Task<WorkspaceResponse> SelectWorkspaceAsync(Guid plantId, Guid projectId, CancellationToken ct = default);
+    Task<ManagementSessionResponse> EnterManagementModeAsync(CancellationToken ct = default);
     Task<CurrentUserDto> GetMeAsync(CancellationToken ct = default);
     Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default);
 
@@ -29,6 +31,11 @@ public interface IApiClient
     Task ResetPasswordAsync(Guid id, string newPassword, CancellationToken ct = default);
     Task<UserDto> ToggleUserActiveAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<RoleDto>> GetRolesAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<PlantDto>> GetPlantsAsync(CancellationToken ct = default);
+    Task<PlantDto> CreatePlantAsync(CreatePlantRequest request, CancellationToken ct = default);
+    Task<PlantDto> UpdatePlantAsync(Guid id, UpdatePlantRequest request, CancellationToken ct = default);
+    Task DeletePlantAsync(Guid id, CancellationToken ct = default);
 
     Task<PagedResult<ProjectDto>> GetProjectsAsync(string? search = null, string? status = null, CancellationToken ct = default);
     Task<ProjectDto> CreateProjectAsync(CreateProjectRequest request, CancellationToken ct = default);

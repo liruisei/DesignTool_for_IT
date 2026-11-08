@@ -32,6 +32,17 @@ public class PbsNodeEditorViewModelTests
     }
 
     [Fact]
+    public void NewChild_UsesProvidedDefaultType()
+    {
+        var options = CreateOptions(out var parentId);
+
+        var viewModel = new PbsNodeEditorViewModel(
+            new PbsNodeEditorContext(null, parentId, options, "Unit"));
+
+        Assert.Equal("Unit", viewModel.EditNodeType);
+    }
+
+    [Fact]
     public void TryBuild_EmptyCode_ReturnsError()
     {
         var options = CreateOptions(out var parentId);

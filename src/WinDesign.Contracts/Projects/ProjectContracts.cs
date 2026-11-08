@@ -21,6 +21,8 @@ public sealed record ProjectDto
 
 public sealed record CreateProjectRequest
 {
+    /// <summary>管理模块（未选择工作区工厂）创建项目时必填；工作区模式下由令牌决定。</summary>
+    public Guid? PlantId { get; init; }
     public string Code { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
     public string? ClientName { get; init; }

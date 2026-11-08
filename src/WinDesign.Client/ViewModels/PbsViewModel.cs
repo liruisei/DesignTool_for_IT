@@ -5,6 +5,7 @@ using WinDesign.Client.Services;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Plants;
 
 namespace WinDesign.Client.ViewModels;
 
@@ -20,27 +21,36 @@ public partial class PbsNodeItem : ObservableObject
         Equipment = equipment;
     }
 
+    /// <summary>工厂本身作为 PBS 树的根节点。</summary>
+    public PbsNodeItem(PlantDto plant)
+    {
+        Plant = plant;
+    }
+
     public PbsNodeDto? Node { get; }
     public EquipmentDto? Equipment { get; }
+    public PlantDto? Plant { get; }
 
     public bool IsNode => Node is not null;
     public bool IsEquipment => Equipment is not null;
-    public string HeaderCode => Node?.Code ?? Equipment?.TagNo ?? string.Empty;
-    public string HeaderName => Node?.Name ?? Equipment?.Name ?? string.Empty;
-    public int EquipmentCount => Node?.EquipmentCount ?? 0;
+    public bool IsPlant => Plant is not null;
+    public string HeaderCode => Plant?.Code ?? Node?.Code ?? Equipment?.TagNo ?? string.Empty;
+    public string HeaderName => Plant?.Name ?? Node?.Name ?? Equipment?.Name ?? string.Empty;
 
-    public string Glyph => IsEquipment
-        ? "◦"
-        : Node?.NodeType switch
-        {
-            "Root" => "⌂",
-            "Area" => "▦",
-            "Unit" => "▣",
-            "Loop" => "◇",
-            "System" => "◇",
-            "SubSystem" => "·",
-            _ => "·"
-        };
+    public string Glyph => IsPlant
+        ? "⌂"
+        : IsEquipment
+            ? "◦"
+            : Node?.NodeType switch
+            {
+                "Root" => "⌂",
+                "Area" => "▦",
+                "Unit" => "▣",
+                "Loop" => "◇",
+                "System" => "◇",
+                "SubSystem" => "·",
+                _ => "·"
+            };
 
     public ObservableCollection<PbsNodeItem> Children { get; } = new();
 
@@ -67,6 +77,7 @@ public partial class PbsViewModel : ViewModelBase
     public ObservableCollection<PbsNodeOption> ParentOptions { get; } = new();
     public ObservableCollection<PbsNodeOption> PbsEditorOptions { get; } = new();
     public ObservableCollection<DictionaryItemDto> EquipmentTypes { get; } = new();
+    public ObservableCollection<PlantDto> Plants { get; } = new();
 
     public IReadOnlyList<PbsNodeTypeOption> NodeTypeOptions { get; } = new[]
     {
@@ -81,12 +92,26 @@ public partial class PbsViewModel : ViewModelBase
     private PbsNodeItem? selectedNode;
 
     [ObservableProperty]
+    private PlantDto? selectedPlant;
+
+    [ObservableProperty]
     private string? statusMessage;
 
     public ProjectContext Context => _context;
 
-    public string PlantName => _session.Plant?.Name ?? "未选择工厂";
+    /// <summary>管理模块下可在多个工厂之间切换并维护工厂本身。</summary>
+    public bool IsManagementMode => _session.IsManagementMode;
+    public bool CanManagePlants => _session.IsManagementMode;
+    public bool CanAddEquipment => _context.HasProject;
+    public bool ShowProjectContext => !_session.IsManagementMode;
+    public string SelectedPlantName => SelectedPlant?.Name ?? "未选择工厂";
 
+    /// <summary>右键当前选中的是工厂根节点。</summary>
+    public bool IsFactoryNodeSelected => SelectedNode?.IsPlant == true;
+    /// <summary>右键当前选中的是工厂下的 PBS 节点。</summary>
+    public bool IsPbsNodeSelected => SelectedNode?.Node is not null;
+    /// <summary>只有工厂根节点上才提供工厂的新建/编辑/删除。</summary>
+    public bool CanManageFactoriesHere => CanManagePlants && IsFactoryNodeSelected;
     public string ProjectName => _session.Project?.Name ?? "未选择项目";
 
     public PbsViewModel(
@@ -108,9 +133,33 @@ public partial class PbsViewModel : ViewModelBase
 
     public override Task RefreshAsync() => RunAsync(async () =>
     {
-        var project = _context.CurrentProject;
-        var plantId = _session.PlantId;
-        if (project is null || plantId is null)
+        await LoadPlantsAsync();
+        await LoadTreeAsync();
+    });
+
+    private async Task LoadPlantsAsync()
+    {
+        var currentId = SelectedPlant?.Id ?? _session.PlantId;
+        var plants = await _session.Api.GetPlantsAsync();
+
+        // 工作区模式只能看到当前工厂；管理模块可以看到全部工厂。
+        var accessible = _session.IsManagementMode
+            ? plants
+            : plants.Where(x => x.Id == _session.PlantId).ToList();
+
+        Plants.Clear();
+        foreach (var plant in accessible)
+        {
+            Plants.Add(plant);
+        }
+
+        SelectedPlant = Plants.FirstOrDefault(x => x.Id == currentId)
+                        ?? Plants.FirstOrDefault();
+    }
+
+    private async Task LoadTreeAsync()
+    {
+        if (Plants.Count == 0)
         {
             Roots.Clear();
             ParentOptions.Clear();
@@ -127,14 +176,32 @@ public partial class PbsViewModel : ViewModelBase
             EquipmentTypes.Add(type);
         }
 
-        var nodes = await _session.Api.GetPbsNodesAsync(plantId.Value);
-        var equipments = await _session.Api.GetEquipmentsAsync(project.Id, pageSize: 2000);
-        _nodes = nodes.ToDictionary(x => x.Id);
+        // 管理模块没有项目范围，只显示 PBS 结构；工作区模式显示项目范围内的设备。
+        IReadOnlyList<EquipmentDto> equipments = Array.Empty<EquipmentDto>();
+        if (!_session.IsManagementMode && _context.CurrentProject is { } project)
+        {
+            equipments = (await _session.Api.GetEquipmentsAsync(project.Id, pageSize: 2000)).Items;
+        }
 
-        BuildTree(nodes, equipments.Items);
+        var nodesByPlant = new Dictionary<Guid, IReadOnlyList<PbsNodeDto>>();
+        var allNodes = new List<PbsNodeDto>();
+        foreach (var plant in Plants)
+        {
+            var nodes = await _session.Api.GetPbsNodesAsync(plant.Id);
+            nodesByPlant[plant.Id] = nodes;
+            allNodes.AddRange(nodes);
+        }
+
+        _nodes = allNodes.ToDictionary(x => x.Id);
+        BuildTree(Plants.ToList(), nodesByPlant, equipments);
         BuildParentOptions();
 
-        if (SelectedNode?.Node is { } selectedNode && _nodes.ContainsKey(selectedNode.Id))
+        if (SelectedNode?.IsPlant == true)
+        {
+            SelectedNode = FindPlantItem(Roots, SelectedNode.Plant!.Id)
+                           ?? Roots.FirstOrDefault();
+        }
+        else if (SelectedNode?.Node is { } selectedNode && _nodes.ContainsKey(selectedNode.Id))
         {
             SelectedNode = FindNodeItem(Roots, selectedNode.Id);
         }
@@ -142,38 +209,181 @@ public partial class PbsViewModel : ViewModelBase
         {
             SelectedNode = FindEquipmentItem(Roots, selectedEquipment.Id);
         }
+        else
+        {
+            SelectedNode = Roots.FirstOrDefault();
+        }
+    }
+
+    partial void OnSelectedPlantChanged(PlantDto? value) =>
+        OnPropertyChanged(nameof(SelectedPlantName));
+
+    partial void OnSelectedNodeChanged(PbsNodeItem? value)
+    {
+        OnPropertyChanged(nameof(IsFactoryNodeSelected));
+        OnPropertyChanged(nameof(IsPbsNodeSelected));
+        OnPropertyChanged(nameof(CanManageFactoriesHere));
+
+        // 树中选中哪个工厂下的节点，后续新建/编辑就以该工厂为上下文。
+        var plantId = value?.Plant?.Id
+                      ?? value?.Node?.PlantId
+                      ?? value?.Equipment?.PlantId;
+        if (plantId is not Guid id)
+        {
+            return;
+        }
+
+        var plant = Plants.FirstOrDefault(x => x.Id == id);
+        if (plant is not null)
+        {
+            SelectedPlant = plant;
+        }
+    }
+
+    [RelayCommand]
+    private Task NewPlantAsync() => RunAsync(async () =>
+    {
+        if (!CanManagePlants)
+        {
+            return;
+        }
+
+        var result = _dialogs.EditPlant(new PlantEditorContext(null));
+        if (result is null)
+        {
+            return;
+        }
+
+        var saved = await _session.Api.CreatePlantAsync(new CreatePlantRequest(
+            result.Code,
+            result.Name,
+            result.ClientName,
+            result.Location,
+            result.Description));
+        await RefreshAsync();
+        SelectedPlant = Plants.FirstOrDefault(x => x.Id == saved.Id);
+        SelectedNode = FindPlantItem(Roots, saved.Id);
+        StatusMessage = "工厂已创建";
     });
 
     [RelayCommand]
-    private Task NewTopLevelAsync() => OpenEditorAsync(null, null);
+    private Task EditPlantAsync() => RunAsync(async () =>
+    {
+        if (!CanManagePlants || SelectedPlant is null)
+        {
+            ErrorMessage = "请先选择工厂";
+            return;
+        }
+
+        var plant = SelectedPlant;
+        var result = _dialogs.EditPlant(new PlantEditorContext(plant));
+        if (result is null)
+        {
+            return;
+        }
+
+        var saved = await _session.Api.UpdatePlantAsync(plant.Id, new UpdatePlantRequest(
+            result.Name,
+            result.ClientName,
+            result.Location,
+            result.Description,
+            result.IsActive));
+        await RefreshAsync();
+        SelectedPlant = Plants.FirstOrDefault(x => x.Id == saved.Id);
+        SelectedNode = FindPlantItem(Roots, saved.Id);
+        StatusMessage = "工厂已保存";
+    });
+
+    [RelayCommand]
+    private Task DeletePlantAsync() => RunAsync(async () =>
+    {
+        if (!CanManagePlants || SelectedPlant is null)
+        {
+            ErrorMessage = "请先选择工厂";
+            return;
+        }
+
+        var plant = SelectedPlant;
+        if (!_dialogs.Confirm(
+                $"确定删除工厂“{plant.Code} {plant.Name}”吗？工厂下必须没有项目、设备和 PBS 节点。"))
+        {
+            return;
+        }
+
+        await _session.Api.DeletePlantAsync(plant.Id);
+        await RefreshAsync();
+        SelectedNode = Roots.FirstOrDefault(x => x.IsPlant);
+        StatusMessage = "工厂已删除";
+    });
+
+    [RelayCommand]
+    private Task NewTopLevelAsync() => OpenEditorAsync(null, null, "Area");
+
+    private static string NextNodeType(string nodeType) => nodeType switch
+    {
+        "Area" => "Unit",
+        "Unit" => "Loop",
+        "Loop" => "System",
+        "System" => "SubSystem",
+        _ => "SubSystem"
+    };
 
     [RelayCommand]
     private async Task NewChildAsync()
     {
+        if (SelectedNode?.IsPlant == true)
+        {
+            // 在工厂根节点下新建的就是顶层区域。
+            await OpenEditorAsync(null, null, "Area");
+            return;
+        }
+
         if (SelectedNode?.Node is null)
         {
             ErrorMessage = "请先选择一个 PBS 节点";
             return;
         }
 
-        await OpenEditorAsync(null, SelectedNode.Node.Id);
+        await OpenEditorAsync(
+            null,
+            SelectedNode.Node.Id,
+            NextNodeType(SelectedNode.Node.NodeType));
     }
 
     [RelayCommand]
     private async Task NewSiblingAsync()
     {
+        if (SelectedNode?.IsPlant == true)
+        {
+            ErrorMessage = "工厂根节点没有同级节点，请使用“新建区域”";
+            return;
+        }
+
         if (SelectedNode?.Node is null)
         {
             ErrorMessage = "请先选择一个 PBS 节点";
             return;
         }
         // 顶层节点（ParentId 为空）也可以新建同级，即工厂下的另一个区域。
-        await OpenEditorAsync(null, SelectedNode.Node.ParentId);
+        await OpenEditorAsync(null, SelectedNode.Node.ParentId, SelectedNode.Node.NodeType);
     }
 
     [RelayCommand]
     private async Task EditNodeAsync()
     {
+        if (SelectedNode?.IsPlant == true)
+        {
+            if (CanManagePlants)
+            {
+                await EditPlantAsync();
+            }
+            else
+            {
+                ErrorMessage = "工厂信息请由管理员在管理模块中维护";
+            }
+            return;
+        }
+
         if (SelectedNode?.Equipment is not null)
         {
             await EditEquipmentAsync();
@@ -191,6 +401,11 @@ public partial class PbsViewModel : ViewModelBase
     [RelayCommand]
     private Task DeleteNodeAsync() => RunAsync(async () =>
     {
+        if (SelectedNode?.IsPlant == true)
+        {
+            throw new ApiException("工厂根节点不能在这里删除，请使用“删除工厂”");
+        }
+
         if (SelectedNode?.Equipment is not null)
         {
             await DeleteEquipmentCoreAsync(SelectedNode.Equipment);
@@ -215,7 +430,10 @@ public partial class PbsViewModel : ViewModelBase
     [RelayCommand]
     private Task AddEquipmentAsync() => RunAsync(async () =>
     {
-        var project = _context.CurrentProject ?? throw new ApiException("请先选择工作区项目");
+        var project = _context.CurrentProject ?? throw new ApiException(
+            _session.IsManagementMode
+                ? "管理模块下不能添加设备，请选择工厂和项目进入工作区后再操作"
+                : "请先选择工作区项目");
         var pbsNodeId = SelectedNode?.Node?.Id ?? SelectedNode?.Equipment?.PbsNodeId;
         if (pbsNodeId is null)
         {
@@ -289,16 +507,20 @@ public partial class PbsViewModel : ViewModelBase
         await RefreshAsync();
     }
 
-    private async Task OpenEditorAsync(PbsNodeDto? node, Guid? defaultParentId)
+    private async Task OpenEditorAsync(
+        PbsNodeDto? node,
+        Guid? defaultParentId,
+        string? defaultNodeType = null)
     {
-        var plantId = _session.PlantId;
+        var plantId = SelectedPlant?.Id;
         if (plantId is null)
         {
-            ErrorMessage = "请先选择工作区工厂";
+            ErrorMessage = "请先选择工厂";
             return;
         }
 
-        var editorContext = new PbsNodeEditorContext(node, defaultParentId, ParentOptions.ToList());
+        var editorContext = new PbsNodeEditorContext(
+            node, defaultParentId, ParentOptions.ToList(), defaultNodeType);
         var result = _dialogs.EditPbsNode(editorContext);
         if (result is null)
         {
@@ -338,40 +560,58 @@ public partial class PbsViewModel : ViewModelBase
 
     private void OnProjectChanged(object? sender, EventArgs e)
     {
+        OnPropertyChanged(nameof(CanAddEquipment));
         _ = RefreshAsync();
     }
 
-    private void BuildTree(IReadOnlyList<PbsNodeDto> nodes, IReadOnlyList<EquipmentDto> equipments)
+    private void BuildTree(
+        IReadOnlyList<PlantDto> plants,
+        IReadOnlyDictionary<Guid, IReadOnlyList<PbsNodeDto>> nodesByPlant,
+        IReadOnlyList<EquipmentDto> equipments)
     {
         Roots.Clear();
-        var map = nodes.ToDictionary(x => x.Id, x => new PbsNodeItem(x));
-        foreach (var item in map.Values
-                     .OrderBy(x => x.Node!.SortOrder)
-                     .ThenBy(x => x.Node!.Code, StringComparer.OrdinalIgnoreCase))
-        {
-            if (item.Node!.ParentId is Guid parentId && map.TryGetValue(parentId, out var parent))
-            {
-                parent.Children.Add(item);
-            }
-            else
-            {
-                Roots.Add(item);
-            }
-        }
 
-        var equipmentByNode = equipments
-            .Where(x => x.PbsNodeId is not null)
-            .GroupBy(x => x.PbsNodeId!.Value);
-        foreach (var group in equipmentByNode)
+        // 每个工厂都是树的一个根节点，全部同时显示、可独立展开/折叠。
+        foreach (var plant in plants)
         {
-            if (!map.TryGetValue(group.Key, out var parent))
+            var plantRoot = new PbsNodeItem(plant) { IsExpanded = true };
+            if (!nodesByPlant.TryGetValue(plant.Id, out var nodes))
             {
+                Roots.Add(plantRoot);
                 continue;
             }
-            foreach (var equipment in group.OrderBy(x => x.TagNo, StringComparer.OrdinalIgnoreCase))
+
+            var map = nodes.ToDictionary(x => x.Id, x => new PbsNodeItem(x));
+            foreach (var item in map.Values
+                         .OrderBy(x => x.Node!.SortOrder)
+                         .ThenBy(x => x.Node!.Code, StringComparer.OrdinalIgnoreCase))
             {
-                parent.Children.Add(new PbsNodeItem(equipment));
+                if (item.Node!.ParentId is Guid parentId && map.TryGetValue(parentId, out var parent))
+                {
+                    parent.Children.Add(item);
+                }
+                else
+                {
+                    plantRoot.Children.Add(item);
+                }
             }
+
+            var equipmentByNode = equipments
+                .Where(x => x.PlantId == plant.Id && x.PbsNodeId is not null)
+                .GroupBy(x => x.PbsNodeId!.Value);
+            foreach (var group in equipmentByNode)
+            {
+                if (!map.TryGetValue(group.Key, out var parent))
+                {
+                    continue;
+                }
+                foreach (var equipment in group.OrderBy(x => x.TagNo, StringComparer.OrdinalIgnoreCase))
+                {
+                    parent.Children.Add(new PbsNodeItem(equipment));
+                }
+            }
+
+            Roots.Add(plantRoot);
         }
     }
 
@@ -388,6 +628,8 @@ public partial class PbsViewModel : ViewModelBase
             {
                 if (item.Node is null)
                 {
+                    // 工厂根节点本身不是 PbsNode，继续向下收集区域/装置。
+                    Walk(item.Children, depth);
                     continue;
                 }
 
@@ -413,6 +655,23 @@ public partial class PbsViewModel : ViewModelBase
                 return current.Code;
             }
             current = current.ParentId is Guid parentId ? _nodes.GetValueOrDefault(parentId) : null;
+        }
+        return null;
+    }
+
+    private static PbsNodeItem? FindPlantItem(IEnumerable<PbsNodeItem> items, Guid plantId)
+    {
+        foreach (var item in items)
+        {
+            if (item.Plant?.Id == plantId)
+            {
+                return item;
+            }
+            var found = FindPlantItem(item.Children, plantId);
+            if (found is not null)
+            {
+                return found;
+            }
         }
         return null;
     }

@@ -23,13 +23,22 @@ public abstract class ApiTestBase : IClassFixture<ApiFactory>
     /// <summary>
     /// 登录并选择工作区：登录只拿身份令牌，选择「工厂 + 项目」后再换取带范围的令牌。
     /// </summary>
-    protected async Task LoginAsync(string userName = "admin", string password = "admin123")
+    /// <summary>只登录，不选择工作区，返回身份令牌。</summary>
+    protected async Task<LoginResponse> LoginIdentityAsync(
+        string userName = "admin",
+        string password = "admin123")
     {
         var response = await Client.PostAsJsonAsync("/api/auth/login", new { userName, password });
         response.EnsureSuccessStatusCode();
         var login = await response.Content.ReadFromJsonAsync<LoginResponse>();
         Client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", login!.AccessToken);
+        return login;
+    }
+
+    protected async Task LoginAsync(string userName = "admin", string password = "admin123")
+    {
+        await LoginIdentityAsync(userName, password);
 
         var workspaces = await Client.GetFromJsonAsync<List<WorkspacePlantDto>>("/api/auth/workspaces")
                          ?? new List<WorkspacePlantDto>();

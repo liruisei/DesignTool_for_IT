@@ -4,6 +4,7 @@ using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Users;
 using WinDesign.Contracts.Workspaces;
@@ -17,6 +18,8 @@ public sealed class FakeApiClient : IApiClient
 
     public LoginResponse? LoginResult { get; set; }
     public ApiException? LoginError { get; set; }
+
+    public List<PlantDto> PlantDtos { get; } = new();
 
     public WorkspacePlantDto Plant { get; set; } = new(
         Guid.NewGuid(),
@@ -64,6 +67,18 @@ public sealed class FakeApiClient : IApiClient
         return session;
     }
 
+    /// <summary>构造一个管理员、未选择工厂/项目的管理模块会话。</summary>
+    public SessionService CreateManagementSession()
+    {
+        var session = new SessionService(this);
+        var user = new CurrentUserDto(Guid.NewGuid(), "admin", "测试管理员",
+            new[] { "Admin" }, new[] { "projects.read", "pbs.write", "users.read" });
+        session.SignIn(new LoginResponse("fake-token", DateTime.UtcNow.AddHours(1), user));
+        session.SetManagementMode(new ManagementSessionResponse(
+            "fake-management-token", DateTime.UtcNow.AddHours(1), user));
+        return session;
+    }
+
     public List<PbsNodeDto> PbsNodes { get; } = new();
     public List<EquipmentDto> Equipments { get; } = new();
     public List<DictionaryItemDto> EquipmentTypes { get; } = new();
@@ -99,6 +114,63 @@ public sealed class FakeApiClient : IApiClient
             Plant with { Projects = new[] { projectRef } }
         };
         return Task.FromResult(result);
+    }
+
+    public Task<ManagementSessionResponse> EnterManagementModeAsync(CancellationToken ct = default)
+    {
+        var user = new CurrentUserDto(Guid.NewGuid(), "admin", "测试管理员",
+            new[] { "Admin" }, new[] { "projects.read" });
+        return Task.FromResult(new ManagementSessionResponse(
+            "fake-management-token", DateTime.UtcNow.AddHours(1), user));
+    }
+
+    public Task<IReadOnlyList<PlantDto>> GetPlantsAsync(CancellationToken ct = default)
+    {
+        if (PlantDtos.Count > 0)
+        {
+            return Task.FromResult<IReadOnlyList<PlantDto>>(PlantDtos.ToList());
+        }
+
+        IReadOnlyList<PlantDto> result = new[]
+        {
+            new PlantDto(Plant.Id, Plant.Code, Plant.Name, Plant.ClientName, Plant.Location,
+                null, true, 1, 0, DateTime.UtcNow)
+        };
+        return Task.FromResult(result);
+    }
+
+    public Task<PlantDto> CreatePlantAsync(CreatePlantRequest request, CancellationToken ct = default)
+    {
+        var dto = new PlantDto(Guid.NewGuid(), request.Code, request.Name, request.ClientName,
+            request.Location, request.Description, true, 0, 0, DateTime.UtcNow);
+        PlantDtos.Add(dto);
+        return Task.FromResult(dto);
+    }
+
+    public Task<PlantDto> UpdatePlantAsync(Guid id, UpdatePlantRequest request, CancellationToken ct = default)
+    {
+        var index = PlantDtos.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("工厂不存在");
+        }
+
+        var dto = PlantDtos[index] with
+        {
+            Name = request.Name,
+            ClientName = request.ClientName,
+            Location = request.Location,
+            Description = request.Description,
+            IsActive = request.IsActive
+        };
+        PlantDtos[index] = dto;
+        return Task.FromResult(dto);
+    }
+
+    public Task DeletePlantAsync(Guid id, CancellationToken ct = default)
+    {
+        PlantDtos.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
     }
 
     public Task<WorkspaceResponse> SelectWorkspaceAsync(Guid plantId, Guid projectId, CancellationToken ct = default)

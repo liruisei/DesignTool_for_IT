@@ -125,6 +125,34 @@ public sealed class PlantsController : ApiControllerBase
         return Ok(ToDto(plant));
     }
 
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        var plant = await _db.Plants.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (plant is null)
+        {
+            return NotFound(new ApiError("工厂不存在"));
+        }
+        if (await _db.Projects.AnyAsync(x => x.PlantId == id, ct))
+        {
+            return BadRequest(new ApiError("工厂下还有项目，不能删除"));
+        }
+        if (await _db.PbsNodes.AnyAsync(x => x.PlantId == id, ct))
+        {
+            return BadRequest(new ApiError("工厂下还有 PBS 节点，不能删除"));
+        }
+        if (await _db.Equipments.AnyAsync(x => x.PlantId == id, ct))
+        {
+            return BadRequest(new ApiError("工厂下还有设备，不能删除"));
+        }
+
+        _db.Plants.Remove(plant);
+        _db.AddAudit(CurrentUserId, CurrentUserName, "Delete", "Plant", plant.Id.ToString(), plant.Code);
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     private static PlantDto ToDto(Plant plant) => new(
         plant.Id,
         plant.Code,

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDesign.Client.Services;
+using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
 
 namespace WinDesign.Client.ViewModels;
@@ -13,6 +14,7 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
     private readonly SessionService _session;
 
     public ObservableCollection<ProjectDto> Projects { get; } = new();
+    public ObservableCollection<PlantDto> Plants { get; } = new();
 
     public IReadOnlyList<StatusOption> StatusOptions { get; } = new[]
     {
@@ -23,6 +25,9 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
 
     [ObservableProperty]
     private ProjectDto? selectedProject;
+
+    [ObservableProperty]
+    private PlantDto? selectedPlant;
 
     [ObservableProperty]
     private string searchText = string.Empty;
@@ -63,7 +68,10 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
     [ObservableProperty]
     private string? statusMessage;
 
-    public string PlantName => _session.Plant?.Name ?? "未选择工厂";
+    public string PlantName => IsManagementMode ? "全部工厂" : _session.Plant?.Name ?? "未选择工厂";
+    public bool IsManagementMode => _session.IsManagementMode;
+    /// <summary>管理模块新建项目时需要选择所属工厂；编辑已有项目不允许改工厂。</summary>
+    public bool CanSelectPlant => IsManagementMode && IsCreating;
 
     public ProjectManagementViewModel(SessionService session)
     {
@@ -72,7 +80,27 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         _ = RefreshAsync();
     }
 
-    public override Task RefreshAsync() => RunAsync(LoadProjectsAsync);
+    public override Task RefreshAsync() => RunAsync(async () =>
+    {
+        if (IsManagementMode)
+        {
+            await LoadPlantsAsync();
+        }
+        await LoadProjectsAsync();
+    });
+
+    private async Task LoadPlantsAsync()
+    {
+        var plants = await _session.Api.GetPlantsAsync();
+        var currentId = SelectedPlant?.Id;
+        Plants.Clear();
+        foreach (var plant in plants)
+        {
+            Plants.Add(plant);
+        }
+        SelectedPlant = Plants.FirstOrDefault(x => x.Id == currentId)
+                        ?? Plants.FirstOrDefault();
+    }
 
     [RelayCommand]
     private Task SearchAsync() => RunAsync(LoadProjectsAsync);
@@ -98,6 +126,7 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         SelectedProject = null;
         IsCreating = true;
         EditorTitle = "新建项目";
+        OnPropertyChanged(nameof(CanSelectPlant));
         EditCode = string.Empty;
         EditName = string.Empty;
         EditClient = string.Empty;
@@ -128,8 +157,14 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
                 throw new ApiException("项目代号和项目名称不能为空");
             }
 
+            if (IsManagementMode && SelectedPlant is null)
+            {
+                throw new ApiException("请选择项目所属工厂");
+            }
+
             saved = await _session.Api.CreateProjectAsync(new CreateProjectRequest
             {
+                PlantId = IsManagementMode ? SelectedPlant?.Id : null,
                 Code = EditCode.Trim(),
                 Name = EditName.Trim(),
                 ClientName = NullIfEmpty(EditClient),
@@ -191,6 +226,7 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
 
         IsCreating = false;
         EditorTitle = "编辑项目：" + value.Code;
+        OnPropertyChanged(nameof(CanSelectPlant));
         EditCode = value.Code;
         EditName = value.Name;
         EditClient = value.ClientName ?? string.Empty;
