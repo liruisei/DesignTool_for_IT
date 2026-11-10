@@ -114,6 +114,18 @@ public partial class PbsViewModel : ViewModelBase
     public bool CanManageFactoriesHere => CanManagePlants && IsFactoryNodeSelected;
     public string ProjectName => _session.Project?.Name ?? "未选择项目";
 
+    /// <summary>右键菜单：设备节点没有子节点；工厂与 PBS 节点可以新建。</summary>
+    public bool CanCreateChild => SelectedNode is not null && SelectedNode.Equipment is null;
+
+    /// <summary>右键菜单：工厂仅管理员可修改，节点/设备均可修改。</summary>
+    public bool CanEditSelectedNode =>
+        SelectedNode is not null && (SelectedNode.IsPlant != true || CanManagePlants);
+
+    /// <summary>右键菜单：工厂仅管理员可删除，节点/设备均可删除。</summary>
+    public bool CanDeleteSelectedNode =>
+        SelectedNode is not null && (SelectedNode.IsPlant != true || CanManagePlants);
+
+
     public PbsViewModel(
         SessionService session,
         ProjectContext context,
@@ -223,6 +235,9 @@ public partial class PbsViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsFactoryNodeSelected));
         OnPropertyChanged(nameof(IsPbsNodeSelected));
         OnPropertyChanged(nameof(CanManageFactoriesHere));
+        OnPropertyChanged(nameof(CanCreateChild));
+        OnPropertyChanged(nameof(CanEditSelectedNode));
+        OnPropertyChanged(nameof(CanDeleteSelectedNode));
 
         // 树中选中哪个工厂下的节点，后续新建/编辑就以该工厂为上下文。
         var plantId = value?.Plant?.Id
@@ -295,7 +310,9 @@ public partial class PbsViewModel : ViewModelBase
     });
 
     [RelayCommand]
-    private Task DeletePlantAsync() => RunAsync(async () =>
+    private Task DeletePlantAsync() => RunAsync(DeletePlantCoreAsync);
+
+    private async Task DeletePlantCoreAsync()
     {
         if (!CanManagePlants || SelectedPlant is null)
         {
@@ -314,7 +331,7 @@ public partial class PbsViewModel : ViewModelBase
         await RefreshAsync();
         SelectedNode = Roots.FirstOrDefault(x => x.IsPlant);
         StatusMessage = "工厂已删除";
-    });
+    }
 
     [RelayCommand]
     private Task NewTopLevelAsync() => OpenEditorAsync(null, null, "Area");
@@ -403,7 +420,14 @@ public partial class PbsViewModel : ViewModelBase
     {
         if (SelectedNode?.IsPlant == true)
         {
-            throw new ApiException("工厂根节点不能在这里删除，请使用“删除工厂”");
+            if (!CanManagePlants)
+            {
+                throw new ApiException("工厂信息请由管理员在管理模块中维护");
+            }
+
+            // 右键菜单只有“删除节点”一个入口，工厂根节点复用工厂删除逻辑。
+            await DeletePlantCoreAsync();
+            return;
         }
 
         if (SelectedNode?.Equipment is not null)

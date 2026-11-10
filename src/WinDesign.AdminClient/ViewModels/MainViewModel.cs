@@ -42,7 +42,7 @@ public partial class MainViewModel : ObservableObject
     {
         _session = session;
         BuildExplorer();
-        OpenProjectConfig();
+        OpenPbs();
     }
 
     private void BuildExplorer()
@@ -59,13 +59,6 @@ public partial class MainViewModel : ObservableObject
         };
         system.Children.Add(new ExplorerNode
         {
-            Key = "project-config",
-            Title = "项目配置",
-            Glyph = "▤",
-            Open = OpenProjectConfig
-        });
-        system.Children.Add(new ExplorerNode
-        {
             Key = "pbs",
             Title = "PBS管理",
             Glyph = "◇",
@@ -73,8 +66,15 @@ public partial class MainViewModel : ObservableObject
         });
         system.Children.Add(new ExplorerNode
         {
+            Key = "project-config",
+            Title = "项目配置",
+            Glyph = "▤",
+            Open = OpenProjectConfig
+        });
+        system.Children.Add(new ExplorerNode
+        {
             Key = "dictionaries",
-            Title = "编码定义",
+            Title = "编码管理",
             Glyph = "☰",
             Open = OpenDictionaries
         });
@@ -94,11 +94,12 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenPbs() =>
-        OpenDocument("pbs", "PBS管理", () => new PbsViewModel(_session, _projectContext));
+        // PBS 管理是管理模块的默认常驻页面，不允许关闭。
+        OpenDocument("pbs", "PBS管理", () => new PbsViewModel(_session, _projectContext), closable: false);
 
     [RelayCommand]
     private void OpenDictionaries() =>
-        OpenDocument("dictionaries", "编码定义", () => new DictionaryViewModel(_session));
+        OpenDocument("dictionaries", "编码管理", () => new DictionaryViewModel(_session));
 
     [RelayCommand]
     private void OpenUsers() =>

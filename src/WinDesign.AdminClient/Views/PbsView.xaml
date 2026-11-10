@@ -64,30 +64,15 @@
                           ContextMenuOpening="OnTreeContextMenuOpening">
                     <TreeView.ContextMenu>
                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="新建工厂（根节点）" Command="{Binding NewPlantCommand}"
-                                      Visibility="{Binding CanManageFactoriesHere, Converter={StaticResource BoolToVis}}" />
-                            <MenuItem Header="编辑当前工厂" Command="{Binding EditPlantCommand}"
-                                      Visibility="{Binding CanManageFactoriesHere, Converter={StaticResource BoolToVis}}" />
-                            <MenuItem Header="删除当前工厂" Command="{Binding DeletePlantCommand}"
-                                      Visibility="{Binding CanManageFactoriesHere, Converter={StaticResource BoolToVis}}" />
-                            <Separator Visibility="{Binding CanManageFactoriesHere, Converter={StaticResource BoolToVis}}" />
-                            <MenuItem Header="新建区域（顶层）" Command="{Binding NewTopLevelCommand}"
-                                      Visibility="{Binding IsFactoryNodeSelected, Converter={StaticResource BoolToVis}}" />
                             <MenuItem Header="新建子节点" Command="{Binding NewChildCommand}"
-                                      Visibility="{Binding IsPbsNodeSelected, Converter={StaticResource BoolToVis}}" />
-                            <MenuItem Header="新建同级节点" Command="{Binding NewSiblingCommand}"
-                                      Visibility="{Binding IsPbsNodeSelected, Converter={StaticResource BoolToVis}}" />
-                            <MenuItem Header="添加设备" Command="{Binding AddEquipmentCommand}"
-                                      Visibility="{Binding IsPbsNodeSelected, Converter={StaticResource BoolToVis}}" />
-                            <Separator Visibility="{Binding IsPbsNodeSelected, Converter={StaticResource BoolToVis}}" />
-                            <MenuItem Header="编辑节点" Command="{Binding EditNodeCommand}"
-                                      Visibility="{Binding IsPbsNodeSelected, Converter={StaticResource BoolToVis}}" />
+                                      IsEnabled="{Binding CanCreateChild}" />
+                            <MenuItem Header="修改节点" Command="{Binding EditNodeCommand}"
+                                      IsEnabled="{Binding CanEditSelectedNode}" />
                             <MenuItem Header="删除节点" Command="{Binding DeleteNodeCommand}"
-                                      Visibility="{Binding IsPbsNodeSelected, Converter={StaticResource BoolToVis}}" />
+                                      IsEnabled="{Binding CanDeleteSelectedNode}" />
                             <Separator />
-                            <MenuItem Header="展开全部" Command="{Binding ExpandAllCommand}" />
-                            <MenuItem Header="折叠全部" Command="{Binding CollapseAllCommand}" />
-                            <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
+                            <MenuItem Header="编辑" Command="{Binding EditNodeCommand}"
+                                      IsEnabled="{Binding CanEditSelectedNode}" />
                         </ContextMenu>
                     </TreeView.ContextMenu>
                     <TreeView.ItemContainerStyle>

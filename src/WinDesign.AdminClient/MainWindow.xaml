@@ -40,7 +40,7 @@
             </MenuItem>
             <MenuItem Header="视图(_V)">
                 <MenuItem Header="PBS管理" Command="{Binding OpenPbsCommand}" />
-                <MenuItem Header="编码定义" Command="{Binding OpenDictionariesCommand}" />
+                <MenuItem Header="编码管理" Command="{Binding OpenDictionariesCommand}" />
                 <MenuItem Header="用户管理" Command="{Binding OpenUsersCommand}" />
                 <Separator />
                 <MenuItem Header="关闭当前标签" Command="{Binding CloseSelectedDocumentCommand}" />
