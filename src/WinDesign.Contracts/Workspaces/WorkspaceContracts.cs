@@ -16,7 +16,11 @@ public sealed record WorkspaceProjectDto(
     string Code,
     string Name,
     string? Phase,
-    string Status);
+    string Status)
+{
+    /// <summary>项目所在的 PBS 根节点（工厂顶层节点），设计端左侧 PBS 树据此显示。</summary>
+    public Guid? PbsRootNodeId { get; init; }
+}
 
 public sealed record SelectWorkspaceRequest(Guid PlantId, Guid ProjectId);
 

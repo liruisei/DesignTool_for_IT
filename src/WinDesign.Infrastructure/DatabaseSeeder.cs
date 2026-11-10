@@ -163,6 +163,11 @@ public static class DatabaseSeeder
         var areaB = new PbsNode { PlantId = plantB.Id, Code = "AREA-LNG", Name = "接收站区", NodeType = PbsNodeType.Area, SortOrder = 1 };
         db.PbsNodes.AddRange(area, unit, loop, areaB);
 
+        // 项目挂在工厂的顶层 PBS 节点上；DEMO-001 / DEMO-002 共用 A 区，DEMO-003 使用接收站区。
+        project1.PbsRootNodeId = area.Id;
+        project2.PbsRootNodeId = area.Id;
+        project3.PbsRootNodeId = areaB.Id;
+
         var equipment = new Equipment
         {
             PlantId = plantA.Id,
@@ -172,7 +177,6 @@ public static class DatabaseSeeder
             Name = "压力变送器",
             TypeCode = "PT",
             Discipline = Discipline.Instrument,
-            Status = EquipmentStatus.Designed,
             Location = "A 区 / 常减压装置"
         };
         db.Equipments.Add(equipment);

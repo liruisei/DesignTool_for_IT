@@ -1,0 +1,138 @@
+<UserControl x:Class="WinDesign.AdminClient.Views.ProjectManagementView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="320" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition x:Name="EditorColumn" Width="0" MinWidth="0" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="项目配置" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+                        <TextBlock Style="{StaticResource MutedText}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding PlantName, StringFormat=工厂：{0}}" />
+                    </StackPanel>
+                    <TextBox Grid.Column="1" Style="{StaticResource Input}"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Grid.Column="2" Content="查询" Command="{Binding SearchCommand}"
+                            Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                    <Button Grid.Column="3" Content="新建" Command="{Binding NewProjectCommand}"
+                            Click="OnNewProjectClick"
+                            Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
+                    <Button Grid.Column="4" x:Name="ToggleEditorButton" Content="展开编辑"
+                            Style="{StaticResource ToolButton}" Margin="8,0,0,0"
+                            Click="OnToggleEditorClick" ToolTip="展开/收起右侧编辑栏" />
+                </Grid>
+
+                <DataGrid Grid.Row="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="工厂" Binding="{Binding PlantName}" Width="140" />
+                        <DataGridTextColumn Header="PBS根节点" Binding="{Binding PbsRootNodeName}" Width="170" />
+                        <DataGridTextColumn Header="项目代号" Binding="{Binding Code}" Width="120" />
+                        <DataGridTextColumn Header="项目名称" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="客户" Binding="{Binding ClientName}" Width="150" />
+                        <DataGridTextColumn Header="地点" Binding="{Binding Location}" Width="120" />
+                        <DataGridTextColumn Header="阶段" Binding="{Binding Phase}" Width="100" />
+                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="90" />
+                        <DataGridTextColumn Header="负责人" Binding="{Binding OwnerName}" Width="110" />
+                        <DataGridTextColumn Header="创建日期"
+                                            Binding="{Binding CreatedAt, StringFormat={}{0:yyyy-MM-dd}}"
+                                            Width="100" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      Background="{StaticResource BorderBrush}" Cursor="SizeWE"
+                      ResizeBehavior="PreviousAndNext" ResizeDirection="Columns"
+                      ToolTip="拖动调整编辑栏宽度；向左拖到底可收起" />
+
+        <Border Grid.Column="2" x:Name="EditorPanel" ClipToBounds="True"
+                Style="{StaticResource Card}" Margin="4,0,0,0" Visibility="Collapsed"
+                SizeChanged="OnEditorPanelSizeChanged"
+                LostKeyboardFocus="OnEditorLostKeyboardFocus">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="项目代号创建后不可修改。" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+
+                    <StackPanel Visibility="{Binding IsManagementMode, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="所属工厂" Style="{StaticResource FieldLabel}" />
+                        <ComboBox ItemsSource="{Binding Plants}" SelectedItem="{Binding SelectedPlant}"
+                                  DisplayMemberPath="Name" IsEnabled="{Binding CanSelectPlant}" />
+                    </StackPanel>
+
+                    <TextBlock Text="PBS 根节点" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding PbsRootOptions}" SelectedItem="{Binding SelectedPbsRoot}"
+                              DisplayMemberPath="Display" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="只能选择工厂下的顶层 PBS 节点；同一根节点可被多个项目共用。" />
+
+                    <TextBlock Text="项目代号" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreating}"
+                             Text="{Binding EditCode, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="项目名称" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="客户名称" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditClient, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="项目地点" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditLocation, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="开工日期" Style="{StaticResource FieldLabel}" />
+                    <DatePicker SelectedDate="{Binding EditStartDate}" />
+
+                    <TextBlock Text="计划完成日期" Style="{StaticResource FieldLabel}" />
+                    <DatePicker SelectedDate="{Binding EditEndDate}" />
+
+                    <TextBlock Text="设计阶段" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource Input}"
+                             Text="{Binding EditPhase, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="项目状态" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding StatusOptions}" DisplayMemberPath="Name"
+                              SelectedValuePath="Code" SelectedValue="{Binding EditStatus}" />
+
+                    <TextBlock Text="项目说明" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputMultiline}"
+                             Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                        <Button Content="保存" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" />
+                        <Button Content="新建" Command="{Binding NewProjectCommand}" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                        <Button Content="归档" Command="{Binding ArchiveCommand}" Style="{StaticResource DangerButton}" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                               Margin="0,12,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}"
+                               Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVis}}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

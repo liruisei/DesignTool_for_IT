@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Plants;
 
 namespace WinDesign.Api.Tests;
 
@@ -13,7 +14,7 @@ public class PbsTests : ApiTestBase
     [Fact]
     public async Task Pbs_InitialTree_ContainsTopLevelAndSeedNodes()
     {
-        await LoginAsync();
+        await LoginManagementAsync();
 
         var nodes = await GetNodesAsync();
 
@@ -26,7 +27,7 @@ public class PbsTests : ApiTestBase
     [Fact]
     public async Task Pbs_Crud_RoundTrip()
     {
-        await LoginAsync();
+        await LoginManagementAsync();
         var topLevel = await GetTopLevelAsync();
         var code = UniqueCode("T");
 
@@ -57,7 +58,7 @@ public class PbsTests : ApiTestBase
     [Fact]
     public async Task Pbs_DuplicateCode_ReturnsConflict()
     {
-        await LoginAsync();
+        await LoginManagementAsync();
         var topLevel = await GetTopLevelAsync();
         var code = UniqueCode("D");
 
@@ -85,7 +86,7 @@ public class PbsTests : ApiTestBase
     [Fact]
     public async Task Pbs_Cycle_ReturnsBadRequest()
     {
-        await LoginAsync();
+        await LoginManagementAsync();
         var topLevel = await GetTopLevelAsync();
 
         var parent = await CreateNodeAsync(topLevel.Id, UniqueCode("P"));
@@ -112,9 +113,24 @@ public class PbsTests : ApiTestBase
     }
 
     [Fact]
+    public async Task Pbs_DeleteProjectRoot_ReturnsBadRequest()
+    {
+        await LoginManagementAsync();
+        var plants = await Client.GetFromJsonAsync<List<PlantDto>>("/api/plants");
+        var plantB = plants!.Single(x => x.Code == "PLANT-B");
+        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/plants/{plantB.Id}/pbs");
+        // AREA-LNG 是 DEMO-003 的 PBS 根节点，且没有子节点，删除仍应被拒绝。
+        var root = nodes!.Single(x => x.Code == "AREA-LNG");
+
+        var response = await Client.DeleteAsync($"/api/pbs/{root.Id}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Pbs_DeleteWithChildren_ReturnsBadRequest()
     {
-        await LoginAsync();
+        await LoginManagementAsync();
         var topLevel = await GetTopLevelAsync();
 
         var parent = await CreateNodeAsync(topLevel.Id, UniqueCode("P"));

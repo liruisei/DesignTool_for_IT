@@ -11,6 +11,7 @@ namespace WinDesign.Api.Controllers;
 
 [Route("api/users")]
 [Authorize(Roles = "Admin")]
+[Authorize(Policy = AuthorizationPolicies.AdminClient)]
 public sealed class UsersController : ApiControllerBase
 {
     private readonly WinDesignDbContext _db;

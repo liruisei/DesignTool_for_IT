@@ -1,4 +1,5 @@
 using WinDesign.Client.Services;
+using WinDesign.DesignClient.ViewModels;
 using WinDesign.Client.ViewModels;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
@@ -62,7 +63,6 @@ public class EquipmentIndexViewModelTests
                 TagNo = "PT-2001",
                 Name = "新压力变送器",
                 Discipline = "Instrument",
-                Status = "Planned",
                 Quantity = 1
             }
         };
@@ -88,7 +88,6 @@ public class EquipmentIndexViewModelTests
                 LoopNo = "LIC-1001",
                 Name = "改名后的设备",
                 Discipline = "Instrument",
-                Status = "Designed",
                 Quantity = 2
             }
         };
@@ -113,7 +112,6 @@ public class EquipmentIndexViewModelTests
                 TagNo = "PT-1002",
                 Name = "压力变送器",
                 Discipline = "Instrument",
-                Status = "Planned",
                 Quantity = 1
             }
         };
@@ -161,7 +159,6 @@ public class EquipmentIndexViewModelTests
             Name = "压力变送器",
             TypeCode = "PT",
             Discipline = "Instrument",
-            Status = "Planned",
             Location = "A 区",
             Quantity = 1,
             CreatedAt = DateTime.UtcNow

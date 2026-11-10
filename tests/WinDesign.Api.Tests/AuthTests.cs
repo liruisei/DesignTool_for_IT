@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using WinDesign.Contracts.Auth;
 using WinDesign.Contracts.Common;
+using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Workspaces;
@@ -64,14 +65,60 @@ public class AuthTests : ApiTestBase
     }
 
     [Fact]
-    public async Task Projects_WithoutWorkspace_ReturnsBadRequest_ForDesigner()
+    public async Task Projects_WithoutManagementClient_ReturnsForbidden_ForIdentityToken()
     {
-        // 管理员未选工作区视为“管理模块”，可以访问；非管理员必须先选工作区。
+        // 身份令牌（client = auth）尚未选择任何客户端，不能直接访问管理端接口。
         await LoginIdentityAsync("designer", "designer123");
 
         var response = await Client.GetAsync("/api/projects");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DesignToken_CannotCallAdminClientEndpoints()
+    {
+        // 即使是管理员，只要拿到的是设计客户端令牌，也不能调用管理端写接口。
+        await LoginAsync();
+
+        var project = await Client.PostAsJsonAsync("/api/projects", new
+        {
+            code = "DENY-" + Guid.NewGuid().ToString("N")[..8],
+            name = "设计令牌不应创建项目"
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, project.StatusCode);
+
+        var pbs = await Client.PostAsJsonAsync($"/api/plants/{PlantId}/pbs", new
+        {
+            parentId = (Guid?)null,
+            code = "DENY-" + Guid.NewGuid().ToString("N")[..8],
+            name = "设计令牌不应创建 PBS",
+            nodeType = "Area",
+            sortOrder = 999,
+            description = ""
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, pbs.StatusCode);
+    }
+
+    [Fact]
+    public async Task ManagementToken_CannotCallDesignEquipmentEndpoints()
+    {
+        // 管理客户端只做配置；索引/设备数据属于设计客户端。
+        await LoginManagementAsync();
+
+        var response = await Client.GetAsync($"/api/projects/{Guid.NewGuid()}/equipments");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ManagementToken_CanReadDesignEndpoints()
+    {
+        // 管理端的 PBS 管理页需要读取 PBS 与设备数据，因此设计类读接口对管理令牌开放。
+        await LoginManagementAsync();
+
+        var pbs = await Client.GetAsync($"/api/plants/{PlantId}/pbs");
+        Assert.Equal(HttpStatusCode.OK, pbs.StatusCode);
     }
 
     [Fact]
@@ -165,17 +212,62 @@ public class AuthTests : ApiTestBase
 
         var plants = await Client.GetFromJsonAsync<List<PlantDto>>("/api/plants");
         var plant = plants!.Single(x => x.Code == "PLANT-B");
+        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/plants/{plant.Id}/pbs");
+        var root = nodes!.Single(x => x.ParentId is null);
         var code = "MGMT-" + Guid.NewGuid().ToString("N")[..8];
 
         var response = await Client.PostAsJsonAsync("/api/projects", new
         {
             plantId = plant.Id,
             code,
-            name = "管理模块新建项目"
+            name = "管理模块新建项目",
+            pbsRootNodeId = root.Id
         });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<ProjectDto>();
         Assert.Equal(plant.Id, created!.PlantId);
+        Assert.Equal(root.Id, created.PbsRootNodeId);
+    }
+
+    [Fact]
+    public async Task CreateProject_WithoutPbsRoot_ReturnsBadRequest()
+    {
+        await LoginIdentityAsync();
+        var managementResponse = await Client.PostAsync("/api/auth/management", null);
+        var management = await managementResponse.Content.ReadFromJsonAsync<ManagementSessionResponse>();
+        Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", management!.AccessToken);
+
+        var plants = await Client.GetFromJsonAsync<List<PlantDto>>("/api/plants");
+        var plant = plants!.Single(x => x.Code == "PLANT-B");
+
+        var response = await Client.PostAsJsonAsync("/api/projects", new
+        {
+            plantId = plant.Id,
+            code = "NO-ROOT-" + Guid.NewGuid().ToString("N")[..8],
+            name = "缺少 PBS 根节点"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateProject_WithNonTopLevelPbsRoot_ReturnsBadRequest()
+    {
+        await LoginManagementAsync();
+
+        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/plants/{PlantId}/pbs");
+        var child = nodes!.First(x => x.ParentId is not null);
+
+        var response = await Client.PostAsJsonAsync("/api/projects", new
+        {
+            plantId = PlantId,
+            code = "BAD-ROOT-" + Guid.NewGuid().ToString("N")[..8],
+            name = "根节点不是顶层节点",
+            pbsRootNodeId = child.Id
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 }

@@ -11,6 +11,7 @@ using WinDesign.Infrastructure;
 namespace WinDesign.Api.Controllers;
 
 [Route("api/projects")]
+[Authorize(Policy = AuthorizationPolicies.AdminClient)]
 public sealed class ProjectsController : ApiControllerBase
 {
     private readonly WinDesignDbContext _db;
@@ -41,6 +42,7 @@ public sealed class ProjectsController : ApiControllerBase
         var query = _db.Projects
             .Include(x => x.Owner)
             .Include(x => x.Plant)
+            .Include(x => x.PbsRootNode)
             .AsNoTracking();
 
         if (CurrentPlantId is Guid plantId)
@@ -80,6 +82,7 @@ public sealed class ProjectsController : ApiControllerBase
         var project = await _db.Projects
             .Include(x => x.Owner)
             .Include(x => x.Plant)
+            .Include(x => x.PbsRootNode)
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == id, ct);
 
@@ -128,9 +131,15 @@ public sealed class ProjectsController : ApiControllerBase
         {
             return Conflict(new ApiError("该工厂下项目代号已存在"));
         }
+        var rootError = await ValidatePbsRootAsync(request.PbsRootNodeId, plantId.Value, ct);
+        if (rootError is not null)
+        {
+            return BadRequest(new ApiError(rootError));
+        }
 
         var project = new Project
         {
+            PbsRootNodeId = request.PbsRootNodeId,
             PlantId = plantId.Value,
             Code = code,
             Name = request.Name.Trim(),
@@ -156,6 +165,7 @@ public sealed class ProjectsController : ApiControllerBase
         var created = await _db.Projects
             .Include(x => x.Owner)
             .Include(x => x.Plant)
+            .Include(x => x.PbsRootNode)
             .AsNoTracking()
             .SingleAsync(x => x.Id == project.Id, ct);
         return CreatedAtAction(nameof(GetById), new { id = project.Id }, ToDto(created));
@@ -168,6 +178,7 @@ public sealed class ProjectsController : ApiControllerBase
         var project = await _db.Projects
             .Include(x => x.Owner)
             .Include(x => x.Plant)
+            .Include(x => x.PbsRootNode)
             .SingleOrDefaultAsync(x => x.Id == id, ct);
         if (project is null)
         {
@@ -193,7 +204,13 @@ public sealed class ProjectsController : ApiControllerBase
         {
             return BadRequest(new ApiError("项目状态无效"));
         }
+        var rootError = await ValidatePbsRootAsync(request.PbsRootNodeId, project.PlantId, ct);
+        if (rootError is not null)
+        {
+            return BadRequest(new ApiError(rootError));
+        }
 
+        project.PbsRootNodeId = request.PbsRootNodeId;
         project.Name = request.Name.Trim();
         project.ClientName = string.IsNullOrWhiteSpace(request.ClientName) ? null : request.ClientName.Trim();
         project.Location = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim();
@@ -206,6 +223,9 @@ public sealed class ProjectsController : ApiControllerBase
 
         _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "Project", project.Id.ToString(), project.Code);
         await _db.SaveChangesAsync(ct);
+
+        // 重新加载根节点，保证返回的 DTO 带有根节点名称。
+        await _db.Entry(project).Reference(x => x.PbsRootNode).LoadAsync(ct);
         return Ok(ToDto(project));
     }
 
@@ -239,6 +259,32 @@ public sealed class ProjectsController : ApiControllerBase
         User.IsInRole("Admin") ||
         await _db.ProjectMembers.AnyAsync(x => x.ProjectId == projectId && x.UserId == CurrentUserId, ct);
 
+    /// <summary>
+    /// 校验项目 PBS 根节点：必须属于该工厂，且必须是顶层节点（ParentId 为空）。
+    /// 返回错误信息；null 表示通过。
+    /// </summary>
+    private async Task<string?> ValidatePbsRootAsync(Guid? rootNodeId, Guid plantId, CancellationToken ct)
+    {
+        if (rootNodeId is null)
+        {
+            return "请选择项目所在的 PBS 根节点";
+        }
+
+        var root = await _db.PbsNodes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == rootNodeId.Value && x.PlantId == plantId, ct);
+        if (root is null)
+        {
+            return "所选的 PBS 根节点不存在或不属于该项目所属工厂";
+        }
+        if (root.ParentId is not null)
+        {
+            return "项目 PBS 根节点必须是工厂下的顶层节点";
+        }
+
+        return null;
+    }
+
     private static ProjectDto ToDto(Project project) => new()
     {
         Id = project.Id,
@@ -255,6 +301,10 @@ public sealed class ProjectsController : ApiControllerBase
         Description = project.Description,
         OwnerUserId = project.OwnerUserId,
         OwnerName = project.Owner?.DisplayName,
+        PbsRootNodeId = project.PbsRootNodeId,
+        PbsRootNodeName = project.PbsRootNode is null
+            ? null
+            : project.PbsRootNode.Code + " " + project.PbsRootNode.Name,
         CreatedAt = project.CreatedAt
     };
 }

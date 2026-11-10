@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
@@ -7,6 +8,7 @@ using WinDesign.Infrastructure;
 namespace WinDesign.Api.Controllers;
 
 [Route("api/roles")]
+[Authorize(Policy = AuthorizationPolicies.AdminClient)]
 public sealed class RolesController : ApiControllerBase
 {
     private readonly WinDesignDbContext _db;

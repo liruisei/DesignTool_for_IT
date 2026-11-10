@@ -24,10 +24,3 @@ public enum PbsNodeType
     Equipment = 5,
     Loop = 6
 }
-
-public enum EquipmentStatus
-{
-    Planned = 0,
-    Designed = 1,
-    Approved = 2
-}

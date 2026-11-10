@@ -1,4 +1,5 @@
 using WinDesign.Client.ViewModels;
+using WinDesign.AdminClient.ViewModels;
 using WinDesign.Contracts.Pbs;
 
 namespace WinDesign.Client.Tests;

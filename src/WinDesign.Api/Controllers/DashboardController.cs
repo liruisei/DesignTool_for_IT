@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
@@ -8,6 +9,7 @@ using WinDesign.Infrastructure;
 namespace WinDesign.Api.Controllers;
 
 [Route("api/dashboard")]
+[Authorize(Policy = AuthorizationPolicies.ClientAccess)]
 public sealed class DashboardController : ApiControllerBase
 {
     private readonly WinDesignDbContext _db;

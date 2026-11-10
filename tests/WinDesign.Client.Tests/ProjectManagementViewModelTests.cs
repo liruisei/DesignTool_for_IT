@@ -1,4 +1,4 @@
-using WinDesign.Client.ViewModels;
+using WinDesign.AdminClient.ViewModels;
 
 namespace WinDesign.Client.Tests;
 
@@ -8,6 +8,7 @@ public class ProjectManagementViewModelTests
     public async Task SavePending_SavesEditedExistingProject()
     {
         var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
         var viewModel = new ProjectManagementViewModel(api.CreateSession());
         await viewModel.RefreshAsync();
 
@@ -24,6 +25,7 @@ public class ProjectManagementViewModelTests
     public async Task SavePending_DoesNotCreateUnsavedNewProject()
     {
         var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
         var viewModel = new ProjectManagementViewModel(api.CreateSession());
         await viewModel.RefreshAsync();
 
@@ -42,6 +44,7 @@ public class ProjectManagementViewModelTests
     public async Task ManagementMode_LoadsAllProjectsAndPlants()
     {
         var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
         var viewModel = new ProjectManagementViewModel(api.CreateManagementSession());
 
         await viewModel.RefreshAsync();
@@ -56,6 +59,7 @@ public class ProjectManagementViewModelTests
     public async Task SavePending_InvalidExistingProject_ThrowsAndKeepsData()
     {
         var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
         var viewModel = new ProjectManagementViewModel(api.CreateSession());
         await viewModel.RefreshAsync();
 

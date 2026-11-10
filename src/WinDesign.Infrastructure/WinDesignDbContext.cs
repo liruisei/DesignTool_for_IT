@@ -96,6 +96,9 @@ public class WinDesignDbContext : DbContext
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             e.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+            // 项目根节点是工厂顶层 PBS 节点；被项目引用时禁止删除该节点。
+            e.HasOne(x => x.PbsRootNode).WithMany().HasForeignKey(x => x.PbsRootNodeId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ProjectMember>(e =>
@@ -151,7 +154,6 @@ public class WinDesignDbContext : DbContext
             e.Property(x => x.IoSetting).HasMaxLength(64);
             e.Property(x => x.IndexNo).HasMaxLength(64);
             e.Property(x => x.Discipline).HasConversion<string>().HasMaxLength(32);
-            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             e.HasOne(x => x.Plant).WithMany(x => x.Equipments).HasForeignKey(x => x.PlantId);
             e.HasOne(x => x.PbsNode).WithMany().HasForeignKey(x => x.PbsNodeId)
                 .OnDelete(DeleteBehavior.SetNull);

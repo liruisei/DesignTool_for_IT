@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using WinDesign.Contracts.Auth;
 using WinDesign.Contracts.Common;
+using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Workspaces;
 
@@ -12,7 +13,7 @@ public abstract class ApiTestBase : IClassFixture<ApiFactory>
     protected ApiFactory Factory { get; }
     protected HttpClient Client { get; }
     protected WorkspaceResponse Workspace { get; private set; } = null!;
-    protected Guid PlantId => Workspace.Plant.Id;
+    protected Guid PlantId { get; private set; }
 
     protected ApiTestBase(ApiFactory factory)
     {
@@ -20,10 +21,7 @@ public abstract class ApiTestBase : IClassFixture<ApiFactory>
         Client = factory.CreateClient();
     }
 
-    /// <summary>
-    /// 登录并选择工作区：登录只拿身份令牌，选择「工厂 + 项目」后再换取带范围的令牌。
-    /// </summary>
-    /// <summary>只登录，不选择工作区，返回身份令牌。</summary>
+    /// <summary>只登录，不选择工作区，返回身份令牌（client = auth）。</summary>
     protected async Task<LoginResponse> LoginIdentityAsync(
         string userName = "admin",
         string password = "admin123")
@@ -36,6 +34,9 @@ public abstract class ApiTestBase : IClassFixture<ApiFactory>
         return login;
     }
 
+    /// <summary>
+    /// 登录并选择工作区，换取设计客户端令牌（client = design，带 plantId / projectId）。
+    /// </summary>
     protected async Task LoginAsync(string userName = "admin", string password = "admin123")
     {
         await LoginIdentityAsync(userName, password);
@@ -55,13 +56,42 @@ public abstract class ApiTestBase : IClassFixture<ApiFactory>
         });
         select.EnsureSuccessStatusCode();
         Workspace = (await select.Content.ReadFromJsonAsync<WorkspaceResponse>())!;
+        PlantId = Workspace.Plant.Id;
         Client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", Workspace.AccessToken);
     }
 
-    protected async Task<ProjectDto> GetDemoProjectAsync()
+    /// <summary>
+    /// 登录并进入管理模块，换取管理客户端令牌（client = admin，无 plantId / projectId）。
+    /// 同时把 PlantId 设为 PLANT-A，供跨工厂配置类测试使用。
+    /// </summary>
+    protected async Task LoginManagementAsync(string userName = "admin", string password = "admin123")
     {
-        var result = await Client.GetFromJsonAsync<PagedResult<ProjectDto>>("/api/projects");
-        return result!.Items.Single(x => x.Code == "DEMO-001");
+        await LoginIdentityAsync(userName, password);
+
+        var response = await Client.PostAsync("/api/auth/management", null);
+        response.EnsureSuccessStatusCode();
+        var management = await response.Content.ReadFromJsonAsync<ManagementSessionResponse>();
+        Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", management!.AccessToken);
+
+        var plants = await Client.GetFromJsonAsync<List<PlantDto>>("/api/plants");
+        PlantId = plants!.Single(x => x.Code == "PLANT-A").Id;
+    }
+
+    protected Task<ProjectDto> GetDemoProjectAsync()
+    {
+        // 设计客户端令牌不能再调用管理端的 /api/projects，直接从已选工作区构造测试数据。
+        var project = Workspace.Project;
+        return Task.FromResult(new ProjectDto
+        {
+            Id = project.Id,
+            PlantId = PlantId,
+            Code = project.Code,
+            Name = project.Name,
+            Phase = project.Phase,
+            Status = project.Status,
+            CreatedAt = DateTime.UtcNow
+        });
     }
 }

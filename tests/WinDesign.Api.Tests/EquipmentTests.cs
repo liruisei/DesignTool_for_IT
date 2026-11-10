@@ -33,14 +33,13 @@ public class EquipmentTests : ApiTestBase
                 name = "重复设备",
                 typeCode = "PT",
                 discipline = "Instrument",
-                status = "Planned",
                 location = "",
                 description = ""
             });
             Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
 
             var filtered = await Client.GetFromJsonAsync<PagedResult<EquipmentDto>>(
-                $"/api/projects/{project.Id}/equipments?discipline=Instrument&status=Planned&pbsNodeId={root.Id}");
+                $"/api/projects/{project.Id}/equipments?discipline=Instrument&pbsNodeId={root.Id}");
             Assert.Contains(filtered!.Items, x => x.TagNo == tagNo);
 
             var update = await Client.PutAsJsonAsync($"/api/equipments/{created.Id}", new
@@ -50,13 +49,12 @@ public class EquipmentTests : ApiTestBase
                 name = "测试设备-更新",
                 typeCode = "PT",
                 discipline = "Instrument",
-                status = "Designed",
                 location = "测试区",
                 description = "updated"
             });
             Assert.Equal(HttpStatusCode.OK, update.StatusCode);
             var updated = await update.Content.ReadFromJsonAsync<EquipmentDto>();
-            Assert.Equal("Designed", updated!.Status);
+            Assert.Equal("测试设备-更新", updated!.Name);
         }
         finally
         {
@@ -77,7 +75,6 @@ public class EquipmentTests : ApiTestBase
             name = "无效 PBS 设备",
             typeCode = "PT",
             discipline = "Instrument",
-            status = "Planned",
             location = "",
             description = ""
         });
@@ -100,7 +97,6 @@ public class EquipmentTests : ApiTestBase
             name = "测试压力变送器",
             typeCode = "PT",
             discipline = "Instrument",
-            status = "Planned",
             location = "测试区",
             description = "integration test"
         });

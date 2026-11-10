@@ -76,7 +76,17 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // 客户端类型隔离：管理客户端令牌只能调用管理接口，设计客户端令牌只能调用设计接口。
+    options.AddPolicy(AuthorizationPolicies.AdminClient, policy =>
+        policy.RequireClaim("client", "admin"));
+    options.AddPolicy(AuthorizationPolicies.DesignClient, policy =>
+        policy.RequireClaim("client", "design"));
+    options.AddPolicy(AuthorizationPolicies.ClientAccess, policy =>
+        policy.RequireAssertion(context =>
+            context.User.FindFirst("client")?.Value is "admin" or "design"));
+});
 
 var app = builder.Build();
 var provider = app.Configuration["Database:Provider"] ?? "Sqlite";

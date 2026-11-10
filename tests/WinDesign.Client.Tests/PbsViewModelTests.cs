@@ -1,5 +1,6 @@
+using WinDesign.AdminClient.Services;
 using WinDesign.Client.Services;
-using WinDesign.Client.ViewModels;
+using WinDesign.AdminClient.ViewModels;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Plants;
@@ -152,7 +153,6 @@ public class PbsViewModelTests
             TagNo = "PT-9001",
             Name = "设备",
             Discipline = "Instrument",
-            Status = "Planned",
             Quantity = 1,
             CreatedAt = DateTime.UtcNow
         });
@@ -178,7 +178,6 @@ public class PbsViewModelTests
                 TagNo = "PT-9101",
                 Name = "设备",
                 Discipline = "Instrument",
-                Status = "Planned",
                 Quantity = 1
             }
         };

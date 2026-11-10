@@ -24,6 +24,7 @@ public sealed class PbsController : ApiControllerBase
     }
 
     [HttpGet("plants/{plantId:guid}/pbs")]
+    [Authorize(Policy = AuthorizationPolicies.ClientAccess)]
     public async Task<ActionResult<IReadOnlyList<PbsNodeDto>>> Get(Guid plantId, CancellationToken ct)
     {
         if (EnsureWorkspacePlant(plantId) is ActionResult denied)
@@ -87,6 +88,7 @@ public sealed class PbsController : ApiControllerBase
     }
 
     [HttpPost("plants/{plantId:guid}/pbs")]
+    [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<PbsNodeDto>> Create(
         Guid plantId,
@@ -145,6 +147,7 @@ public sealed class PbsController : ApiControllerBase
     }
 
     [HttpPut("pbs/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<ActionResult<PbsNodeDto>> Update(
         Guid id,
@@ -174,6 +177,11 @@ public sealed class PbsController : ApiControllerBase
             nodeType == PbsNodeType.Root)
         {
             return BadRequest(new ApiError("节点类型无效；工厂已是根节点"));
+        }
+        if (request.ParentId is not null &&
+            await _db.Projects.AnyAsync(x => x.PbsRootNodeId == id, ct))
+        {
+            return BadRequest(new ApiError("该节点是项目的 PBS 根节点，不能移动到其他节点下"));
         }
 
         if (request.ParentId is Guid parentId)
@@ -211,6 +219,7 @@ public sealed class PbsController : ApiControllerBase
     }
 
     [HttpDelete("pbs/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
@@ -222,6 +231,10 @@ public sealed class PbsController : ApiControllerBase
         if (EnsureWorkspacePlant(node.PlantId) is ActionResult denied)
         {
             return denied;
+        }
+        if (await _db.Projects.AnyAsync(x => x.PbsRootNodeId == id, ct))
+        {
+            return BadRequest(new ApiError("该节点是项目的 PBS 根节点，不能删除"));
         }
         if (await _db.PbsNodes.AnyAsync(x => x.ParentId == id, ct))
         {

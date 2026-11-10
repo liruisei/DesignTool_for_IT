@@ -9,12 +9,17 @@ namespace WinDesign.Api.Services;
 
 public interface IJwtTokenService
 {
+    /// <param name="client">
+    /// 客户端类型：auth（刚登录，尚未选择模块）、admin（管理客户端）、design（设计客户端）。
+    /// 服务端据此强制隔离管理接口与设计接口。
+    /// </param>
     (string Token, DateTime ExpiresAt) Create(
         User user,
         IEnumerable<string> roles,
         IEnumerable<string> permissions,
         Guid? plantId = null,
-        Guid? projectId = null);
+        Guid? projectId = null,
+        string client = "auth");
 }
 
 public sealed class JwtTokenService : IJwtTokenService
@@ -31,14 +36,16 @@ public sealed class JwtTokenService : IJwtTokenService
         IEnumerable<string> roles,
         IEnumerable<string> permissions,
         Guid? plantId = null,
-        Guid? projectId = null)
+        Guid? projectId = null,
+        string client = "auth")
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.UserName),
-            new("displayName", user.DisplayName)
+            new("displayName", user.DisplayName),
+            new("client", client)
         };
 
         if (plantId is Guid plant)

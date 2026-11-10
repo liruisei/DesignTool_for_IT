@@ -15,7 +15,7 @@ public class EquipmentEditorViewModelTests
 
         Assert.Equal("新建设备", viewModel.Title);
         Assert.Equal("Instrument", viewModel.EditDiscipline);
-        Assert.Equal("Planned", viewModel.EditStatus);
+        Assert.True(viewModel.IsLoopNoEditable);
         Assert.Equal(1, viewModel.EditQuantity);
         Assert.True(string.IsNullOrEmpty(viewModel.EditTagNo));
         Assert.Null(viewModel.EditPbsNodeId);
@@ -71,7 +71,6 @@ public class EquipmentEditorViewModelTests
             EditLoopNo = "LIC-3001",
             EditName = "压力变送器",
             EditDiscipline = "Instrument",
-            EditStatus = "Designed",
             EditQuantity = 3,
             EditPidDrawingNo = "PID-3001",
             EditSpecNo = "SPEC-3001",
@@ -87,6 +86,37 @@ public class EquipmentEditorViewModelTests
         Assert.Equal("PID-3001", result.PidDrawingNo);
         Assert.Equal("SPEC-3001", result.SpecNo);
         Assert.Equal("AI-03", result.IoSetting);
+    }
+
+    [Fact]
+    public void DisciplineChangedToIt_DisablesLoopNo_AndClearsValue()
+    {
+        var viewModel = new EquipmentEditorViewModel(CreateContext(null, false))
+        {
+            EditLoopNo = "LIC-3001"
+        };
+
+        viewModel.EditDiscipline = "IT";
+
+        Assert.False(viewModel.IsLoopNoEditable);
+        Assert.Equal(string.Empty, viewModel.EditLoopNo);
+    }
+
+    [Fact]
+    public void TryBuild_ItDiscipline_OmitsLoopNo()
+    {
+        var viewModel = new EquipmentEditorViewModel(CreateContext(null, false))
+        {
+            EditTagNo = "SW-3001",
+            EditName = "接入交换机",
+            EditDiscipline = "IT",
+            EditLoopNo = "LIC-3001"
+        };
+
+        var ok = viewModel.TryBuild(out var result, out _);
+
+        Assert.True(ok);
+        Assert.Null(result!.LoopNo);
     }
 
     private static EquipmentEditorContext CreateContext(EquipmentDto? equipment, bool isCopy) => new(
@@ -107,7 +137,6 @@ public class EquipmentEditorViewModelTests
         Name = "压力变送器",
         TypeCode = "PT",
         Discipline = "Instrument",
-        Status = "Planned",
         Quantity = 2,
         PidDrawingNo = "PID-001",
         IoSetting = "AI-01",

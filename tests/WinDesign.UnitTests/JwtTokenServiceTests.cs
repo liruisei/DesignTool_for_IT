@@ -43,6 +43,38 @@ public class JwtTokenServiceTests
     }
 
     [Fact]
+    public void Create_AddsClientClaim()
+    {
+        var user = new User { UserName = "erin", DisplayName = "Erin" };
+
+        var (adminToken, _) = Service.Create(
+            user,
+            new[] { "Admin" },
+            Array.Empty<string>(),
+            client: "admin");
+        var (designToken, _) = Service.Create(
+            user,
+            new[] { "Admin" },
+            Array.Empty<string>(),
+            plantId: Guid.NewGuid(),
+            projectId: Guid.NewGuid(),
+            client: "design");
+
+        Assert.Equal("admin", Validate(adminToken).FindFirst("client")?.Value);
+        Assert.Equal("design", Validate(designToken).FindFirst("client")?.Value);
+    }
+
+    [Fact]
+    public void Create_WithoutClientKind_DefaultsToAuth()
+    {
+        var user = new User { UserName = "frank", DisplayName = "Frank" };
+
+        var (token, _) = Service.Create(user, new[] { "Viewer" }, Array.Empty<string>());
+
+        Assert.Equal("auth", Validate(token).FindFirst("client")?.Value);
+    }
+
+    [Fact]
     public void Create_WithWorkspace_AddsPlantAndProjectClaims()
     {
         var user = new User { UserName = "carol", DisplayName = "Carol" };

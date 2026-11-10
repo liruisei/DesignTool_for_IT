@@ -16,6 +16,10 @@ public sealed record ProjectDto
     public string? Description { get; init; }
     public Guid? OwnerUserId { get; init; }
     public string? OwnerName { get; init; }
+
+    /// <summary>项目所在的 PBS 根节点（工厂顶层节点）。</summary>
+    public Guid? PbsRootNodeId { get; init; }
+    public string? PbsRootNodeName { get; init; }
     public DateTime CreatedAt { get; init; }
 }
 
@@ -31,6 +35,9 @@ public sealed record CreateProjectRequest
     public DateTime? StartDate { get; init; }
     public DateTime? EndDate { get; init; }
     public string? Description { get; init; }
+
+    /// <summary>项目所在的 PBS 根节点，必须是所属工厂的顶层节点。</summary>
+    public Guid? PbsRootNodeId { get; init; }
 }
 
 public sealed record UpdateProjectRequest
@@ -43,4 +50,7 @@ public sealed record UpdateProjectRequest
     public DateTime? EndDate { get; init; }
     public string? Status { get; init; }
     public string? Description { get; init; }
+
+    /// <summary>项目所在的 PBS 根节点，必须是所属工厂的顶层节点。</summary>
+    public Guid? PbsRootNodeId { get; init; }
 }

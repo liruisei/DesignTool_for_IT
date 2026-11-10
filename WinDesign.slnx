@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/WinDesign.AdminClient/WinDesign.AdminClient.csproj" />
     <Project Path="src/WinDesign.Api/WinDesign.Api.csproj" />
-    <Project Path="src/WinDesign.Client/WinDesign.Client.csproj" />
+    <Project Path="src/WinDesign.Client.Shared/WinDesign.Client.Shared.csproj" />
     <Project Path="src/WinDesign.Contracts/WinDesign.Contracts.csproj" />
+    <Project Path="src/WinDesign.DesignClient/WinDesign.DesignClient.csproj" />
     <Project Path="src/WinDesign.Domain/WinDesign.Domain.csproj" />
     <Project Path="src/WinDesign.Infrastructure/WinDesign.Infrastructure.csproj" />
   </Folder>

@@ -3,6 +3,7 @@ using WinDesign.Contracts.Auth;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Materials;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
@@ -31,8 +32,14 @@ public sealed class FakeApiClient : IApiClient
 
     public ProjectDto Project { get; set; }
 
+    /// <summary>演示项目的 PBS 根节点（工厂顶层节点）。</summary>
+    public PbsNodeDto PbsRoot { get; }
+
     public FakeApiClient()
     {
+        PbsRoot = new PbsNodeDto(
+            Guid.NewGuid(), Plant.Id, null, "AREA-A", "A 区", "Area", 1, "演示根节点", 0, 0);
+
         Project = new ProjectDto
         {
             Id = Guid.NewGuid(),
@@ -44,20 +51,37 @@ public sealed class FakeApiClient : IApiClient
             Location = "演示地点",
             Phase = "详细设计",
             Status = "Active",
+            PbsRootNodeId = PbsRoot.Id,
+            PbsRootNodeName = PbsRoot.Code + " " + PbsRoot.Name,
             CreatedAt = DateTime.UtcNow
         };
     }
 
+    /// <summary>把演示根节点加入 PBS 节点集合；PBS 相关测试按需调用。</summary>
+    public PbsNodeDto AddDefaultPbsRoot()
+    {
+        if (!PbsNodes.Contains(PbsRoot))
+        {
+            PbsNodes.Add(PbsRoot);
+        }
+
+        return PbsRoot;
+    }
+
     /// <summary>构造一个已登录并已选择工作区的测试会话。</summary>
-    public SessionService CreateSession()
+    public SessionService CreateSession(string[]? roles = null)
     {
         var session = new SessionService(this);
+        var actualRoles = roles ?? new[] { "Admin" };
         var user = new CurrentUserDto(Guid.NewGuid(), "admin", "测试用户",
-            new[] { "Admin" }, new[] { "projects.read", "pbs.write", "equipment.write" });
+            actualRoles, new[] { "projects.read", "pbs.write", "equipment.write" });
         session.SignIn(new LoginResponse("fake-token", DateTime.UtcNow.AddHours(1), user));
 
         var projectRef = new WorkspaceProjectDto(
-            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status);
+            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status)
+        {
+            PbsRootNodeId = Project.PbsRootNodeId
+        };
         session.SetWorkspace(new WorkspaceResponse(
             "fake-workspace-token",
             DateTime.UtcNow.AddHours(1),
@@ -81,6 +105,8 @@ public sealed class FakeApiClient : IApiClient
 
     public List<PbsNodeDto> PbsNodes { get; } = new();
     public List<EquipmentDto> Equipments { get; } = new();
+    public List<EquipmentSpecDto> EquipmentSpecs { get; } = new();
+    public List<MaterialItemDto> Materials { get; } = new();
     public List<DictionaryItemDto> EquipmentTypes { get; } = new();
     public List<DictionaryTypeDto> DictionaryTypes { get; } = new();
 
@@ -108,7 +134,10 @@ public sealed class FakeApiClient : IApiClient
     public Task<IReadOnlyList<WorkspacePlantDto>> GetWorkspacesAsync(CancellationToken ct = default)
     {
         var projectRef = new WorkspaceProjectDto(
-            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status);
+            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status)
+        {
+            PbsRootNodeId = Project.PbsRootNodeId
+        };
         IReadOnlyList<WorkspacePlantDto> result = new[]
         {
             Plant with { Projects = new[] { projectRef } }
@@ -176,7 +205,10 @@ public sealed class FakeApiClient : IApiClient
     public Task<WorkspaceResponse> SelectWorkspaceAsync(Guid plantId, Guid projectId, CancellationToken ct = default)
     {
         var projectRef = new WorkspaceProjectDto(
-            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status);
+            Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status)
+        {
+            PbsRootNodeId = Project.PbsRootNodeId
+        };
         var plant = Plant with { Projects = new[] { projectRef } };
         return Task.FromResult(new WorkspaceResponse(
             "fake-workspace-token",
@@ -225,7 +257,11 @@ public sealed class FakeApiClient : IApiClient
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             Status = request.Status ?? Project.Status,
-            Description = request.Description
+            Description = request.Description,
+            PbsRootNodeId = request.PbsRootNodeId,
+            PbsRootNodeName = PbsNodes.FirstOrDefault(x => x.Id == request.PbsRootNodeId) is { } root
+                ? root.Code + " " + root.Name
+                : null
         };
         return Task.FromResult(Project);
     }
@@ -303,7 +339,6 @@ public sealed class FakeApiClient : IApiClient
         Guid projectId,
         string? search = null,
         string? discipline = null,
-        string? status = null,
         Guid? pbsNodeId = null,
         int pageSize = 500,
         CancellationToken ct = default)
@@ -316,10 +351,6 @@ public sealed class FakeApiClient : IApiClient
         if (!string.IsNullOrWhiteSpace(discipline))
         {
             query = query.Where(x => x.Discipline == discipline);
-        }
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            query = query.Where(x => x.Status == status);
         }
         if (pbsNodeId is Guid nodeId)
         {
@@ -343,7 +374,6 @@ public sealed class FakeApiClient : IApiClient
             Name = request.Name,
             TypeCode = request.TypeCode,
             Discipline = request.Discipline,
-            Status = request.Status ?? "Planned",
             Location = request.Location,
             PipeEquipmentNo = request.PipeEquipmentNo,
             Quantity = request.Quantity,
@@ -389,7 +419,6 @@ public sealed class FakeApiClient : IApiClient
             Name = request.Name,
             TypeCode = request.TypeCode,
             Discipline = request.Discipline,
-            Status = request.Status ?? old.Status,
             Location = request.Location,
             PipeEquipmentNo = request.PipeEquipmentNo,
             Quantity = request.Quantity,
@@ -419,6 +448,174 @@ public sealed class FakeApiClient : IApiClient
     public Task DeleteEquipmentAsync(Guid id, CancellationToken ct = default)
     {
         Equipments.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task<PagedResult<EquipmentSpecDto>> GetEquipmentSpecsAsync(
+        Guid projectId,
+        string? search = null,
+        Guid? equipmentId = null,
+        int pageSize = 500,
+        CancellationToken ct = default)
+    {
+        var equipmentIds = Equipments
+            .Where(x => x.ProjectId == projectId)
+            .Select(x => x.Id)
+            .ToHashSet();
+
+        IEnumerable<EquipmentSpecDto> query = EquipmentSpecs.Where(x => equipmentIds.Contains(x.EquipmentId));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(x => x.SpecCode.Contains(search) ||
+                                     x.SpecName.Contains(search) ||
+                                     x.EquipmentTagNo.Contains(search) ||
+                                     x.EquipmentName.Contains(search));
+        }
+        if (equipmentId is Guid filterEquipmentId)
+        {
+            query = query.Where(x => x.EquipmentId == filterEquipmentId);
+        }
+
+        var items = query.ToList();
+        return Task.FromResult(new PagedResult<EquipmentSpecDto>(items, items.Count, 1, 200));
+    }
+
+    public Task<EquipmentSpecDto> CreateEquipmentSpecAsync(
+        Guid equipmentId,
+        EquipmentSpecUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var equipment = Equipments.FirstOrDefault(x => x.Id == equipmentId);
+        var dto = new EquipmentSpecDto
+        {
+            Id = Guid.NewGuid(),
+            EquipmentId = equipmentId,
+            EquipmentTagNo = equipment?.TagNo ?? string.Empty,
+            EquipmentName = equipment?.Name ?? string.Empty,
+            SpecCode = request.SpecCode,
+            SpecName = request.SpecName,
+            Parameters = request.Parameters ?? Array.Empty<SpecParameterDto>(),
+            Version = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        EquipmentSpecs.Add(dto);
+        return Task.FromResult(dto);
+    }
+
+    public Task<EquipmentSpecDto> UpdateEquipmentSpecAsync(
+        Guid id,
+        EquipmentSpecUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var index = EquipmentSpecs.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("规格书不存在");
+        }
+
+        var dto = EquipmentSpecs[index] with
+        {
+            SpecCode = request.SpecCode,
+            SpecName = request.SpecName,
+            Parameters = request.Parameters ?? Array.Empty<SpecParameterDto>(),
+            UpdatedAt = DateTime.UtcNow
+        };
+        EquipmentSpecs[index] = dto;
+        return Task.FromResult(dto);
+    }
+
+    public Task DeleteEquipmentSpecAsync(Guid id, CancellationToken ct = default)
+    {
+        EquipmentSpecs.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task<PagedResult<MaterialItemDto>> GetMaterialsAsync(
+        Guid projectId,
+        string? search = null,
+        Guid? equipmentId = null,
+        int pageSize = 500,
+        CancellationToken ct = default)
+    {
+        IEnumerable<MaterialItemDto> query = Materials.Where(x => x.ProjectId == projectId);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(x => x.Code.Contains(search) ||
+                                     x.Name.Contains(search) ||
+                                     (x.Spec != null && x.Spec.Contains(search)) ||
+                                     (x.Material != null && x.Material.Contains(search)) ||
+                                     (x.EquipmentTagNo != null && x.EquipmentTagNo.Contains(search)));
+        }
+        if (equipmentId is Guid filterEquipmentId)
+        {
+            query = query.Where(x => x.EquipmentId == filterEquipmentId);
+        }
+
+        var items = query.ToList();
+        return Task.FromResult(new PagedResult<MaterialItemDto>(items, items.Count, 1, 200));
+    }
+
+    public Task<MaterialItemDto> CreateMaterialAsync(
+        Guid projectId,
+        MaterialItemUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var equipment = Equipments.FirstOrDefault(x => x.Id == request.EquipmentId);
+        var dto = new MaterialItemDto
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            EquipmentId = request.EquipmentId,
+            EquipmentTagNo = equipment?.TagNo,
+            EquipmentName = equipment?.Name,
+            Code = request.Code,
+            Name = request.Name,
+            Spec = request.Spec,
+            Material = request.Material,
+            Unit = request.Unit,
+            Quantity = request.Quantity,
+            Remark = request.Remark,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        Materials.Add(dto);
+        return Task.FromResult(dto);
+    }
+
+    public Task<MaterialItemDto> UpdateMaterialAsync(
+        Guid id,
+        MaterialItemUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var index = Materials.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("材料/附件不存在");
+        }
+
+        var equipment = Equipments.FirstOrDefault(x => x.Id == request.EquipmentId);
+        var dto = Materials[index] with
+        {
+            EquipmentId = request.EquipmentId,
+            EquipmentTagNo = equipment?.TagNo,
+            EquipmentName = equipment?.Name,
+            Code = request.Code,
+            Name = request.Name,
+            Spec = request.Spec,
+            Material = request.Material,
+            Unit = request.Unit,
+            Quantity = request.Quantity,
+            Remark = request.Remark,
+            UpdatedAt = DateTime.UtcNow
+        };
+        Materials[index] = dto;
+        return Task.FromResult(dto);
+    }
+
+    public Task DeleteMaterialAsync(Guid id, CancellationToken ct = default)
+    {
+        Materials.RemoveAll(x => x.Id == id);
         return Task.CompletedTask;
     }
 }

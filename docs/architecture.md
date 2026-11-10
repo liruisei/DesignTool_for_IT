@@ -1,26 +1,37 @@
-# WinDesign 架构说明（v0.1）
+# 工厂二维设计平台 架构说明（v0.1）
 
 ## 1. 总体架构
 
 ```
-┌───────────────────────────── WPF 客户端 ─────────────────────────────┐
-│ LoginWindow → WorkspaceSelectionWindow（工厂 → 项目） → MainWindow      │
-│  MainWindow（导航壳） → 索引表 / 设备规格 / 材料 / 报表                │
-│                         系统：项目配置 / PBS管理 / 编码定义 / 用户管理  │
-│  MVVM：View ←→ ViewModel ←→ ApiClient（HttpClient + JWT）             │
-└───────────────────────────────────┬──────────────────────────────────┘
-                                    │ HTTPS / JSON
-┌───────────────────────────────────▼──────────────────────────────────┐
-│                      ASP.NET Core Web API                            │
-│  Controllers（Auth / Plants / Projects / Pbs / Equipments / Users /  │
-│               Roles / Dictionaries / Dashboard）                     │
-│  JWT 认证 + 角色授权 + 审计日志                                        │
-│  EF Core（Npgsql / Sqlite）                                           │
-└───────────────────────────────────┬──────────────────────────────────┘
-                                    │
-                    ┌───────────────▼───────────────┐
-                    │ PostgreSQL（生产）/ SQLite（开发）│
-                    └───────────────────────────────┘
+┌──────────────── 管理客户端 WinDesign.AdminClient ────────────────┐
+│ LoginWindow（仅 Admin）→ MainWindow                                │
+│  导航：项目配置 / PBS管理 / 编码定义 / 用户管理                      │
+│  令牌：client=admin，无 plantId / projectId                        │
+└──────────────────────────────┬───────────────────────────────────┘
+                               │ HTTPS / JSON
+┌──────────────── 设计客户端 WinDesign.DesignClient ───────────────┐
+│ LoginWindow → WorkspaceSelectionWindow（工厂 → 项目）→ MainWindow   │
+│  导航：索引表 / 规格书 / 材料表 / 报表输出                          │
+│  令牌：client=design，带 plantId / projectId                       │
+└──────────────────────────────┬───────────────────────────────────┘
+                               │
+        ┌──────────────────────┴──────────────────────┐
+        │  WinDesign.Client.Shared（两个客户端共用）    │
+        │  登录窗口 / Session / ApiClient / 主题 /      │
+        │  设备属性弹窗                                 │
+        └──────────────────────┬──────────────────────┘
+                               │ HTTPS / JSON
+┌──────────────────────────────▼───────────────────────────────────┐
+│                      ASP.NET Core Web API                         │
+│  Controllers（Auth / Plants / Projects / Pbs / Equipments / Users /│
+│               Roles / Dictionaries / Dashboard）                  │
+│  JWT 认证 + 角色授权 + 客户端类型策略 + 审计日志                    │
+│  EF Core（Npgsql / Sqlite）                                        │
+└──────────────────────────────┬───────────────────────────────────┘
+                               │
+                 ┌─────────────▼─────────────┐
+                 │ PostgreSQL（生产）/ SQLite（开发）│
+                 └───────────────────────────┘
 ```
 
 ## 2. 分层
@@ -31,34 +42,39 @@
 | `WinDesign.Contracts` | 客户端/服务端共享 DTO | Domain |
 | `WinDesign.Infrastructure` | DbContext、密码哈希、种子数据 | Domain |
 | `WinDesign.Api` | HTTP 接口、认证、授权、审计 | Domain / Contracts / Infrastructure |
-| `WinDesign.Client` | WPF 界面、MVVM、API 客户端 | Contracts |
+| `WinDesign.Client.Shared` | 登录窗口、Session、ApiClient、主题、设备属性弹窗 | Contracts |
+| `WinDesign.AdminClient` | 管理客户端：项目配置 / PBS / 编码 / 用户 | Client.Shared / Contracts |
+| `WinDesign.DesignClient` | 设计客户端：索引表 / 规格书 / 材料表 / 报表 | Client.Shared / Contracts |
 
 ## 3. 认证与权限
 
 1. 客户端 `POST /api/auth/login`，服务端校验 PBKDF2 密码哈希。
-2. 服务端签发**身份令牌**，包含：
+2. 服务端签发**身份令牌**（`client=auth`），包含：
    - `sub` / `nameidentifier`：用户 ID
    - `name`：用户名
    - `role`：Admin / Designer / Viewer
    - `permission`：细粒度权限码（如 `projects.write`）
-3. 登录后客户端调用 `GET /api/auth/workspaces`，只返回当前用户参与的工厂与项目。
-4. 客户端选择「工厂 → 项目」后调用 `POST /api/auth/workspace`，服务端校验成员身份并签发**工作区令牌**，额外包含：
+   - `client`：客户端类型，此阶段为 `auth`
+3. **管理客户端**调用 `POST /api/auth/management`，服务端校验 Admin 后签发**管理令牌**（`client=admin`，无 `plantId` / `projectId`）。管理端把“管理员 + 无工作区”识别为跨工厂配置模式。
+4. **设计客户端**登录后调用 `GET /api/auth/workspaces`，只返回当前用户参与的工厂与项目；选择「工厂 → 项目」后调用 `POST /api/auth/workspace`，服务端校验成员身份并签发**设计令牌**（`client=design`），额外包含：
    - `plantId`：所选工厂（PBS 根节点）
    - `projectId`：所选项目（设计与报表范围）
-5. 客户端把令牌放在 `Authorization: Bearer <token>`。所有数据接口从令牌中取工厂/项目并强制过滤：
+5. 客户端把令牌放在 `Authorization: Bearer <token>`。设计接口从令牌中取工厂/项目并强制过滤：
    - 未选择工作区 → `400`；
-   - 请求其他工厂或项目 → `403`。
+   - 请求其他工厂或项目 → `403`；
    - 主界面内切换工作区时，复用 `POST /api/auth/workspace` 换发新令牌，并关闭旧文档、按新范围重建，无需重新登录。
-6. 管理员可调用 `POST /api/auth/management` 进入**管理模块**：令牌不含 `plantId` / `projectId`，只开放系统配置类接口；服务端把“管理员 + 无工作区”识别为管理模块，允许跨工厂维护 PBS 与项目。
-6. 服务端：
-   - `[Authorize]`：登录即可。
-   - `[Authorize(Roles = "Admin")]`：用户管理、项目归档。
-   - `[Authorize(Roles = "Admin,Designer")]`：工厂/项目/PBS/设备写入。
+6. 服务端授权分两层：
+   - **角色**：`[Authorize(Roles = "Admin")]` 用户管理、项目归档；`[Authorize(Roles = "Admin,Designer")]` 配置/设备写入。
+   - **客户端类型策略**：
+     - `AdminClient`：只接受 `client=admin`，用于用户、角色、工厂、项目、编码写入、PBS 写入；
+     - `DesignClient`：只接受 `client=design`，用于索引表 / 设备等设计数据；
+     - `ClientAccess`：接受 admin 或 design，用于编码/PBS 读取、工作台统计（管理端 PBS 管理页需要读取 PBS 与编码）。
+   - 即使是 Admin，只要持有设计令牌，也不能调用管理接口；反之亦然。
 7. 权限码同时写入数据库 `permissions / role_permissions`，为后续菜单/按钮级授权预留。
 
-## 4. 数据模型（v0.7：工厂 → 项目 → PBS）
+## 4. 数据模型（v0.8：工厂 → 项目 → PBS）
 
-工厂是 PBS 的根节点，PBS 与设备归工厂所有；项目只是设计与报表范围，通过 `project_equipments` 引用工厂设备，同一设备可被多个项目共享。
+工厂是 PBS 的根实体，PBS 与设备归工厂所有；每个项目通过 `PbsRootNodeId` 指定工厂下的一个顶层 PBS 节点作为自己的根节点（一个根可被多个项目共用），设计端左侧 PBS 树只显示该根及其子树。项目只是设计与报表范围，通过 `project_equipments` 引用工厂设备，同一设备可被多个项目共享。
 
 ```
 users ──< user_roles >── roles ──< role_permissions >── permissions
@@ -68,7 +84,7 @@ plants（工厂 = PBS 根节点）
   ├──< equipments ──< equipment_specs
   │        ├──< project_equipments >── projects
   │        └──< material_items
-  └──< projects (owner) ──< project_members
+  └──< projects (owner, pbs_root_node_id → pbs_nodes) ──< project_members
 
 dictionary_types ──< dictionary_items
 audit_logs（独立流水）
@@ -80,37 +96,48 @@ audit_logs（独立流水）
 | Role | Code、Name | Admin / Designer / Viewer |
 | Permission | Code、Module | 细粒度权限 |
 | Plant | Code、Name、ClientName、Location、IsActive | 工厂 / 企业，PBS 根节点；一个工厂承载多个项目 |
-| Project | PlantId、Code、Name、ClientName、Location、Phase、StartDate、EndDate、Status、OwnerUserId | 项目（设计 / 报表范围） |
+| Project | PlantId、PbsRootNodeId、Code、Name、ClientName、Location、Phase、StartDate、EndDate、Status、OwnerUserId | 项目（设计 / 报表范围）；PbsRootNodeId 指向所属工厂的顶层 PBS 节点，被多个项目共用 |
 | PbsNode | PlantId、ParentId、Code、Name、NodeType | 工厂分解结构；根节点由 Plant 承载 |
-| Equipment | PlantId、PbsNodeId、TagNo、LoopNo、Name、TypeCode、Discipline、Status、Quantity、用途、安装位置、管道设备号、图纸/文档号、IO/KeyWord/Index、工艺条件/规格书 | 设备归工厂；PBS 路径由节点祖先计算；位号工厂内唯一 |
+| Equipment | PlantId、PbsNodeId、TagNo、LoopNo、Name、TypeCode、Discipline、Quantity、用途、安装位置、管道设备号、图纸/文档号、IO/KeyWord/Index | 设备归工厂；PBS 路径由节点祖先计算；位号工厂内唯一；专业为 IT 时不使用回路号 |
 | ProjectEquipment | ProjectId、EquipmentId、AddedAt | 设备的项目范围，支持跨项目共享 |
 | EquipmentSpec | EquipmentId、SpecCode、ContentJson、Version | 规格书 |
 | MaterialItem | ProjectId、EquipmentId、Code、Name、Qty | 材料/附件 |
 | DictionaryType/Item | Code、Name、SortOrder、IsActive | 编码定义 |
 | AuditLog | UserName、Action、EntityType、EntityId | 审计 |
 
-枚举：`ProjectStatus`、`Discipline`、`PbsNodeType`、`EquipmentStatus` 均以字符串存库，便于报表与人工排查。
+枚举：`ProjectStatus`、`Discipline`、`PbsNodeType` 均以字符串存库，便于报表与人工排查。
 
 ## 5. 客户端结构
 
 ```
-Views/                 LoginWindow、WorkspaceSelectionWindow、MainWindow、
-                       Dashboard、项目配置、PBS管理、编码定义、用户管理、占位页
-ViewModels/            Login、Main、Dashboard、WorkspaceSelection、Project、Pbs、
-                       Dictionary、User、Placeholder
-Services/              ApiClient、SessionService、ProjectContext、SettingsService
-Converters/            StringToVisibilityConverter
-Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
+WinDesign.Client.Shared/
+  Views/               LoginWindow、EquipmentPropertyDialog
+  ViewModels/          Login、ViewModelBase、ExplorerNode、EquipmentEditor、PbsNodeOption
+  Services/            ApiClient、SessionService、ProjectContext、SettingsService、
+                       EquipmentDialogService
+  Converters/          StringToVisibilityConverter
+  Styles/Theme.xaml    颜色、按钮、输入框、DataGrid、导航样式
+
+WinDesign.AdminClient/
+  MainWindow           管理外壳（无工作区切换）
+  Views/               ProjectManagement、Pbs、PbsNodeDialog、PlantDialog、
+                       Dictionary、UserManagement、EditorAutoSave
+  ViewModels/          Main、Project、Pbs、PbsNodeEditor、PlantEditor、Dictionary、User
+  Services/            PbsDialogService
+
+WinDesign.DesignClient/
+  MainWindow           设计外壳（支持工作区切换）
+  Views/               WorkspaceSelectionWindow、EquipmentIndex、EquipmentPropertyDialog 调用方、
+                       ModulePlaceholder
+  ViewModels/          Main、WorkspaceSelection、EquipmentIndex、ModulePlaceholder
 ```
 
-导航：左侧 `Domain Explorer` 分两组——
+导航：两个客户端各自维护 `ExplorerNode` 树，互不引用对方的页面。
 
-- **项目**：索引表、设备规格、材料附件、报表输出；
-- **系统**：项目配置、PBS管理、编码定义、用户管理（仅 Admin）。
+- **管理客户端**：只有「系统」——项目配置、PBS管理、编码定义、用户管理；
+- **设计客户端**：两个同级导航组——「项目」（索引表、规格书、材料表、报表输出）与「PBS」（只读，显示当前项目 PBS 根节点及其子节点）。
 
-管理员进入**管理模块**时只生成「系统」分组，不显示「项目」分组；PBS管理在该模式下可在多个工厂之间切换并维护工厂本身。
-
-`MainViewModel` 按角色与工作区模式动态生成节点，`ExplorerNode.Open` 决定打开哪个文档。
+`ExplorerNode.Open` 决定打开哪个文档；管理端默认打开项目配置，设计端默认打开索引表。设备属性弹窗由 `Client.Shared` 提供，管理端 PBS 树与设计端索引表共用。
 
 ## 6. 服务端接口约定
 
@@ -119,6 +146,7 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 - 分页返回 `{ items, total, page, pageSize }`。
 - 写操作记录 `audit_logs`。
 - 用户管理仅 Admin；项目/编码写入为 Admin/Designer；只读用户只能查询。
+- 所有接口还受 `client` 声明约束：管理端配置写接口要求 `AdminClient`，设计端数据接口要求 `ClientAccess`，跨端返回 `403`。
 
 ## 6.1 工作区与工厂接口
 
@@ -147,13 +175,19 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 
 ### 开发
 - API：`dotnet run --project src/WinDesign.Api --launch-profile http`
-- 客户端：`dotnet run --project src/WinDesign.Client`
+- 管理客户端：`dotnet run --project src/WinDesign.AdminClient`
+- 设计客户端：`dotnet run --project src/WinDesign.DesignClient`
 - 数据库：SQLite（`appsettings.Development.json`）
 
 ### 生产
 - 数据库：PostgreSQL 16（`docker-compose.yml` 或既有实例）。
 - API：`dotnet publish -c Release` 后部署为 Windows 服务 / IIS。
-- 客户端：`dotnet publish -c Release -r win-x64 --self-contained false`，分发 `WinDesign.Client.exe`。
+- 客户端：分别发布两个 exe：
+  ```bash
+  dotnet publish src/WinDesign.AdminClient -c Release -r win-x64 --self-contained false
+  dotnet publish src/WinDesign.DesignClient -c Release -r win-x64 --self-contained false
+  ```
+  管理端只发给管理员，设计端发给设计人员；共享库随各自发布目录一起分发。
 - 必须替换 `Jwt:Key`，并使用 HTTPS。
 
 ## 8. 设计决策
@@ -168,7 +202,7 @@ Styles/Theme.xaml      颜色、按钮、输入框、DataGrid、导航样式
 
 ## 9. 下一阶段
 
-已完成：工厂（PBS 根节点）与多项目管理、登录工作区选择（工厂 → 项目）、按项目范围的数据授权、PBS 管理（区域 → 装置 → 回路 → 设备）、索引表录入（设备可在 PBS 中创建，索引表浏览/修改）、项目配置。
+已完成：工厂（PBS 根节点）与多项目管理、登录工作区选择（工厂 → 项目）、按项目范围的数据授权、PBS 管理（区域 → 装置 → 回路 → 设备）、索引表录入（设备可在 PBS 中创建，索引表浏览/修改）、项目配置、**管理/设计双客户端拆分与客户端类型隔离**。
 
 第二阶段：
 1. 设备规格模板/版本 + 缺项校验。

@@ -15,6 +15,7 @@ namespace WinDesign.Api.Controllers;
 /// 索引表按当前工作区项目过滤；PBS 管理按当前工作区工厂校验。
 /// </summary>
 [Route("api")]
+[Authorize(Policy = AuthorizationPolicies.DesignClient)]
 public sealed class EquipmentsController : ApiControllerBase
 {
     private readonly WinDesignDbContext _db;
@@ -30,7 +31,6 @@ public sealed class EquipmentsController : ApiControllerBase
         [FromQuery] string? search,
         [FromQuery] string? loopNo,
         [FromQuery] string? discipline,
-        [FromQuery] string? status,
         [FromQuery] Guid? pbsNodeId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
@@ -84,14 +84,6 @@ public sealed class EquipmentsController : ApiControllerBase
                 return BadRequest(new ApiError("专业无效"));
             }
             query = query.Where(x => x.Discipline == parsedDiscipline);
-        }
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            if (!Enum.TryParse<EquipmentStatus>(status, true, out var parsedStatus))
-            {
-                return BadRequest(new ApiError("设备状态无效"));
-            }
-            query = query.Where(x => x.Status == parsedStatus);
         }
         if (pbsNodeId is Guid nodeId)
         {
@@ -174,12 +166,6 @@ public sealed class EquipmentsController : ApiControllerBase
         {
             return BadRequest(new ApiError("专业无效"));
         }
-        var status = EquipmentStatus.Planned;
-        if (!string.IsNullOrWhiteSpace(request.Status) &&
-            !Enum.TryParse(request.Status, true, out status))
-        {
-            return BadRequest(new ApiError("设备状态无效"));
-        }
         if (request.PbsNodeId is Guid pbsNodeId)
         {
             var valid = await _db.PbsNodes
@@ -199,7 +185,6 @@ public sealed class EquipmentsController : ApiControllerBase
             Name = request.Name.Trim(),
             TypeCode = Clean(request.TypeCode),
             Discipline = discipline,
-            Status = status,
             Location = Clean(request.Location),
             PipeEquipmentNo = Clean(request.PipeEquipmentNo),
             Quantity = request.Quantity > 0 ? request.Quantity : 1,
@@ -282,12 +267,6 @@ public sealed class EquipmentsController : ApiControllerBase
         {
             return BadRequest(new ApiError("专业无效"));
         }
-        var status = equipment.Status;
-        if (!string.IsNullOrWhiteSpace(request.Status) &&
-            !Enum.TryParse(request.Status, true, out status))
-        {
-            return BadRequest(new ApiError("设备状态无效"));
-        }
         if (request.PbsNodeId is Guid pbsNodeId)
         {
             var valid = await _db.PbsNodes
@@ -304,7 +283,6 @@ public sealed class EquipmentsController : ApiControllerBase
         equipment.Name = request.Name.Trim();
         equipment.TypeCode = Clean(request.TypeCode);
         equipment.Discipline = discipline;
-        equipment.Status = status;
         equipment.Location = Clean(request.Location);
         equipment.PipeEquipmentNo = Clean(request.PipeEquipmentNo);
         equipment.Quantity = request.Quantity > 0 ? request.Quantity : 1;
@@ -436,7 +414,6 @@ public sealed class EquipmentsController : ApiControllerBase
         Name = equipment.Name,
         TypeCode = equipment.TypeCode,
         Discipline = equipment.Discipline.ToString(),
-        Status = equipment.Status.ToString(),
         Location = equipment.Location,
         PipeEquipmentNo = equipment.PipeEquipmentNo,
         Quantity = equipment.Quantity,

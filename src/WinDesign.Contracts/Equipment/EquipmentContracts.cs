@@ -8,7 +8,6 @@ public record EquipmentUpsertRequest
     public string Name { get; init; } = string.Empty;
     public string? TypeCode { get; init; }
     public string Discipline { get; init; } = string.Empty;
-    public string? Status { get; init; }
     public string? Location { get; init; }
     public string? PipeEquipmentNo { get; init; }
     public int Quantity { get; init; } = 1;

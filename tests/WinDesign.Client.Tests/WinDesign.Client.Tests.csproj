@@ -20,8 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\WinDesign.Client\WinDesign.Client.csproj" />
+    <ProjectReference Include="..\..\src\WinDesign.AdminClient\WinDesign.AdminClient.csproj" />
+    <ProjectReference Include="..\..\src\WinDesign.Client.Shared\WinDesign.Client.Shared.csproj" />
     <ProjectReference Include="..\..\src\WinDesign.Contracts\WinDesign.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\WinDesign.DesignClient\WinDesign.DesignClient.csproj" />
   </ItemGroup>
 
 </Project>

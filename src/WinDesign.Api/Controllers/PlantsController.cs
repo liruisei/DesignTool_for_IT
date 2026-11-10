@@ -10,6 +10,7 @@ using WinDesign.Infrastructure;
 namespace WinDesign.Api.Controllers;
 
 [Route("api/plants")]
+[Authorize(Policy = AuthorizationPolicies.AdminClient)]
 public sealed class PlantsController : ApiControllerBase
 {
     private readonly WinDesignDbContext _db;

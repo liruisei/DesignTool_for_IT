@@ -39,6 +39,13 @@ public class Project : EntityBase
     public Guid? OwnerUserId { get; set; }
     public User? Owner { get; set; }
 
+    /// <summary>
+    /// 项目所在的 PBS 根节点：必须是本工厂下的顶层节点（ParentId 为空）。
+    /// 一个根节点可被多个项目共用；为空表示尚未设置。
+    /// </summary>
+    public Guid? PbsRootNodeId { get; set; }
+    public PbsNode? PbsRootNode { get; set; }
+
     public ICollection<ProjectMember> Members { get; set; } = new List<ProjectMember>();
     public ICollection<ProjectEquipment> ProjectEquipments { get; set; } = new List<ProjectEquipment>();
 }
@@ -94,7 +101,6 @@ public class Equipment : EntityBase
     public string Name { get; set; } = string.Empty;
     public string? TypeCode { get; set; }
     public Discipline Discipline { get; set; } = Discipline.Instrument;
-    public EquipmentStatus Status { get; set; } = EquipmentStatus.Planned;
     public string? Location { get; set; }
     public string? PipeEquipmentNo { get; set; }
     public int Quantity { get; set; } = 1;

@@ -1,5 +1,5 @@
 using WinDesign.Client.Services;
-using WinDesign.Client.ViewModels;
+using WinDesign.DesignClient.ViewModels;
 using WinDesign.Contracts.Auth;
 
 namespace WinDesign.Client.Tests;
@@ -47,32 +47,6 @@ public class WorkspaceSelectionViewModelTests
         Assert.Equal(api.Plant.Id, session.PlantId);
         Assert.Equal(api.Project.Id, session.ProjectId);
         Assert.Equal("fake-workspace-token", api.Token);
-    }
-
-    [Fact]
-    public async Task EnterManagement_ForAdmin_UsesManagementSession()
-    {
-        var api = new FakeApiClient();
-        var session = new SessionService(api);
-        session.SignIn(new LoginResponse(
-            "identity-token",
-            DateTime.UtcNow.AddHours(1),
-            new CurrentUserDto(Guid.NewGuid(), "admin", "管理员",
-                new[] { "Admin" }, Array.Empty<string>())));
-
-        var viewModel = new WorkspaceSelectionViewModel(session);
-        await WaitUntilLoadedAsync(viewModel);
-        Assert.True(viewModel.CanUseManagementMode);
-
-        var raised = false;
-        viewModel.SelectionSucceeded += (_, _) => raised = true;
-
-        await viewModel.EnterManagementCommand.ExecuteAsync(null);
-
-        Assert.True(raised);
-        Assert.True(session.IsManagementMode);
-        Assert.False(session.HasWorkspace);
-        Assert.Equal("fake-management-token", api.Token);
     }
 
     private static async Task WaitUntilLoadedAsync(WorkspaceSelectionViewModel viewModel)

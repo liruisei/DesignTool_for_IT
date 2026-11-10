@@ -1,0 +1,112 @@
+<UserControl x:Class="WinDesign.DesignClient.Views.EquipmentIndexView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- 表头：标题 + 排序标记 + 本列筛选框。Tag 绑定所在列，供 code-behind 定位筛选目标 -->
+        <DataTemplate x:Key="IndexFilterHeaderTemplate">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding}" />
+                    <TextBlock x:Name="SortGlyph" Margin="4,0,0,0" FontSize="9"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBox Style="{StaticResource HeaderFilterBox}"
+                         Tag="{Binding Column, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}"
+                         TextChanged="OnColumnFilterTextChanged"
+                         ToolTip="输入内容按本列筛选" />
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding SortDirection, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}"
+                             Value="Ascending">
+                    <Setter TargetName="SortGlyph" Property="Text" Value="▲" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SortDirection, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}"
+                             Value="Descending">
+                    <Setter TargetName="SortGlyph" Property="Text" Value="▼" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Border Style="{StaticResource Card}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="索引表" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource MutedText}" Margin="14,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding Context.CurrentProject.Name, TargetNullValue=请先在顶部选择项目}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" IsEnabled="{Binding Context.HasProject}">
+                        <Button Content="新建" Command="{Binding NewEquipmentCommand}" Style="{StaticResource PrimaryButton}"
+                                Padding="12,6" />
+                        <Button Content="编辑" Command="{Binding EditEquipmentCommand}" Style="{StaticResource SecondaryButton}"
+                                Margin="6,0,0,0" Padding="12,6" />
+                        <Button Content="复制" Command="{Binding DuplicateEquipmentCommand}" Style="{StaticResource SecondaryButton}"
+                                Margin="6,0,0,0" Padding="12,6" />
+                        <Button Content="删除" Command="{Binding DeleteEquipmentCommand}" Style="{StaticResource DangerButton}"
+                                Margin="6,0,0,0" Padding="12,6" />
+                        <Button Content="刷新" Command="{Binding RefreshCommand}" Style="{StaticResource SecondaryButton}"
+                                Margin="12,0,0,0" Padding="10,6" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Grid.Row="1" Style="{StaticResource MutedText}" Margin="0,0,0,10"
+                           Text="双击行打开属性页；支持搜索、专业/PBS 过滤；表头可按列筛选、点击排序。" />
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+                    <TextBox Width="230" Style="{StaticResource Input}"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <ComboBox Width="120" Margin="8,0,0,0" ItemsSource="{Binding FilterDisciplineOptions}"
+                              DisplayMemberPath="Name" SelectedValuePath="Code"
+                              SelectedValue="{Binding FilterDiscipline}" />
+                    <ComboBox Width="200" Margin="8,0,0,0" ItemsSource="{Binding PbsFilterOptions}"
+                              DisplayMemberPath="Display" SelectedItem="{Binding FilterPbsNode}" />
+                    <Button Content="查询" Command="{Binding SearchCommand}" Style="{StaticResource SecondaryButton}"
+                            Margin="8,0,0,0" />
+                </StackPanel>
+
+                <DataGrid Grid.Row="3" ItemsSource="{Binding Equipments}" SelectedItem="{Binding SelectedEquipment}"
+                          MouseDoubleClick="OnGridMouseDoubleClick"
+                          ColumnHeaderHeight="52" CanUserSortColumns="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="位号" Binding="{Binding TagNo}" Width="110"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                        <DataGridTextColumn Header="回路号" Binding="{Binding LoopNo}" Width="100"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                        <DataGridTextColumn Header="类型" Binding="{Binding TypeCode}" Width="70"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                        <DataGridTextColumn Header="专业" Binding="{Binding Discipline}" Width="80"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                        <DataGridTextColumn Header="数量" Binding="{Binding Quantity}" Width="60"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                        <DataGridTextColumn Header="安装位置" Binding="{Binding Location}" Width="130"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                        <DataGridTextColumn Header="所属 PBS" Binding="{Binding PbsPath}" Width="240"
+                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <StackPanel Grid.Row="4" Margin="0,10,0,0">
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}"
+                               TextWrapping="Wrap" Margin="0,4,0,0"
+                               Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVis}}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

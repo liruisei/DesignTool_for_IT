@@ -1,12 +1,14 @@
-# WinDesign 测试指南
+# 工厂二维设计平台 测试指南
 
 ## 1. 测试分层
 
 | 项目 | 类型 | 依赖 | 覆盖内容 |
 |------|------|------|----------|
-| `tests/WinDesign.UnitTests` | 纯单元测试 | 无外部依赖 | 密码哈希、JWT 签发与声明 |
-| `tests/WinDesign.Api.Tests` | API 集成测试 | `WebApplicationFactory` + 临时 SQLite | 登录/权限、PBS 约束、索引表 CRUD 与过滤 |
-| `tests/WinDesign.Client.Tests` | ViewModel 单元测试 | 假 API 客户端，无 UI/服务端 | 登录、PBS 树与节点弹窗、索引表过滤与校验 |
+| `tests/WinDesign.UnitTests` | 纯单元测试 | 无外部依赖 | 密码哈希、JWT 签发与 client / 工作区声明 |
+| `tests/WinDesign.Api.Tests` | API 集成测试 | `WebApplicationFactory` + 临时 SQLite | 登录/权限、客户端类型隔离、PBS 约束、索引表 CRUD 与过滤 |
+| `tests/WinDesign.Client.Tests` | ViewModel 单元测试 | 假 API 客户端，无 UI/服务端 | 管理端导航/PBS/配置表单、设计端导航/工作区切换/索引表、共用登录与设备弹窗 |
+
+> 客户端测试项目同时引用 `WinDesign.Client.Shared`、`WinDesign.AdminClient` 与 `WinDesign.DesignClient`，但测试只实例化 ViewModel，不启动任何 WPF 窗口。
 
 设计原则：
 
@@ -117,8 +119,9 @@ reportgenerator -reports:"**/TestResults/**/coverage.cobertura.xml" -targetdir:"
 
 ## 7. 新增测试的建议
 
-- 新接口：在 `WinDesign.Api.Tests` 增加一个 `XxxTests : ApiTestBase`，覆盖成功、权限、校验失败三类路径。
-- 新 ViewModel：在 `WinDesign.Client.Tests` 扩展 `FakeApiClient`，验证状态变化与命令结果。
+- 新接口：在 `WinDesign.Api.Tests` 增加一个 `XxxTests : ApiTestBase`，覆盖成功、角色权限、客户端类型权限、校验失败四类路径；管理端接口用 `LoginManagementAsync()`，设计端接口用 `LoginAsync()`。
+- 新 ViewModel：在 `WinDesign.Client.Tests` 扩展 `FakeApiClient`，验证状态变化与命令结果；管理端 ViewModel 用 `CreateManagementSession()`，设计端用 `CreateSession()`。
+- 新客户端行为：在 `AdminMainViewModelTests` 或 `DesignMainViewModelTests` 中断言导航树只包含本客户端模块，防止两个客户端再次串页。
 - 新领域规则：优先放到 `WinDesign.UnitTests`，保持无外部依赖。
 - 命名：`Method_Scenario_ExpectedResult`，例如 `Pbs_Cycle_ReturnsBadRequest`。
 

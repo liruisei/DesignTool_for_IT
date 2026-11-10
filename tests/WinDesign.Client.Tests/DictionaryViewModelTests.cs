@@ -1,5 +1,5 @@
 using WinDesign.Client.Services;
-using WinDesign.Client.ViewModels;
+using WinDesign.AdminClient.ViewModels;
 using WinDesign.Contracts.Dictionaries;
 
 namespace WinDesign.Client.Tests;

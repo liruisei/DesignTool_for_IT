@@ -88,7 +88,10 @@ public sealed class AuthController : ApiControllerBase
                         project.Code,
                         project.Name,
                         project.Phase,
-                        project.Status.ToString()))
+                        project.Status.ToString())
+                    {
+                        PbsRootNodeId = project.PbsRootNodeId
+                    })
                     .ToList()))
             .Where(plant => isAdmin || plant.Projects.Count > 0)
             .ToList();
@@ -139,14 +142,18 @@ public sealed class AuthController : ApiControllerBase
 
         var roles = SelectRoles(user);
         var permissions = await SelectPermissionsAsync(user, ct);
-        var (token, expiresAt) = _jwt.Create(user, roles, permissions, plant.Id, project.Id);
+        var (token, expiresAt) = _jwt.Create(
+            user, roles, permissions, plant.Id, project.Id, client: "design");
 
         var projectDto = new WorkspaceProjectDto(
             project.Id,
             project.Code,
             project.Name,
             project.Phase,
-            project.Status.ToString());
+            project.Status.ToString())
+        {
+            PbsRootNodeId = project.PbsRootNodeId
+        };
         var plantDto = new WorkspacePlantDto(
             plant.Id,
             plant.Code,
@@ -187,7 +194,7 @@ public sealed class AuthController : ApiControllerBase
 
         var roles = SelectRoles(user);
         var permissions = await SelectPermissionsAsync(user, ct);
-        var (token, expiresAt) = _jwt.Create(user, roles, permissions);
+        var (token, expiresAt) = _jwt.Create(user, roles, permissions, client: "admin");
 
         _db.AddAudit(user.Id, user.UserName, "EnterManagement", "Workspace", user.Id.ToString());
         await _db.SaveChangesAsync(ct);
