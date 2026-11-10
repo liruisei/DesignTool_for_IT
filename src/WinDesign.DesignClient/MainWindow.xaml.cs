@@ -67,11 +67,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnExplorerSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    private void OnProjectExplorerSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (DataContext is MainViewModel viewModel && e.NewValue is ExplorerNode node)
         {
-            viewModel.SelectedExplorerNode = node;
+            viewModel.SelectedProjectNode = node;
             if (node.Open is not null)
             {
                 viewModel.OpenExplorerNode(node);
@@ -79,7 +79,22 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnExplorerContextMenuOpening(object sender, ContextMenuEventArgs e)
+    private void OnPbsExplorerSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (DataContext is MainViewModel viewModel && e.NewValue is ExplorerNode node)
+        {
+            // PBS 面板只读：选中仅更新状态，不打开文档。
+            viewModel.SelectedPbsNode = node;
+        }
+    }
+
+    private void OnProjectExplorerContextMenuOpening(object sender, ContextMenuEventArgs e) =>
+        PrepareExplorerContextMenu(sender, e, isPbs: false);
+
+    private void OnPbsExplorerContextMenuOpening(object sender, ContextMenuEventArgs e) =>
+        PrepareExplorerContextMenu(sender, e, isPbs: true);
+
+    private static void PrepareExplorerContextMenu(object sender, ContextMenuEventArgs e, bool isPbs)
     {
         if (sender is not TreeView tree)
         {
@@ -89,7 +104,15 @@ public partial class MainWindow : Window
         var item = FindAncestor<TreeViewItem>((DependencyObject)e.OriginalSource);
         if (item?.DataContext is ExplorerNode node && tree.DataContext is MainViewModel viewModel)
         {
-            viewModel.SelectedExplorerNode = node;
+            if (isPbs)
+            {
+                viewModel.SelectedPbsNode = node;
+            }
+            else
+            {
+                viewModel.SelectedProjectNode = node;
+            }
+
             item.IsSelected = true;
             item.Focus();
         }

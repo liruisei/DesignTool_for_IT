@@ -38,17 +38,19 @@ public class DesignMainViewModelTests
         var api = new FakeApiClient();
         var viewModel = new MainViewModel(api.CreateSession());
 
-        var project = Assert.Single(viewModel.ExplorerNodes, x => x.Key == "project");
+        var project = Assert.Single(viewModel.ProjectExplorerNodes, x => x.Key == "project");
         Assert.Contains(project.Children, x => x.Key == "index");
         Assert.Contains(project.Children, x => x.Key == "specs");
         Assert.Contains(project.Children, x => x.Key == "materials");
         Assert.Contains(project.Children, x => x.Key == "reports");
 
-        // PBS 与“项目”同级常驻左侧，不再是项目分组下的子项。
-        var pbs = Assert.Single(viewModel.ExplorerNodes, x => x.Key == "pbs");
+        // PBS 独立到下方面板，两个 Explorer 互不混入对方的根节点。
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
         Assert.DoesNotContain(pbs.Children, x => x.Key == "index");
+        Assert.DoesNotContain(viewModel.ProjectExplorerNodes, x => x.Key == "pbs");
+        Assert.DoesNotContain(viewModel.PbsExplorerNodes, x => x.Key == "project");
 
-        Assert.DoesNotContain(viewModel.ExplorerNodes, x => x.Key == "system");
+        Assert.DoesNotContain(viewModel.ProjectExplorerNodes, x => x.Key == "system");
         Assert.DoesNotContain(project.Children, x => x.Key == "pbs");
         Assert.DoesNotContain(project.Children, x => x.Key == "project-config");
         Assert.DoesNotContain(project.Children, x => x.Key == "users");
@@ -70,7 +72,7 @@ public class DesignMainViewModelTests
         var viewModel = new MainViewModel(api.CreateSession());
         await viewModel.PbsTreeLoadTask;
 
-        var pbs = Assert.Single(viewModel.ExplorerNodes, x => x.Key == "pbs");
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
         var rootItem = Assert.Single(pbs.Children);
         Assert.Contains("AREA-A", rootItem.Title);
 
@@ -91,7 +93,7 @@ public class DesignMainViewModelTests
         var viewModel = new MainViewModel(api.CreateSession());
         await viewModel.PbsTreeLoadTask;
 
-        var pbs = Assert.Single(viewModel.ExplorerNodes, x => x.Key == "pbs");
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
         var placeholder = Assert.Single(pbs.Children);
         Assert.Contains("未设置", placeholder.Title);
     }

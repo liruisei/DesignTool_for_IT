@@ -21,11 +21,19 @@ public partial class MainViewModel : ObservableObject
     /// <summary>左侧 PBS 树的异步加载任务，便于测试等待首次加载完成。</summary>
     public Task PbsTreeLoadTask { get; private set; } = Task.CompletedTask;
 
-    public ObservableCollection<ExplorerNode> ExplorerNodes { get; } = new();
+    /// <summary>上方项目面板：索引表 / 规格书 / 材料表 / 报表输出。</summary>
+    public ObservableCollection<ExplorerNode> ProjectExplorerNodes { get; } = new();
+
+    /// <summary>下方 PBS 面板：当前项目 PBS 根节点及其子树，只读。</summary>
+    public ObservableCollection<ExplorerNode> PbsExplorerNodes { get; } = new();
+
     public ObservableCollection<DocumentTab> Documents { get; } = new();
 
     [ObservableProperty]
-    private ExplorerNode? selectedExplorerNode;
+    private ExplorerNode? selectedProjectNode;
+
+    [ObservableProperty]
+    private ExplorerNode? selectedPbsNode;
 
     [ObservableProperty]
     private DocumentTab? selectedDocument;
@@ -57,8 +65,10 @@ public partial class MainViewModel : ObservableObject
 
     private void BuildExplorer()
     {
-        ExplorerNodes.Clear();
-        SelectedExplorerNode = null;
+        ProjectExplorerNodes.Clear();
+        PbsExplorerNodes.Clear();
+        SelectedProjectNode = null;
+        SelectedPbsNode = null;
 
         var project = new ExplorerNode
         {
@@ -95,9 +105,9 @@ public partial class MainViewModel : ObservableObject
             Glyph = "▥",
             Open = OpenReports
         });
-        ExplorerNodes.Add(project);
+        ProjectExplorerNodes.Add(project);
 
-        // PBS 与“项目”同级常驻左侧，只读展示当前项目的 PBS 根节点及其子节点。
+        // PBS 独立成下方只读面板，展示当前项目的 PBS 根节点及其子节点。
         _pbsExplorerNode = new ExplorerNode
         {
             Key = "pbs",
@@ -105,7 +115,7 @@ public partial class MainViewModel : ObservableObject
             Glyph = "⌂",
             IsFolder = true
         };
-        ExplorerNodes.Add(_pbsExplorerNode);
+        PbsExplorerNodes.Add(_pbsExplorerNode);
     }
 
     /// <summary>
@@ -247,7 +257,7 @@ public partial class MainViewModel : ObservableObject
     public void OpenExplorerNode(ExplorerNode? node) => node?.Open?.Invoke();
 
     [RelayCommand]
-    private void OpenSelectedExplorerNode() => OpenExplorerNode(SelectedExplorerNode);
+    private void OpenSelectedProjectNode() => OpenExplorerNode(SelectedProjectNode);
 
     [RelayCommand]
     private void CloseDocument(DocumentTab? tab)

@@ -9,6 +9,24 @@
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgBrush}">
     <Window.Resources>
+        <!-- 左侧两个 Explorer 面板共用：标题栏、节点容器与节点模板。 -->
+        <Style x:Key="ExplorerHeaderStyle" TargetType="Border">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Background" Value="#FAFAFA" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style x:Key="ExplorerItemContainerStyle" TargetType="TreeViewItem">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <Setter Property="Padding" Value="3,3" />
+        </Style>
+        <HierarchicalDataTemplate x:Key="ExplorerItemTemplate" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Glyph}" Width="18" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="{Binding Title}" />
+            </StackPanel>
+        </HierarchicalDataTemplate>
+
         <DataTemplate DataType="{x:Type vm:EquipmentIndexViewModel}">
             <views:EquipmentIndexView />
         </DataTemplate>
@@ -94,39 +112,66 @@
                     BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="2*" MinHeight="120" />
+                        <RowDefinition Height="4" />
+                        <RowDefinition Height="3*" MinHeight="120" />
                     </Grid.RowDefinitions>
 
-                    <Border Padding="10,6" Background="#FAFAFA" BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <TextBlock Text="Domain Explorer" FontSize="12" FontWeight="SemiBold" />
-                    </Border>
+                    <!-- 上方：项目资源浏览 -->
+                    <Grid Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
 
-                    <TreeView Grid.Row="1" ItemsSource="{Binding ExplorerNodes}" Style="{StaticResource ExplorerTree}"
-                              SelectedItemChanged="OnExplorerSelectedItemChanged"
-                              ContextMenuOpening="OnExplorerContextMenuOpening">
-                        <TreeView.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="打开" Command="{Binding OpenSelectedExplorerNodeCommand}" />
-                                <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
-                            </ContextMenu>
-                        </TreeView.ContextMenu>
-                        <TreeView.ItemContainerStyle>
-                            <Style TargetType="TreeViewItem">
-                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-                                <Setter Property="Padding" Value="3,3" />
-                            </Style>
-                        </TreeView.ItemContainerStyle>
-                        <TreeView.ItemTemplate>
-                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Glyph}" Width="18" Foreground="{StaticResource AccentBrush}" />
-                                    <TextBlock Text="{Binding Title}" />
-                                </StackPanel>
-                            </HierarchicalDataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
+                        <Border Style="{StaticResource ExplorerHeaderStyle}">
+                            <TextBlock Text="Project Explorer" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
+
+                        <TreeView x:Name="ProjectExplorerTree" Grid.Row="1"
+                                  ItemsSource="{Binding ProjectExplorerNodes}" Style="{StaticResource ExplorerTree}"
+                                  ItemContainerStyle="{StaticResource ExplorerItemContainerStyle}"
+                                  ItemTemplate="{StaticResource ExplorerItemTemplate}"
+                                  SelectedItemChanged="OnProjectExplorerSelectedItemChanged"
+                                  ContextMenuOpening="OnProjectExplorerContextMenuOpening">
+                            <TreeView.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="打开" Command="{Binding OpenSelectedProjectNodeCommand}" />
+                                    <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                        </TreeView>
+                    </Grid>
+
+                    <!-- 可上下拖拽的分隔条：调整两个 Explorer 的高度 -->
+                    <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                  ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                                  Background="{StaticResource BorderBrush}" />
+
+                    <!-- 下方：PBS 资源浏览（只读） -->
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Style="{StaticResource ExplorerHeaderStyle}">
+                            <TextBlock Text="PBS Explorer" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
+
+                        <TreeView x:Name="PbsExplorerTree" Grid.Row="1"
+                                  ItemsSource="{Binding PbsExplorerNodes}" Style="{StaticResource ExplorerTree}"
+                                  ItemContainerStyle="{StaticResource ExplorerItemContainerStyle}"
+                                  ItemTemplate="{StaticResource ExplorerItemTemplate}"
+                                  SelectedItemChanged="OnPbsExplorerSelectedItemChanged"
+                                  ContextMenuOpening="OnPbsExplorerContextMenuOpening">
+                            <TreeView.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                        </TreeView>
+                    </Grid>
                 </Grid>
             </Border>
 
