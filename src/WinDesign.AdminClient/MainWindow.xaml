@@ -1,14 +1,17 @@
-﻿<Window x:Class="WinDesign.AdminClient.MainWindow"
+﻿<ui:FluentWindow x:Class="WinDesign.AdminClient.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:vm="clr-namespace:WinDesign.AdminClient.ViewModels"
         xmlns:views="clr-namespace:WinDesign.AdminClient.Views"
         Title="工厂二维设计平台 - 管理客户端"
         Height="840" Width="1400"
         MinHeight="720" MinWidth="1120"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource BgBrush}">
-    <Window.Resources>
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica"
+        Background="Transparent">
+    <ui:FluentWindow.Resources>
         <DataTemplate DataType="{x:Type vm:ProjectManagementViewModel}">
             <views:ProjectManagementView />
         </DataTemplate>
@@ -21,24 +24,29 @@
         <DataTemplate DataType="{x:Type vm:UserManagementViewModel}">
             <views:UserManagementView />
         </DataTemplate>
-    </Window.Resources>
+    </ui:FluentWindow.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Menu Grid.Row="0" Padding="4,2">
+        <ui:TitleBar Grid.Row="0" Title="工厂二维设计平台 - 管理客户端"
+                     Height="36" Padding="12,0" VerticalContentAlignment="Center" />
+
+        <Menu Grid.Row="1" Padding="4,0" Background="Transparent"
+              ItemContainerStyle="{StaticResource CompactTopMenuItem}">
             <MenuItem Header="文件(_F)">
-                <MenuItem Header="项目配置" Command="{Binding OpenProjectConfigCommand}" />
                 <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
                 <Separator />
                 <MenuItem Header="退出" Command="{Binding LogoutCommand}" />
             </MenuItem>
             <MenuItem Header="视图(_V)">
+                <MenuItem Header="项目配置" Command="{Binding OpenProjectConfigCommand}" />
                 <MenuItem Header="PBS管理" Command="{Binding OpenPbsCommand}" />
                 <MenuItem Header="编码管理" Command="{Binding OpenDictionariesCommand}" />
                 <MenuItem Header="用户管理" Command="{Binding OpenUsersCommand}" />
@@ -50,8 +58,8 @@
             </MenuItem>
         </Menu>
 
-        <Border Grid.Row="1" Background="#FAFAFA" BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1" Padding="8,5">
+        <Border Grid.Row="2" Background="Transparent" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1" Padding="8,3">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -68,7 +76,8 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                    <Button Content="⟳ 刷新" Command="{Binding RefreshCommand}" Style="{StaticResource ToolButton}" />
+                    <ui:Button Content="⟳ 刷新" Command="{Binding RefreshCommand}"
+                               Appearance="Secondary" Padding="10,4" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
@@ -78,7 +87,7 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3" Background="{StaticResource BgBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="250" />
                 <ColumnDefinition Width="4" />
@@ -108,7 +117,7 @@
                             </ContextMenu>
                         </TreeView.ContextMenu>
                         <TreeView.ItemContainerStyle>
-                            <Style TargetType="TreeViewItem">
+                            <Style TargetType="TreeViewItem" BasedOn="{StaticResource BoxedTreeViewItem}">
                                 <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                                 <Setter Property="Padding" Value="3,3" />
                             </Style>
@@ -149,7 +158,7 @@
             </TabControl>
         </Grid>
 
-        <Border Grid.Row="3" Background="#FAFAFA" BorderBrush="{StaticResource BorderBrush}"
+        <Border Grid.Row="4" Background="Transparent" BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0" Padding="8,3">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -171,4 +180,4 @@
             </Grid>
         </Border>
     </Grid>
-</Window>
+</ui:FluentWindow>

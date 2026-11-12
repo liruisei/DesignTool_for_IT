@@ -231,7 +231,7 @@ public class AuthTests : ApiTestBase
     }
 
     [Fact]
-    public async Task CreateProject_WithoutPbsRoot_ReturnsBadRequest()
+    public async Task CreateProject_WithoutPbsRoot_UsesFactoryRoot()
     {
         await LoginIdentityAsync();
         var managementResponse = await Client.PostAsync("/api/auth/management", null);
@@ -246,10 +246,13 @@ public class AuthTests : ApiTestBase
         {
             plantId = plant.Id,
             code = "NO-ROOT-" + Guid.NewGuid().ToString("N")[..8],
-            name = "缺少 PBS 根节点"
+            name = "放在工厂根节点"
         });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<ProjectDto>();
+        Assert.Equal(plant.Id, created!.PlantId);
+        Assert.Null(created.PbsRootNodeId);
     }
 
     [Fact]

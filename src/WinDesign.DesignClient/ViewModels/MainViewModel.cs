@@ -211,13 +211,31 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 项目未设置 PBS 根节点时的显示策略。
-    /// 默认不显示全厂节点，避免把无关 PBS 误认为项目范围；如需改为回退显示
-    /// 工厂全部顶层节点，只需在这里调整 5-10 行。
+    /// 项目未设置 PBS 根节点（Id 为空）时，项目放在工厂根节点上，范围为整个工厂：
+    /// 显示工厂全部顶层 PBS 节点及其子树。
     /// </summary>
     private static void ApplyMissingPbsRoot(ExplorerNode pbsNode, IReadOnlyList<PbsNodeDto> plantNodes)
     {
-        AddPbsPlaceholder(pbsNode, "当前项目未设置 PBS 根节点");
+        var roots = plantNodes
+            .Where(x => x.ParentId is null)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (roots.Count == 0)
+        {
+            AddPbsPlaceholder(pbsNode, "当前工厂尚未建立 PBS 节点");
+            return;
+        }
+
+        var childrenByParent = plantNodes
+            .Where(x => x.ParentId is not null)
+            .GroupBy(x => x.ParentId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var root in roots)
+        {
+            pbsNode.Children.Add(BuildPbsExplorerItem(root, childrenByParent, new HashSet<Guid>()));
+        }
     }
 
     private static void AddPbsPlaceholder(ExplorerNode pbsNode, string message) =>

@@ -153,12 +153,14 @@ public sealed class EquipmentsController : ApiControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
         }
 
-        var tagNo = request.TagNo.Trim();
+        // 位号按大写保存并做不区分大小写的唯一性校验，避免复制时大小写变体绕过唯一索引。
+        var tagNo = request.TagNo.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(tagNo) || string.IsNullOrWhiteSpace(request.Name))
         {
             return BadRequest(new ApiError("设备位号和名称不能为空"));
         }
-        if (await _db.Equipments.AnyAsync(x => x.PlantId == project.PlantId && x.TagNo == tagNo, ct))
+        if (await _db.Equipments.AnyAsync(
+                x => x.PlantId == project.PlantId && x.TagNo.ToUpper() == tagNo, ct))
         {
             return Conflict(new ApiError("该工厂下设备位号已存在"));
         }
@@ -254,12 +256,14 @@ public sealed class EquipmentsController : ApiControllerBase
             }
         }
 
-        var tagNo = request.TagNo.Trim();
+        // 位号按大写保存并做不区分大小写的唯一性校验。
+        var tagNo = request.TagNo.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(tagNo) || string.IsNullOrWhiteSpace(request.Name))
         {
             return BadRequest(new ApiError("设备位号和名称不能为空"));
         }
-        if (await _db.Equipments.AnyAsync(x => x.PlantId == equipment.PlantId && x.TagNo == tagNo && x.Id != id, ct))
+        if (await _db.Equipments.AnyAsync(
+                x => x.PlantId == equipment.PlantId && x.TagNo.ToUpper() == tagNo && x.Id != id, ct))
         {
             return Conflict(new ApiError("该工厂下设备位号已存在"));
         }

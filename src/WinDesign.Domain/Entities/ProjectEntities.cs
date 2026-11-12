@@ -40,8 +40,9 @@ public class Project : EntityBase
     public User? Owner { get; set; }
 
     /// <summary>
-    /// 项目所在的 PBS 根节点：必须是本工厂下的顶层节点（ParentId 为空）。
-    /// 一个根节点可被多个项目共用；为空表示尚未设置。
+    /// 项目所在的 PBS 根节点。为空表示项目放在工厂根节点上（范围为全厂）；
+    /// 非空时必须是本工厂下的顶层节点（ParentId 为空）。
+    /// 一个根节点可被多个项目共用。
     /// </summary>
     public Guid? PbsRootNodeId { get; set; }
     public PbsNode? PbsRootNode { get; set; }

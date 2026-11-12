@@ -28,16 +28,28 @@ public sealed record DictionaryItemDto(
     string Name,
     int SortOrder,
     bool IsActive,
-    string? ExtraJson);
+    string? ExtraJson)
+{
+    /// <summary>设备类型（EQUIPMENT_TYPE）的所属专业；其他编码类型为 null。</summary>
+    public string? Discipline { get; init; }
+}
 
 public sealed record CreateDictionaryItemRequest(
     string Code,
     string Name,
     int SortOrder,
-    string? ExtraJson);
+    string? ExtraJson)
+{
+    /// <summary>设备类型（EQUIPMENT_TYPE）的所属专业，如 Instrument / Telecom / IT。</summary>
+    public string? Discipline { get; init; }
+}
 
 public sealed record UpdateDictionaryItemRequest(
     string Name,
     int SortOrder,
     bool IsActive,
-    string? ExtraJson);
+    string? ExtraJson)
+{
+    /// <summary>设备类型（EQUIPMENT_TYPE）的所属专业，如 Instrument / Telecom / IT。</summary>
+    public string? Discipline { get; init; }
+}

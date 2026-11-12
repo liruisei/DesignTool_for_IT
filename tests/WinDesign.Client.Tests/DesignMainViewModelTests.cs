@@ -85,17 +85,22 @@ public class DesignMainViewModelTests
     }
 
     [Fact]
-    public async Task PbsTree_WithoutProjectRoot_ShowsPlaceholder()
+    public async Task PbsTree_WithoutProjectRoot_ShowsAllFactoryTopLevelNodes()
     {
         var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
         api.Project = api.Project with { PbsRootNodeId = null };
+        var otherRoot = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, null, "AREA-B", "B 区", "Area", 2, null, 0, 0);
+        api.PbsNodes.Add(otherRoot);
 
         var viewModel = new MainViewModel(api.CreateSession());
         await viewModel.PbsTreeLoadTask;
 
         var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
-        var placeholder = Assert.Single(pbs.Children);
-        Assert.Contains("未设置", placeholder.Title);
+        Assert.Equal(2, pbs.Children.Count);
+        Assert.Contains(pbs.Children, x => x.Title.Contains("AREA-A"));
+        Assert.Contains(pbs.Children, x => x.Title.Contains("AREA-B"));
     }
 
     [Fact]

@@ -65,6 +65,8 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="编码" Binding="{Binding Code}" Width="110" />
                             <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="专业" Width="80"
+                                                Binding="{Binding Discipline, Converter={StaticResource DisciplineName}}" />
                             <DataGridTextColumn Header="排序" Binding="{Binding SortOrder}" Width="60" />
                             <DataGridCheckBoxColumn Header="启用" Binding="{Binding IsActive}" Width="60" />
                         </DataGrid.Columns>
@@ -181,6 +183,14 @@
                             <TextBlock Text="名称" Style="{StaticResource FieldLabel}" />
                             <TextBox Style="{StaticResource Input}"
                                      Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <StackPanel Visibility="{Binding IsEquipmentTypeSelected, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="所属专业" Style="{StaticResource FieldLabel}" />
+                                <ComboBox ItemsSource="{Binding DisciplineOptions}" DisplayMemberPath="Name"
+                                          SelectedValuePath="Code" SelectedValue="{Binding EditItemDiscipline}" />
+                                <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                           Text="设计端新建索引时，选择该设备类型会自动带出对应专业。" />
+                            </StackPanel>
 
                             <TextBlock Text="排序" Style="{StaticResource FieldLabel}" />
                             <TextBox Style="{StaticResource Input}"

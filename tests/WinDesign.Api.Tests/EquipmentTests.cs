@@ -38,6 +38,19 @@ public class EquipmentTests : ApiTestBase
             });
             Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
 
+            // 复制设备时大小写变体也必须被拒绝，避免绕过数据库唯一索引。
+            var caseDuplicate = await Client.PostAsJsonAsync($"/api/projects/{project.Id}/equipments", new
+            {
+                pbsNodeId = root.Id,
+                tagNo = tagNo.ToLowerInvariant(),
+                name = "大小写重复设备",
+                typeCode = "PT",
+                discipline = "Instrument",
+                location = "",
+                description = ""
+            });
+            Assert.Equal(HttpStatusCode.Conflict, caseDuplicate.StatusCode);
+
             var filtered = await Client.GetFromJsonAsync<PagedResult<EquipmentDto>>(
                 $"/api/projects/{project.Id}/equipments?discipline=Instrument&pbsNodeId={root.Id}");
             Assert.Contains(filtered!.Items, x => x.TagNo == tagNo);
@@ -104,5 +117,6 @@ public class EquipmentTests : ApiTestBase
         return (await response.Content.ReadFromJsonAsync<EquipmentDto>())!;
     }
 
-    private static string UniqueTag() => "TEST-" + Guid.NewGuid().ToString("N")[..8];
+    private static string UniqueTag() =>
+        "TEST-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 }

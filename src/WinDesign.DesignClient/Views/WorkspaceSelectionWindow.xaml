@@ -40,7 +40,7 @@
                             <DataTemplate>
                                 <StackPanel Margin="4,6">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding Code}" Style="{StaticResource MutedText}" FontSize="11" />
+                                    <TextBlock Text="{Binding Code}" Style="{StaticResource MutedTextOnSelected}" FontSize="11" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -63,7 +63,7 @@
                             <DataTemplate>
                                 <StackPanel Margin="4,6">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                    <TextBlock Style="{StaticResource MutedText}" FontSize="11">
+                                    <TextBlock Style="{StaticResource MutedTextOnSelected}" FontSize="11">
                                         <Run Text="{Binding Code}" />
                                         <Run Text=" · " />
                                         <Run Text="{Binding Status}" />

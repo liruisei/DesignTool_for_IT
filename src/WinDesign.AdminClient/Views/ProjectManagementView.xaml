@@ -83,7 +83,7 @@
                     <ComboBox ItemsSource="{Binding PbsRootOptions}" SelectedItem="{Binding SelectedPbsRoot}"
                               DisplayMemberPath="Display" />
                     <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0" TextWrapping="Wrap"
-                               Text="只能选择工厂下的顶层 PBS 节点；同一根节点可被多个项目共用。" />
+                               Text="默认放在工厂根节点（全厂）；也可选择工厂下的顶层 PBS 节点。同一根节点可被多个项目共用。" />
 
                     <TextBlock Text="项目代号" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreating}"

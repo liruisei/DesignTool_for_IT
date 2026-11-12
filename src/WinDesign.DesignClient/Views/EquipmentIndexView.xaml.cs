@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using WinDesign.DesignClient.ViewModels;
 using WinDesign.Contracts.Equipment;
 
@@ -97,6 +98,62 @@ public partial class EquipmentIndexView : UserControl
         return property;
     }
 
+    /// <summary>
+    /// DataGrid 的单元格选中逻辑会吞掉第一次单击，导致复选框点不动。
+    /// 在 Preview 阶段直接切换行选中并标记已处理，视觉状态由 IsChecked 绑定回显。
+    /// </summary>
+    private void OnRowCheckBoxPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is CheckBox && FindAncestorRow(sender as DependencyObject) is { } row)
+        {
+            row.IsSelected = !row.IsSelected;
+            e.Handled = true;
+        }
+    }
+
+    private static DataGridRow? FindAncestorRow(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is DataGridRow row)
+            {
+                return row;
+            }
+            element = VisualTreeHelper.GetParent(element);
+        }
+
+        return null;
+    }
+
+    private void OnGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid grid && DataContext is EquipmentIndexViewModel viewModel)
+        {
+            // 勾选框绑定 DataGridRow.IsSelected，多选状态统一由 ViewModel 镜像。
+            viewModel.UpdateSelection(grid.SelectedItems.OfType<EquipmentDto>());
+        }
+    }
+
+    /// <summary>右键行时先把它设为选中行，右键菜单命令才能作用于正确的位号。</summary>
+    private void OnGridPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not DataGrid grid)
+        {
+            return;
+        }
+
+        if (ItemsControl.ContainerFromElement(grid, e.OriginalSource as DependencyObject) is not DataGridRow row)
+        {
+            return;
+        }
+
+        if (!row.IsSelected)
+        {
+            grid.SelectedItems.Clear();
+            row.IsSelected = true;
+        }
+    }
+
     private void OnGridMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not DataGrid grid)
@@ -110,7 +167,9 @@ public partial class EquipmentIndexView : UserControl
             return;
         }
 
-        if (DataContext is EquipmentIndexViewModel viewModel && viewModel.EditEquipmentCommand.CanExecute(null))
+        if (DataContext is EquipmentIndexViewModel viewModel &&
+            viewModel.IsSingleSelection &&
+            viewModel.EditEquipmentCommand.CanExecute(null))
         {
             viewModel.EditEquipmentCommand.Execute(null);
             e.Handled = true;

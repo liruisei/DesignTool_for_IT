@@ -1,9 +1,10 @@
 using System.Windows;
+using Wpf.Ui.Controls;
 using WinDesign.Client.ViewModels;
 
 namespace WinDesign.Client.Views;
 
-public partial class LoginWindow : Window
+public partial class LoginWindow : FluentWindow
 {
     private LoginViewModel? _viewModel;
 

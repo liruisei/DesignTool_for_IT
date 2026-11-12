@@ -1,21 +1,98 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using WinDesign.Client.ViewModels;
 using WinDesign.DesignClient.ViewModels;
 using WinDesign.DesignClient.Views;
+using FluentWindow = Wpf.Ui.Controls.FluentWindow;
 
 namespace WinDesign.DesignClient;
 
-public partial class MainWindow : Window
+public partial class MainWindow : FluentWindow
 {
+    private const double DefaultExplorerWidth = 250;
     private MainViewModel? _viewModel;
+    private GridLength _lastExplorerWidth = new(DefaultExplorerWidth);
 
     public MainWindow()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+    }
+
+    private double _splitterDragDistance;
+    private bool _splitterDragged;
+
+    private void OnExplorerSplitterDragStarted(object sender, DragStartedEventArgs e)
+    {
+        _splitterDragDistance = 0;
+        _splitterDragged = false;
+    }
+
+    /// <summary>记录实际拖动距离；隔断会跟随鼠标移动，不能用鼠标相对位置判断。</summary>
+    private void OnExplorerSplitterDragDelta(object sender, DragDeltaEventArgs e)
+    {
+        _splitterDragDistance += Math.Abs(e.HorizontalChange);
+        if (_splitterDragDistance > 2)
+        {
+            _splitterDragged = true;
+        }
+    }
+
+    /// <summary>单击隔断切换收起/展开；真正拖动过则只调整宽度，不切换。</summary>
+    private void OnExplorerSplitterPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_splitterDragged)
+        {
+            ToggleExplorer();
+        }
+
+        _splitterDragged = false;
+    }
+
+    /// <summary>一键收起/恢复左侧 Explorer，恢复时使用收起前的宽度。</summary>
+    private void ToggleExplorer()
+    {
+        // 用 Width 而不是 ActualWidth：同一次鼠标事件里 ActualWidth 尚未随布局更新。
+        var isExpanded = ExplorerColumn.Width.Value > 0;
+        if (isExpanded)
+        {
+            if (ExplorerColumn.Width.IsAbsolute && ExplorerColumn.Width.Value > 0)
+            {
+                _lastExplorerWidth = ExplorerColumn.Width;
+            }
+            ExplorerColumn.Width = new GridLength(0);
+        }
+        else
+        {
+            ExplorerColumn.Width = _lastExplorerWidth.Value >= 80
+                ? _lastExplorerWidth
+                : new GridLength(DefaultExplorerWidth);
+        }
+
+        UpdateExplorerToggleState(!isExpanded);
+    }
+
+    /// <summary>拖拽分隔条后同步按钮方向与记录的宽度。</summary>
+    private void OnExplorerSplitterDragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        // 点击切换也会触发 DragCompleted；以 Width 为准，避免把刚收起的列误判为展开。
+        var isExpanded = ExplorerColumn.Width.Value > 0;
+        if (isExpanded && ExplorerColumn.Width.IsAbsolute)
+        {
+            _lastExplorerWidth = ExplorerColumn.Width;
+        }
+        UpdateExplorerToggleState(isExpanded);
+    }
+
+    private void UpdateExplorerToggleState(bool isExpanded)
+    {
+        ExplorerToggleGlyph.Text = isExpanded ? "‹" : "›";
+        ExplorerSplitter.ToolTip = isExpanded
+            ? "单击收起左侧面板；拖动可调整宽度"
+            : "单击展开左侧面板";
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

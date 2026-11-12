@@ -56,11 +56,21 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
     [ObservableProperty]
     private bool editItemActive = true;
 
+    /// <summary>设备类型（EQUIPMENT_TYPE）的所属专业；其他编码类型不显示该字段。</summary>
+    [ObservableProperty]
+    private string? editItemDiscipline;
+
     [ObservableProperty]
     private string? statusMessage;
 
+    public IReadOnlyList<CodeNameOption> DisciplineOptions => DisciplineCatalog.All;
+
     public bool HasSelectedType => SelectedType is not null;
     public bool HasSelectedItem => SelectedItem is not null;
+
+    /// <summary>只有设备类型字典项维护所属专业。</summary>
+    public bool IsEquipmentTypeSelected =>
+        string.Equals(SelectedType?.Code, "EQUIPMENT_TYPE", StringComparison.OrdinalIgnoreCase);
 
     public DictionaryViewModel(SessionService session)
     {
@@ -236,7 +246,10 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
                 EditItemCode.Trim(),
                 EditItemName.Trim(),
                 EditItemSort,
-                null));
+                null)
+            {
+                Discipline = IsEquipmentTypeSelected ? NullIfEmpty(EditItemDiscipline) : null
+            });
             StatusMessage = "编码项已创建";
         }
         else
@@ -250,7 +263,10 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
                 EditItemName.Trim(),
                 EditItemSort,
                 EditItemActive,
-                SelectedItem.ExtraJson));
+                SelectedItem.ExtraJson)
+            {
+                Discipline = IsEquipmentTypeSelected ? NullIfEmpty(EditItemDiscipline) : null
+            });
             StatusMessage = "编码项已保存";
         }
 
@@ -275,6 +291,7 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
     partial void OnSelectedTypeChanged(DictionaryTypeDto? value)
     {
         OnPropertyChanged(nameof(HasSelectedType));
+        OnPropertyChanged(nameof(IsEquipmentTypeSelected));
 
         if (value is null)
         {
@@ -343,6 +360,7 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
         EditItemName = string.Empty;
         EditItemSort = 0;
         EditItemActive = true;
+        EditItemDiscipline = null;
     }
 
     private void LoadItemIntoEditor(DictionaryItemDto item)
@@ -353,8 +371,9 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
         EditItemName = item.Name;
         EditItemSort = item.SortOrder;
         EditItemActive = item.IsActive;
+        EditItemDiscipline = item.Discipline;
     }
 
-    private static string? NullIfEmpty(string value) =>
+    private static string? NullIfEmpty(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

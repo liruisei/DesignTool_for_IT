@@ -363,6 +363,13 @@ public sealed class FakeApiClient : IApiClient
 
     public Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, EquipmentUpsertRequest request, CancellationToken ct = default)
     {
+        // 与服务端保持一致：位号在工厂内不区分大小写唯一。
+        if (Equipments.Any(x => x.PlantId == Project.PlantId &&
+                                x.TagNo.Equals(request.TagNo, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ApiException("该工厂下设备位号已存在");
+        }
+
         var dto = new EquipmentDto
         {
             Id = Guid.NewGuid(),

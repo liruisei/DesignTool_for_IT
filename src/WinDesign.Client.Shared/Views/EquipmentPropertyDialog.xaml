@@ -49,6 +49,8 @@
                             <StackPanel Width="345" Margin="0,0,14,10">
                                 <TextBlock Text="专业" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
                                 <ComboBox ItemsSource="{Binding DisciplineOptions}" DisplayMemberPath="Name"
+                                          IsEnabled="{Binding IsDisciplineEditable}"
+                                          ToolTip="由所选设备类型自动带出；设备类型未配置专业时可手工选择"
                                           SelectedValuePath="Code" SelectedValue="{Binding EditDiscipline}" />
                             </StackPanel>
                             <StackPanel Width="345" Margin="0,0,14,10">
@@ -182,7 +184,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Content="取消" IsCancel="True" Style="{StaticResource SecondaryButton}"
                             Padding="20,8" Click="OnCancel" />
-                    <Button Content="确定" IsDefault="True" Style="{StaticResource PrimaryButton}"
+                    <Button x:Name="OkButton" Content="确定" IsDefault="True" Style="{StaticResource PrimaryButton}"
                             Padding="20,8" Margin="8,0,0,0" Click="OnOk" />
                 </StackPanel>
             </Grid>

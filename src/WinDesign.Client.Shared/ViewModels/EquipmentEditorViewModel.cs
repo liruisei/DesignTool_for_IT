@@ -17,12 +17,7 @@ public sealed record EquipmentEditorContext(
 
 public partial class EquipmentEditorViewModel : ObservableObject
 {
-    public IReadOnlyList<CodeNameOption> DisciplineOptions { get; } = new[]
-    {
-        new CodeNameOption("Instrument", "仪表"),
-        new CodeNameOption("Telecom", "电信"),
-        new CodeNameOption("IT", "IT")
-    };
+    public IReadOnlyList<CodeNameOption> DisciplineOptions => DisciplineCatalog.All;
 
     public ObservableCollection<PbsNodeOption> PbsOptions { get; } = new();
     public ObservableCollection<DictionaryItemDto> EquipmentTypes { get; } = new();
@@ -44,6 +39,10 @@ public partial class EquipmentEditorViewModel : ObservableObject
 
     [ObservableProperty]
     private string editDiscipline = "Instrument";
+
+    /// <summary>专业由设备类型配置决定时锁定，避免与类型定义不一致。</summary>
+    [ObservableProperty]
+    private bool isDisciplineEditable = true;
 
     /// <summary>专业为 IT 时没有回路概念，回路号不可填写。</summary>
     public bool IsLoopNoEditable =>
@@ -143,7 +142,13 @@ public partial class EquipmentEditorViewModel : ObservableObject
         EditLoopNo = equipment.LoopNo ?? string.Empty;
         EditName = equipment.Name;
         EditTypeCode = equipment.TypeCode;
-        EditDiscipline = equipment.Discipline;
+
+        // 设备类型配置了专业时以类型为准（上方赋值已自动带出），否则沿用设备自身专业。
+        if (GetDisciplineFromType(equipment.TypeCode) is null)
+        {
+            EditDiscipline = equipment.Discipline;
+        }
+
         EditPbsNodeId = equipment.PbsNodeId;
         EditLocation = equipment.Location ?? string.Empty;
         EditPipeEquipmentNo = equipment.PipeEquipmentNo ?? string.Empty;
@@ -166,6 +171,30 @@ public partial class EquipmentEditorViewModel : ObservableObject
         EditDescription = equipment.Description ?? string.Empty;
         EditProcessCondition = equipment.ProcessCondition ?? string.Empty;
         EditSpecification = equipment.Specification ?? string.Empty;
+    }
+
+    /// <summary>
+    /// 选择设备类型后自动带出专业并锁定；类型未配置专业时保留手工选择。
+    /// </summary>
+    partial void OnEditTypeCodeChanged(string? value)
+    {
+        var discipline = GetDisciplineFromType(value);
+        if (discipline is null)
+        {
+            IsDisciplineEditable = true;
+            return;
+        }
+
+        EditDiscipline = discipline;
+        IsDisciplineEditable = false;
+    }
+
+    private string? GetDisciplineFromType(string? typeCode)
+    {
+        var type = EquipmentTypes.FirstOrDefault(x => x.Code == typeCode);
+        return type is null
+            ? null
+            : type.Discipline ?? DictionaryItemExtras.GetDiscipline(type.ExtraJson);
     }
 
     partial void OnEditDisciplineChanged(string value)

@@ -260,14 +260,15 @@ public sealed class ProjectsController : ApiControllerBase
         await _db.ProjectMembers.AnyAsync(x => x.ProjectId == projectId && x.UserId == CurrentUserId, ct);
 
     /// <summary>
-    /// 校验项目 PBS 根节点：必须属于该工厂，且必须是顶层节点（ParentId 为空）。
+    /// 校验项目 PBS 根节点：为空表示项目范围为整个工厂（工厂即根节点），允许；
+    /// 非空时必须属于该工厂，且必须是顶层节点（ParentId 为空）。
     /// 返回错误信息；null 表示通过。
     /// </summary>
     private async Task<string?> ValidatePbsRootAsync(Guid? rootNodeId, Guid plantId, CancellationToken ct)
     {
         if (rootNodeId is null)
         {
-            return "请选择项目所在的 PBS 根节点";
+            return null;
         }
 
         var root = await _db.PbsNodes

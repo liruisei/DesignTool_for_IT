@@ -17,8 +17,11 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
     public ObservableCollection<ProjectDto> Projects { get; } = new();
     public ObservableCollection<PlantDto> Plants { get; } = new();
 
-    /// <summary>当前工厂下可作为项目根节点的顶层 PBS 节点。</summary>
+    /// <summary>项目根节点候选：工厂根节点（全厂）及工厂下的顶层 PBS 节点。</summary>
     public ObservableCollection<PbsNodeOption> PbsRootOptions { get; } = new();
+
+    /// <summary>根节点下拉中的「工厂根节点」选项：Id 为空表示项目范围为整个工厂。</summary>
+    public const string FactoryRootDisplay = "工厂根节点（全厂）";
 
     public IReadOnlyList<StatusOption> StatusOptions { get; } = new[]
     {
@@ -162,10 +165,6 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         {
             throw new ApiException("计划完成日期不能早于开工日期");
         }
-        if (EditPbsRootNodeId is null)
-        {
-            throw new ApiException("请选择项目所在的 PBS 根节点");
-        }
 
         // 记录保存开始时正在编辑的项目，保存完成后若用户已切换选择则不要抢回。
         var editedProjectId = SelectedProject?.Id;
@@ -292,7 +291,8 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
     }
 
     /// <summary>
-    /// 加载工厂顶层 PBS 节点作为项目根节点候选。版本号用于丢弃过期的异步结果。
+    /// 加载项目根节点候选：首个选项是「工厂根节点（全厂）」，其后是工厂顶层 PBS 节点。
+    /// 版本号用于丢弃过期的异步结果。
     /// </summary>
     private async Task LoadPbsRootOptionsAsync(Guid? plantId, Guid? selectedId)
     {
@@ -302,6 +302,8 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         {
             if (plantId is Guid id)
             {
+                // Id 为空代表工厂本身作为项目根节点，项目范围为全厂。
+                options.Add(new PbsNodeOption(null, FactoryRootDisplay));
                 var nodes = await _session.Api.GetPbsNodesAsync(id);
                 options.AddRange(nodes
                     .Where(x => x.ParentId is null)

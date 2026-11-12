@@ -119,6 +119,51 @@ public class EquipmentEditorViewModelTests
         Assert.Null(result!.LoopNo);
     }
 
+    [Fact]
+    public void SelectingEquipmentType_AutoFillsAndLocksDiscipline()
+    {
+        var viewModel = new EquipmentEditorViewModel(CreateContextWithTypeDiscipline("IT"));
+
+        viewModel.EditTypeCode = "PT";
+
+        Assert.Equal("IT", viewModel.EditDiscipline);
+        Assert.False(viewModel.IsDisciplineEditable);
+        Assert.False(viewModel.IsLoopNoEditable);
+    }
+
+    [Fact]
+    public void SelectingTypeWithoutDiscipline_KeepsManualSelection()
+    {
+        var viewModel = new EquipmentEditorViewModel(CreateContext(null, false));
+
+        viewModel.EditTypeCode = "PT";
+
+        Assert.Equal("Instrument", viewModel.EditDiscipline);
+        Assert.True(viewModel.IsDisciplineEditable);
+    }
+
+    [Fact]
+    public void EditingEquipmentWithConfiguredType_UsesTypeDiscipline()
+    {
+        var viewModel = new EquipmentEditorViewModel(CreateContextWithTypeDiscipline("IT", CreateEquipment()));
+
+        Assert.Equal("IT", viewModel.EditDiscipline);
+        Assert.False(viewModel.IsDisciplineEditable);
+    }
+
+    private static EquipmentEditorContext CreateContextWithTypeDiscipline(
+        string discipline, EquipmentDto? equipment = null) => new(
+        equipment,
+        false,
+        new[] { new PbsNodeOption(null, "（未分配）") },
+        new[]
+        {
+            new DictionaryItemDto(Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE", "PT", "压力变送器", 1, true, null)
+            {
+                Discipline = discipline
+            }
+        });
+
     private static EquipmentEditorContext CreateContext(EquipmentDto? equipment, bool isCopy) => new(
         equipment,
         isCopy,

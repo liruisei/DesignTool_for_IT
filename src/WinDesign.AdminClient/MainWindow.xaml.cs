@@ -4,10 +4,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using WinDesign.AdminClient.ViewModels;
 using WinDesign.Client.ViewModels;
+using FluentWindow = Wpf.Ui.Controls.FluentWindow;
 
 namespace WinDesign.AdminClient;
 
-public partial class MainWindow : Window
+public partial class MainWindow : FluentWindow
 {
     public MainWindow()
     {

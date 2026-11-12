@@ -102,7 +102,6 @@ public partial class PbsViewModel : ViewModelBase
     /// <summary>管理模块下可在多个工厂之间切换并维护工厂本身。</summary>
     public bool IsManagementMode => _session.IsManagementMode;
     public bool CanManagePlants => _session.IsManagementMode;
-    public bool CanAddEquipment => _context.HasProject;
     public bool ShowProjectContext => !_session.IsManagementMode;
     public string SelectedPlantName => SelectedPlant?.Name ?? "未选择工厂";
 
@@ -452,38 +451,6 @@ public partial class PbsViewModel : ViewModelBase
     });
 
     [RelayCommand]
-    private Task AddEquipmentAsync() => RunAsync(async () =>
-    {
-        var project = _context.CurrentProject ?? throw new ApiException(
-            _session.IsManagementMode
-                ? "管理模块下不能添加设备，请选择工厂和项目进入工作区后再操作"
-                : "请先选择工作区项目");
-        var pbsNodeId = SelectedNode?.Node?.Id ?? SelectedNode?.Equipment?.PbsNodeId;
-        if (pbsNodeId is null)
-        {
-            throw new ApiException("请选择一个装置或回路节点");
-        }
-
-        var context = new EquipmentEditorContext(
-            null,
-            false,
-            PbsEditorOptions.ToList(),
-            EquipmentTypes.ToList(),
-            pbsNodeId,
-            FindLoopNo(pbsNodeId.Value));
-        var request = _equipmentDialogs.EditEquipment(context);
-        if (request is null)
-        {
-            return;
-        }
-
-        var saved = await _session.Api.CreateEquipmentAsync(project.Id, request);
-        await RefreshAsync();
-        SelectedNode = FindEquipmentItem(Roots, saved.Id);
-        StatusMessage = "设备已创建并写入索引表";
-    });
-
-    [RelayCommand]
     private void ExpandAll() => SetExpanded(true);
 
     [RelayCommand]
@@ -584,7 +551,6 @@ public partial class PbsViewModel : ViewModelBase
 
     private void OnProjectChanged(object? sender, EventArgs e)
     {
-        OnPropertyChanged(nameof(CanAddEquipment));
         _ = RefreshAsync();
     }
 
@@ -666,21 +632,6 @@ public partial class PbsViewModel : ViewModelBase
         }
 
         Walk(Roots, 0);
-    }
-
-    private string? FindLoopNo(Guid nodeId)
-    {
-        var current = _nodes.GetValueOrDefault(nodeId);
-        var guard = 0;
-        while (current is not null && guard++ < 200)
-        {
-            if (current.NodeType == "Loop")
-            {
-                return current.Code;
-            }
-            current = current.ParentId is Guid parentId ? _nodes.GetValueOrDefault(parentId) : null;
-        }
-        return null;
     }
 
     private static PbsNodeItem? FindPlantItem(IEnumerable<PbsNodeItem> items, Guid plantId)

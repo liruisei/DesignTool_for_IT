@@ -7,13 +7,16 @@ namespace WinDesign.Client.Services;
 
 public sealed class EquipmentDialogService : IEquipmentDialogService
 {
-    public EquipmentUpsertRequest? EditEquipment(EquipmentEditorContext context)
+    public EquipmentUpsertRequest? EditEquipment(
+        EquipmentEditorContext context,
+        Func<EquipmentUpsertRequest, Task<string?>>? saveAsync = null)
     {
         var viewModel = new EquipmentEditorViewModel(context);
         var dialog = new EquipmentPropertyDialog
         {
             DataContext = viewModel,
-            Owner = Application.Current?.MainWindow
+            Owner = Application.Current?.MainWindow,
+            SaveAsync = saveAsync
         };
         return dialog.ShowDialog() == true ? dialog.Result : null;
     }

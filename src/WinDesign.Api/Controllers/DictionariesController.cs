@@ -130,13 +130,11 @@ public sealed class DictionariesController : ApiControllerBase
             query = query.Where(x => x.IsActive);
         }
 
-        var items = await query
+        var entities = await query
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Code)
-            .Select(x => new DictionaryItemDto(
-                x.Id, x.TypeId, type.Code, x.Code, x.Name, x.SortOrder, x.IsActive, x.ExtraJson))
             .ToListAsync(ct);
-        return Ok(items);
+        return Ok(entities.Select(x => ToDto(x, type.Code)).ToList());
     }
 
     [HttpPost("types/{typeCode}/items")]
@@ -170,12 +168,12 @@ public sealed class DictionariesController : ApiControllerBase
             Code = code,
             Name = request.Name.Trim(),
             SortOrder = request.SortOrder,
-            ExtraJson = string.IsNullOrWhiteSpace(request.ExtraJson) ? null : request.ExtraJson
+            ExtraJson = DictionaryItemExtras.SetDiscipline(EmptyToNull(request.ExtraJson), request.Discipline)
         };
         _db.DictionaryItems.Add(item);
         _db.AddAudit(CurrentUserId, CurrentUserName, "Create", "DictionaryItem", item.Id.ToString(), $"{type.Code}/{code}");
         await _db.SaveChangesAsync(ct);
-        return Ok(new DictionaryItemDto(item.Id, item.TypeId, type.Code, item.Code, item.Name, item.SortOrder, item.IsActive, item.ExtraJson));
+        return Ok(ToDto(item, type.Code));
     }
 
     [HttpPut("items/{id:guid}")]
@@ -196,12 +194,21 @@ public sealed class DictionariesController : ApiControllerBase
         item.Name = request.Name.Trim();
         item.SortOrder = request.SortOrder;
         item.IsActive = request.IsActive;
-        item.ExtraJson = string.IsNullOrWhiteSpace(request.ExtraJson) ? null : request.ExtraJson;
+        item.ExtraJson = DictionaryItemExtras.SetDiscipline(EmptyToNull(request.ExtraJson), request.Discipline);
         item.UpdatedAt = DateTime.UtcNow;
         _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "DictionaryItem", item.Id.ToString(), $"{item.Type.Code}/{item.Code}");
         await _db.SaveChangesAsync(ct);
-        return Ok(new DictionaryItemDto(item.Id, item.TypeId, item.Type.Code, item.Code, item.Name, item.SortOrder, item.IsActive, item.ExtraJson));
+        return Ok(ToDto(item, item.Type.Code));
     }
+
+    private static DictionaryItemDto ToDto(DictionaryItem item, string typeCode) => new(
+        item.Id, item.TypeId, typeCode, item.Code, item.Name, item.SortOrder, item.IsActive, item.ExtraJson)
+    {
+        Discipline = DictionaryItemExtras.GetDiscipline(item.ExtraJson)
+    };
+
+    private static string? EmptyToNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 
     [HttpDelete("items/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]

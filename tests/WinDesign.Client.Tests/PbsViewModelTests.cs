@@ -165,35 +165,6 @@ public class PbsViewModelTests
     }
 
     [Fact]
-    public async Task AddEquipment_UnderLoop_PrefillsPbsAndLoopNo()
-    {
-        var (api, project, _, _, system) = CreateTree();
-        var loop = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, system.Id, "L-1001", "压力回路", "Loop", 0, null, 0, 0);
-        api.PbsNodes.Add(loop);
-        var equipmentDialogs = new FakeEquipmentDialogService
-        {
-            NextResult = new EquipmentUpsertRequest
-            {
-                PbsNodeId = loop.Id,
-                TagNo = "PT-9101",
-                Name = "设备",
-                Discipline = "Instrument",
-                Quantity = 1
-            }
-        };
-        var viewModel = CreateViewModel(api, project, equipmentDialogs: equipmentDialogs);
-        await viewModel.RefreshAsync();
-        viewModel.SelectedNode = viewModel.Roots[0].Children[0].Children[0].Children[0].Children[0];
-
-        await viewModel.AddEquipmentCommand.ExecuteAsync(null);
-
-        Assert.NotNull(equipmentDialogs.LastContext);
-        Assert.Equal(loop.Id, equipmentDialogs.LastContext!.DefaultPbsNodeId);
-        Assert.Equal("L-1001", equipmentDialogs.LastContext.DefaultLoopNo);
-        Assert.Contains(api.Equipments, x => x.TagNo == "PT-9101");
-    }
-
-    [Fact]
     public async Task Selection_DrivesContextMenuScope()
     {
         var (api, project, area, _, _) = CreateTree();
@@ -228,7 +199,7 @@ public class PbsViewModelTests
     }
 
     [Fact]
-    public async Task ManagementMode_ShowsAllPlants_AndCannotAddEquipment()
+    public async Task ManagementMode_ShowsAllPlants()
     {
         var api = new FakeApiClient();
         api.PlantDtos.Add(new PlantDto(Guid.NewGuid(), "PLANT-A", "A 厂", null, null, null, true, 1, 0, DateTime.UtcNow));
@@ -248,7 +219,6 @@ public class PbsViewModelTests
         Assert.Equal(2, viewModel.Roots.Count);
         Assert.All(viewModel.Roots, x => Assert.True(x.IsPlant));
         Assert.All(viewModel.Roots, x => Assert.True(x.IsExpanded));
-        Assert.False(viewModel.CanAddEquipment);
         Assert.True(viewModel.IsFactoryNodeSelected);
         Assert.True(viewModel.CanManageFactoriesHere);
 
