@@ -257,5 +257,3 @@ CI：`.github/workflows/dotnet-tests.yml`（windows-latest，推送/PR 自动运
 
 详见 [docs/ui-redesign.md](docs/ui-redesign.md)。
 
-
-备忘1：C:\Users\月黑高飞\WP-2002\WinDesign\docs\ui-refs，用来存放PNG/JPG来放图标。
