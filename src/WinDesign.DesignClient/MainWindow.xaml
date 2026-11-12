@@ -26,7 +26,8 @@
         </Style>
         <HierarchicalDataTemplate x:Key="ExplorerItemTemplate" ItemsSource="{Binding Children}">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="{Binding Glyph}" Width="18" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="{Binding Glyph}" Width="18" Foreground="{StaticResource AccentBrush}"
+                           FontFamily="{Binding GlyphFontFamily}" />
                 <TextBlock Text="{Binding Title}" />
             </StackPanel>
         </HierarchicalDataTemplate>
@@ -144,6 +145,7 @@
                                   ItemContainerStyle="{StaticResource ExplorerItemContainerStyle}"
                                   ItemTemplate="{StaticResource ExplorerItemTemplate}"
                                   SelectedItemChanged="OnProjectExplorerSelectedItemChanged"
+                                  MouseDoubleClick="OnProjectExplorerMouseDoubleClick"
                                   ContextMenuOpening="OnProjectExplorerContextMenuOpening">
                             <TreeView.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
@@ -178,6 +180,9 @@
                                   ContextMenuOpening="OnPbsExplorerContextMenuOpening">
                             <TreeView.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="新增设备" Command="{Binding AddEquipmentCommand}"
+                                              Visibility="{Binding IsEquipmentFolderSelected, Converter={StaticResource BoolToVis}}" />
+                                    <Separator Visibility="{Binding IsEquipmentFolderSelected, Converter={StaticResource BoolToVis}}" />
                                     <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
                                 </ContextMenu>
                             </TreeView.ContextMenu>

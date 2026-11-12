@@ -78,10 +78,95 @@ public class DesignMainViewModelTests
 
         var unitItem = Assert.Single(rootItem.Children);
         Assert.Contains("CDU", unitItem.Title);
-        Assert.Contains("L-1001", Assert.Single(unitItem.Children).Title);
+        Assert.Equal(new[] { "设备", "回路", "建筑物" },
+            unitItem.Children.Take(3).Select(x => x.Title));
+        Assert.Contains(unitItem.Children, x => x.Title.Contains("L-1001"));
 
         // 同一工厂下与项目无关的另一棵顶层子树不应出现。
         Assert.DoesNotContain(pbs.Children, x => x.Title.Contains("AREA-B"));
+    }
+
+    [Fact]
+    public async Task UnitNode_HasDefaultCategoryFolders()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var unit = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "CDU", "常减压装置", "Unit", 1, null, 0, 0);
+        api.PbsNodes.Add(unit);
+
+        var viewModel = new MainViewModel(api.CreateSession());
+        await viewModel.PbsTreeLoadTask;
+
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
+        var rootItem = Assert.Single(pbs.Children);
+        var unitItem = Assert.Single(rootItem.Children);
+
+        Assert.Equal(new[] { "设备", "回路", "建筑物" }, unitItem.Children.Select(x => x.Title));
+        Assert.All(unitItem.Children, x => Assert.True(x.IsFolder));
+    }
+
+    [Fact]
+    public async Task UnitDevicesFolder_ShowsEquipmentByTagNo()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var unit = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "CDU", "常减压装置", "Unit", 1, null, 0, 0);
+        api.PbsNodes.Add(unit);
+        api.Equipments.Add(CreateEquipment(api, "PT-1001") with { PbsNodeId = unit.Id });
+
+        var viewModel = new MainViewModel(api.CreateSession(), new FakeEquipmentDialogService());
+        await viewModel.PbsTreeLoadTask;
+
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
+        var unitItem = Assert.Single(Assert.Single(pbs.Children).Children);
+        var devices = Assert.Single(unitItem.Children, x => x.IsEquipmentFolder);
+
+        Assert.Equal("设备", devices.Title);
+        var item = Assert.Single(devices.Children);
+        Assert.Equal("PT-1001", item.Title);
+        Assert.False(item.IsFolder);
+    }
+
+    [Fact]
+    public async Task AddEquipmentFromDevicesFolder_CreatesAndRefreshesTree()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var unit = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "CDU", "常减压装置", "Unit", 1, null, 0, 0);
+        api.PbsNodes.Add(unit);
+
+        var dialogs = new FakeEquipmentDialogService
+        {
+            NextResult = new EquipmentUpsertRequest
+            {
+                PbsNodeId = unit.Id,
+                TagNo = "PT-9001",
+                Name = "压力变送器",
+                Discipline = "Instrument",
+                Quantity = 1
+            }
+        };
+        var viewModel = new MainViewModel(api.CreateSession(), dialogs);
+        await viewModel.PbsTreeLoadTask;
+
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
+        var unitItem = Assert.Single(Assert.Single(pbs.Children).Children);
+        viewModel.SelectedPbsNode = Assert.Single(unitItem.Children, x => x.IsEquipmentFolder);
+        Assert.True(viewModel.IsEquipmentFolderSelected);
+
+        await viewModel.AddEquipmentCommand.ExecuteAsync(null);
+
+        Assert.NotNull(dialogs.LastContext);
+        Assert.Equal(unit.Id, dialogs.LastContext!.DefaultPbsNodeId);
+        Assert.Contains(api.Equipments, x => x.TagNo == "PT-9001");
+
+        var refreshedUnit = Assert.Single(Assert.Single(
+            Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs").Children).Children);
+        var refreshedDevices = Assert.Single(refreshedUnit.Children, x => x.IsEquipmentFolder);
+        Assert.Contains(refreshedDevices.Children, x => x.Title == "PT-9001");
     }
 
     [Fact]

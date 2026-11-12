@@ -424,7 +424,7 @@ public partial class PbsViewModel : ViewModelBase
                 throw new ApiException("工厂信息请由管理员在管理模块中维护");
             }
 
-            // 右键菜单只有“删除节点”一个入口，工厂根节点复用工厂删除逻辑。
+            // 右键菜单只有“删除”一个入口，工厂根节点复用工厂删除逻辑。
             await DeletePlantCoreAsync();
             return;
         }

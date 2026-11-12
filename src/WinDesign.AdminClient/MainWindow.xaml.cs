@@ -27,6 +27,26 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    /// <summary>
+    /// 双击已选中的节点时也能重新打开文档：关闭全部标签后树项仍处于选中状态，
+    /// 不会再次触发 SelectedItemChanged。
+    /// </summary>
+    private void OnExplorerMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        var item = FindAncestor<TreeViewItem>((DependencyObject)e.OriginalSource);
+        if (item?.DataContext is ExplorerNode { Open: not null } node)
+        {
+            viewModel.SelectedExplorerNode = node;
+            viewModel.OpenExplorerNode(node);
+            e.Handled = true;
+        }
+    }
+
     private void OnExplorerContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         if (sender is not TreeView tree)

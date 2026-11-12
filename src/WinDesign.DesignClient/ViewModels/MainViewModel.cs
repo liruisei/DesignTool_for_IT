@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDesign.Client.Services;
 using WinDesign.Client.ViewModels;
+using WinDesign.Contracts.Dictionaries;
+using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
 
@@ -15,8 +17,10 @@ namespace WinDesign.DesignClient.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly SessionService _session;
+    private readonly IEquipmentDialogService _equipmentDialogs;
     private readonly ProjectContext _projectContext = new();
     private ExplorerNode? _pbsExplorerNode;
+    private IReadOnlyList<PbsNodeDto> _pbsNodes = Array.Empty<PbsNodeDto>();
 
     /// <summary>左侧 PBS 树的异步加载任务，便于测试等待首次加载完成。</summary>
     public Task PbsTreeLoadTask { get; private set; } = Task.CompletedTask;
@@ -54,9 +58,10 @@ public partial class MainViewModel : ObservableObject
 
     public SessionService Session => _session;
 
-    public MainViewModel(SessionService session)
+    public MainViewModel(SessionService session, IEquipmentDialogService? equipmentDialogs = null)
     {
         _session = session;
+        _equipmentDialogs = equipmentDialogs ?? new EquipmentDialogService();
         _projectContext.CurrentProject = ToProjectDto(session);
         BuildExplorer();
         PbsTreeLoadTask = LoadPbsTreeAsync();
@@ -141,9 +146,13 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var nodes = await _session.Api.GetPbsNodesAsync(plantId);
+            _pbsNodes = nodes;
+
+            var equipmentByPbsNode = await LoadEquipmentsByPbsNodeAsync();
+
             if (_session.Project?.PbsRootNodeId is not Guid rootId)
             {
-                ApplyMissingPbsRoot(pbsNode, nodes);
+                ApplyMissingPbsRoot(pbsNode, nodes, equipmentByPbsNode);
                 return;
             }
 
@@ -160,7 +169,7 @@ public partial class MainViewModel : ObservableObject
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             pbsNode.Children.Add(BuildPbsExplorerItem(
-                root, childrenByParent, new HashSet<Guid>()));
+                root, childrenByParent, equipmentByPbsNode, new HashSet<Guid>()));
         }
         catch (Exception ex)
         {
@@ -169,9 +178,25 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>按 PBS 节点分组当前项目的设备，用于填充装置下的“设备”文件夹。</summary>
+    private async Task<IReadOnlyDictionary<Guid, List<EquipmentDto>>> LoadEquipmentsByPbsNodeAsync()
+    {
+        if (_session.Project is not { } project)
+        {
+            return new Dictionary<Guid, List<EquipmentDto>>();
+        }
+
+        var result = await _session.Api.GetEquipmentsAsync(project.Id, pageSize: 500);
+        return result.Items
+            .Where(x => x.PbsNodeId is not null)
+            .GroupBy(x => x.PbsNodeId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
     private static ExplorerNode BuildPbsExplorerItem(
         PbsNodeDto node,
         IReadOnlyDictionary<Guid, List<PbsNodeDto>> childrenByParent,
+        IReadOnlyDictionary<Guid, List<EquipmentDto>> equipmentByPbsNode,
         HashSet<Guid> path)
     {
         var item = new ExplorerNode
@@ -196,13 +221,19 @@ public partial class MainViewModel : ObservableObject
             return item;
         }
 
+        // 装置层级默认固定三个分类文件夹；设备文件夹填充当前装置下的设备位号。
+        if (string.Equals(node.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
+        {
+            AddUnitDefaultFolders(item, node.Id, equipmentByPbsNode);
+        }
+
         if (childrenByParent.TryGetValue(node.Id, out var children))
         {
             foreach (var child in children
                          .OrderBy(x => x.SortOrder)
                          .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
             {
-                item.Children.Add(BuildPbsExplorerItem(child, childrenByParent, path));
+                item.Children.Add(BuildPbsExplorerItem(child, childrenByParent, equipmentByPbsNode, path));
             }
         }
 
@@ -211,10 +242,65 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 装置（Unit）下固定展示的分类文件夹。键包含装置 Id，保证跨装置唯一。
+    /// </summary>
+    private static void AddUnitDefaultFolders(
+        ExplorerNode unitItem,
+        Guid unitId,
+        IReadOnlyDictionary<Guid, List<EquipmentDto>> equipmentByPbsNode)
+    {
+        var devicesFolder = new ExplorerNode
+        {
+            Key = $"pbs:{unitId}:devices",
+            Title = "设备",
+            Glyph = "\uED25",
+            GlyphFontFamily = "Segoe MDL2 Assets",
+            IsFolder = true,
+            IsEquipmentFolder = true,
+            RelatedPbsNodeId = unitId
+        };
+        if (equipmentByPbsNode.TryGetValue(unitId, out var equipments))
+        {
+            foreach (var equipment in equipments
+                         .OrderBy(x => x.TagNo, StringComparer.OrdinalIgnoreCase))
+            {
+                devicesFolder.Children.Add(new ExplorerNode
+                {
+                    Key = "equipment:" + equipment.Id,
+                    Title = equipment.TagNo,
+                    Glyph = "\uE950",
+                    GlyphFontFamily = "Segoe MDL2 Assets"
+                });
+            }
+        }
+
+        unitItem.Children.Add(devicesFolder);
+        unitItem.Children.Add(new ExplorerNode
+        {
+            Key = $"pbs:{unitId}:loops",
+            Title = "回路",
+            Glyph = "\uED25",
+            GlyphFontFamily = "Segoe MDL2 Assets",
+            IsFolder = true
+        });
+        unitItem.Children.Add(new ExplorerNode
+        {
+            Key = $"pbs:{unitId}:buildings",
+            Title = "建筑物",
+            Glyph = "\uED25",
+            GlyphFontFamily = "Segoe MDL2 Assets",
+            IsFolder = true
+        });
+    }
+
+    /// <summary>
     /// 项目未设置 PBS 根节点（Id 为空）时，项目放在工厂根节点上，范围为整个工厂：
     /// 显示工厂全部顶层 PBS 节点及其子树。
     /// </summary>
-    private static void ApplyMissingPbsRoot(ExplorerNode pbsNode, IReadOnlyList<PbsNodeDto> plantNodes)
+    private static void ApplyMissingPbsRoot(
+        ExplorerNode pbsNode,
+        IReadOnlyList<PbsNodeDto> plantNodes,
+        IReadOnlyDictionary<Guid, List<EquipmentDto>> equipmentByPbsNode)
     {
         var roots = plantNodes
             .Where(x => x.ParentId is null)
@@ -234,7 +320,8 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var root in roots)
         {
-            pbsNode.Children.Add(BuildPbsExplorerItem(root, childrenByParent, new HashSet<Guid>()));
+            pbsNode.Children.Add(BuildPbsExplorerItem(
+                root, childrenByParent, equipmentByPbsNode, new HashSet<Guid>()));
         }
     }
 
@@ -308,6 +395,108 @@ public partial class MainViewModel : ObservableObject
 
         await LoadPbsTreeAsync();
         StatusText = "已刷新 " + DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    /// <summary>当前右键是否位于装置下的“设备”文件夹。</summary>
+    public bool IsEquipmentFolderSelected => SelectedPbsNode?.IsEquipmentFolder == true;
+
+    partial void OnSelectedPbsNodeChanged(ExplorerNode? value) =>
+        OnPropertyChanged(nameof(IsEquipmentFolderSelected));
+
+    /// <summary>在装置下的“设备”文件夹右键新增设备，保存流程与索引表一致。</summary>
+    [RelayCommand]
+    private async Task AddEquipmentAsync()
+    {
+        var project = _session.Project;
+        var unitId = SelectedPbsNode?.RelatedPbsNodeId;
+        if (project is null || SelectedPbsNode?.IsEquipmentFolder != true || unitId is null)
+        {
+            StatusText = "请在装置下的“设备”文件夹上新增设备";
+            return;
+        }
+
+        try
+        {
+            var types = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
+            var editorContext = new EquipmentEditorContext(
+                null,
+                false,
+                BuildPbsOptions(_pbsNodes),
+                types.ToList(),
+                DefaultPbsNodeId: unitId);
+
+            var saved = false;
+            _equipmentDialogs.EditEquipment(editorContext, async request =>
+            {
+                try
+                {
+                    await _session.Api.CreateEquipmentAsync(project.Id, request);
+                    saved = true;
+                    return null;
+                }
+                catch (ApiException ex)
+                {
+                    return ex.Message;
+                }
+                catch (Exception ex)
+                {
+                    return "保存失败：" + ex.Message;
+                }
+            });
+
+            if (!saved)
+            {
+                return;
+            }
+
+            StatusText = "设备已创建";
+            await LoadPbsTreeAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = "新增设备失败：" + ex.Message;
+        }
+    }
+
+    private static List<PbsNodeOption> BuildPbsOptions(IReadOnlyList<PbsNodeDto> nodes)
+    {
+        var options = new List<PbsNodeOption>
+        {
+            new PbsNodeOption(null, "（未分配）")
+        };
+        var children = nodes
+            .Where(x => x.ParentId is not null)
+            .GroupBy(x => x.ParentId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var roots = nodes
+            .Where(x => x.ParentId is null)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        void Walk(PbsNodeDto node, int depth)
+        {
+            var indent = depth == 0 ? string.Empty : new string('·', depth * 2) + " ";
+            options.Add(new PbsNodeOption(node.Id, indent + node.Code + "  " + node.Name));
+            if (!children.TryGetValue(node.Id, out var list))
+            {
+                return;
+            }
+
+            foreach (var child in list
+                         .OrderBy(x => x.SortOrder)
+                         .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
+            {
+                Walk(child, depth + 1);
+            }
+        }
+
+        foreach (var root in roots)
+        {
+            Walk(root, 0);
+        }
+
+        return options;
     }
 
     [RelayCommand]

@@ -39,7 +39,7 @@
                 </Grid>
 
                 <TextBlock Grid.Row="1" Style="{StaticResource MutedText}" Margin="0,0,0,10"
-                           Text="所有工厂以根节点显示，可独立展开/折叠。工具栏提供新建工厂、删除节点、展开/折叠与刷新；其余维护请使用右键菜单，菜单按节点层级裁剪：工厂根节点可维护工厂与区域，区域可维护区域/装置，装置可维护装置及下一层，依此类推。设备新增在设计端索引表完成，此处双击设备可编辑属性。" />
+                           Text="所有工厂以根节点显示，可独立展开/折叠。工具栏提供新建工厂、删除、展开/折叠与刷新；其余维护请使用右键菜单，菜单按节点层级裁剪：工厂根节点可维护工厂与区域，区域可维护区域/装置，装置可维护装置及下一层，依此类推。设备新增在设计端索引表完成，此处双击设备可编辑属性。" />
 
                 <TreeView Grid.Row="2" ItemsSource="{Binding Roots}" BorderThickness="0" Background="Transparent"
                           SelectedItemChanged="OnSelectedItemChanged"
@@ -49,13 +49,10 @@
                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                             <MenuItem Header="新建子节点" Command="{Binding NewChildCommand}"
                                       IsEnabled="{Binding CanCreateChild}" />
-                            <MenuItem Header="修改节点" Command="{Binding EditNodeCommand}"
-                                      IsEnabled="{Binding CanEditSelectedNode}" />
-                            <MenuItem Header="删除节点" Command="{Binding DeleteNodeCommand}"
-                                      IsEnabled="{Binding CanDeleteSelectedNode}" />
-                            <Separator />
                             <MenuItem Header="编辑" Command="{Binding EditNodeCommand}"
                                       IsEnabled="{Binding CanEditSelectedNode}" />
+                            <MenuItem Header="删除" Command="{Binding DeleteNodeCommand}"
+                                      IsEnabled="{Binding CanDeleteSelectedNode}" />
                         </ContextMenu>
                     </TreeView.ContextMenu>
                     <TreeView.ItemContainerStyle>
