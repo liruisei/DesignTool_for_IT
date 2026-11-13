@@ -88,7 +88,21 @@
                 <TextBox Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}" Height="38" />
 
                 <TextBlock Text="密码" Style="{StaticResource FieldLabel}" />
-                <PasswordBox x:Name="PasswordInput" Height="38" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <PasswordBox x:Name="PasswordInput" Height="38" />
+                    <TextBox x:Name="PasswordVisible" Height="38" Visibility="Collapsed" />
+
+                    <Button x:Name="PasswordEyeButton" Grid.Column="1" Content="&#xE052;"
+                            FontFamily="Segoe MDL2 Assets" FontSize="15"
+                            Style="{StaticResource ToolButton}" Width="34" Height="38"
+                            Margin="6,0,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+                            Click="OnTogglePasswordVisibility" ToolTip="显示密码" />
+                </Grid>
 
                 <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}"
                            Margin="0,12,0,0" TextWrapping="Wrap"

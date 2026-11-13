@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Materials;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
 
@@ -25,6 +26,7 @@ public sealed class MaterialsController : ApiControllerBase
     }
 
     [HttpGet("projects/{projectId:guid}/materials")]
+    [RequirePermission("materials.read")]
     public async Task<ActionResult<PagedResult<MaterialItemDto>>> Get(
         Guid projectId,
         [FromQuery] string? search,
@@ -88,6 +90,7 @@ public sealed class MaterialsController : ApiControllerBase
 
     [HttpPost("projects/{projectId:guid}/materials")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("materials.create")]
     public async Task<ActionResult<MaterialItemDto>> Create(
         Guid projectId,
         [FromBody] MaterialItemUpsertRequest request,
@@ -137,6 +140,7 @@ public sealed class MaterialsController : ApiControllerBase
 
     [HttpPut("materials/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("materials.update")]
     public async Task<ActionResult<MaterialItemDto>> Update(
         Guid id,
         [FromBody] MaterialItemUpsertRequest request,
@@ -185,6 +189,7 @@ public sealed class MaterialsController : ApiControllerBase
 
     [HttpDelete("materials/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("materials.delete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var material = await _db.MaterialItems.SingleOrDefaultAsync(x => x.Id == id, ct);

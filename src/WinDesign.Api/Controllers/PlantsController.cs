@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Plants;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
@@ -21,6 +22,7 @@ public sealed class PlantsController : ApiControllerBase
     }
 
     [HttpGet]
+    [RequirePermission("pbs.read")]
     public async Task<ActionResult<IReadOnlyList<PlantDto>>> Get(CancellationToken ct)
     {
         var userId = CurrentUserId;
@@ -43,6 +45,7 @@ public sealed class PlantsController : ApiControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("pbs.read")]
     public async Task<ActionResult<PlantDto>> GetById(Guid id, CancellationToken ct)
     {
         var plant = await _db.Plants
@@ -62,6 +65,7 @@ public sealed class PlantsController : ApiControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("pbs.create")]
     public async Task<ActionResult<PlantDto>> Create(
         [FromBody] CreatePlantRequest request,
         CancellationToken ct)
@@ -93,6 +97,7 @@ public sealed class PlantsController : ApiControllerBase
 
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("pbs.update")]
     public async Task<ActionResult<PlantDto>> Update(
         Guid id,
         [FromBody] UpdatePlantRequest request,
@@ -128,6 +133,7 @@ public sealed class PlantsController : ApiControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
+    [RequirePermission("pbs.delete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var plant = await _db.Plants.SingleOrDefaultAsync(x => x.Id == id, ct);

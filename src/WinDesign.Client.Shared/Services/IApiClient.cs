@@ -4,6 +4,7 @@ using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Materials;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Users;
@@ -30,8 +31,11 @@ public interface IApiClient
     Task<UserDto> CreateUserAsync(CreateUserRequest request, CancellationToken ct = default);
     Task<UserDto> UpdateUserAsync(Guid id, UpdateUserRequest request, CancellationToken ct = default);
     Task ResetPasswordAsync(Guid id, string newPassword, CancellationToken ct = default);
+    Task DeleteUserAsync(Guid id, CancellationToken ct = default);
     Task<UserDto> ToggleUserActiveAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<RoleDto>> GetRolesAsync(CancellationToken ct = default);
+    Task<RolePermissionDto> GetRolePermissionsAsync(Guid roleId, CancellationToken ct = default);
+    Task<RolePermissionDto> UpdateRolePermissionsAsync(Guid roleId, IReadOnlyList<string> permissionCodes, CancellationToken ct = default);
 
     Task<IReadOnlyList<PlantDto>> GetPlantsAsync(CancellationToken ct = default);
     Task<PlantDto> CreatePlantAsync(CreatePlantRequest request, CancellationToken ct = default);
@@ -42,6 +46,12 @@ public interface IApiClient
     Task<ProjectDto> CreateProjectAsync(CreateProjectRequest request, CancellationToken ct = default);
     Task<ProjectDto> UpdateProjectAsync(Guid id, UpdateProjectRequest request, CancellationToken ct = default);
     Task ArchiveProjectAsync(Guid id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<ProjectMemberDto>> GetProjectMembersAsync(Guid projectId, CancellationToken ct = default);
+    Task<ProjectMemberDto> AddProjectMemberAsync(Guid projectId, UpsertProjectMemberRequest request, CancellationToken ct = default);
+    Task<ProjectMemberDto> UpdateProjectMemberAsync(Guid projectId, Guid userId, UpsertProjectMemberRequest request, CancellationToken ct = default);
+    Task RemoveProjectMemberAsync(Guid projectId, Guid userId, CancellationToken ct = default);
+    Task<IReadOnlyList<ProjectMemberDto>> BulkGrantProjectMembersAsync(Guid projectId, BulkGrantProjectMembersRequest request, CancellationToken ct = default);
 
     Task<IReadOnlyList<DictionaryTypeDto>> GetDictionaryTypesAsync(CancellationToken ct = default);
     Task<DictionaryTypeDto> CreateDictionaryTypeAsync(CreateDictionaryTypeRequest request, CancellationToken ct = default);
@@ -56,6 +66,9 @@ public interface IApiClient
     Task<PbsNodeDto> CreatePbsNodeAsync(Guid plantId, CreatePbsNodeRequest request, CancellationToken ct = default);
     Task<PbsNodeDto> UpdatePbsNodeAsync(Guid id, UpdatePbsNodeRequest request, CancellationToken ct = default);
     Task DeletePbsNodeAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>设计端在装置下新增「回路」或「建筑物」分类节点。</summary>
+    Task<PbsNodeDto> CreateUnitChildAsync(Guid unitId, CreateUnitChildRequest request, CancellationToken ct = default);
 
     Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(Guid projectId, string? search = null, string? discipline = null, Guid? pbsNodeId = null, int pageSize = 500, CancellationToken ct = default);
     Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, EquipmentUpsertRequest request, CancellationToken ct = default);

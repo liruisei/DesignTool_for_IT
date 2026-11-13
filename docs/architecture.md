@@ -158,6 +158,17 @@ WinDesign.DesignClient/
 | GET | `/api/plants` | 当前用户可访问的工厂列表（管理员为全部） |
 | POST/PUT | `/api/plants`、`/api/plants/{id}` | 新建/编辑工厂（Admin/Designer） |
 | DELETE | `/api/plants/{id}` | 删除空工厂（Admin；有项目/PBS/设备时拒绝） |
+| GET/POST | `/api/projects/{id}/members` | 项目成员列表 / 添加成员（Admin；角色为 Manager / Designer / Viewer） |
+| PUT/DELETE | `/api/projects/{id}/members/{userId}` | 修改成员角色 / 移除成员（Admin；项目负责人不可修改或移除） |
+| POST | `/api/projects/{id}/members/bulk` | 批量授权：一组用户统一授予管理/设计/只读 |
+| GET/PUT | `/api/roles/{id}/permissions` | 读取 / 保存用户类的全局 CRUD 权限（Admin） |
+
+### 6.1.1 权限模型
+
+- **用户类（固定三类）**：Admin / Designer / Viewer，按「模块 × 增删改查」配置全局权限，权限码为 `module.action`。
+- **用户**：可以属于多个用户类，权限取并集。
+- **项目成员**：只控制项目准入；成员角色为 Manager（管理）/ Designer（设计）/ Viewer（只读）。管理角色用于项目成员维护，具体数据增删改查仍由全局用户类权限决定。
+- 服务端用 `[RequirePermission("module.action")]` 校验令牌中的 `permission` 声明；权限配置变更后需要重新登录。
 
 ## 6.2 PBS 与设备索引接口
 

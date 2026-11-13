@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Domain;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
@@ -26,6 +27,7 @@ public sealed class EquipmentsController : ApiControllerBase
     }
 
     [HttpGet("projects/{projectId:guid}/equipments")]
+    [RequirePermission("equipment.read")]
     public async Task<ActionResult<PagedResult<EquipmentDto>>> Get(
         Guid projectId,
         [FromQuery] string? search,
@@ -103,6 +105,7 @@ public sealed class EquipmentsController : ApiControllerBase
     }
 
     [HttpGet("equipments/{id:guid}")]
+    [RequirePermission("equipment.read")]
     public async Task<ActionResult<EquipmentDto>> GetById(Guid id, CancellationToken ct)
     {
         var equipment = await _db.Equipments
@@ -132,6 +135,7 @@ public sealed class EquipmentsController : ApiControllerBase
 
     [HttpPost("projects/{projectId:guid}/equipments")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("equipment.create")]
     public async Task<ActionResult<EquipmentDto>> Create(
         Guid projectId,
         [FromBody] EquipmentUpsertRequest request,
@@ -227,6 +231,7 @@ public sealed class EquipmentsController : ApiControllerBase
 
     [HttpPut("equipments/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("equipment.update")]
     public async Task<ActionResult<EquipmentDto>> Update(
         Guid id,
         [FromBody] EquipmentUpsertRequest request,
@@ -321,6 +326,7 @@ public sealed class EquipmentsController : ApiControllerBase
 
     [HttpDelete("equipments/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("equipment.delete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var equipment = await _db.Equipments.SingleOrDefaultAsync(x => x.Id == id, ct);

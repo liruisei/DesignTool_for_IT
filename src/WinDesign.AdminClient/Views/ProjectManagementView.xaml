@@ -40,7 +40,14 @@
                             Click="OnToggleEditorClick" ToolTip="展开/收起右侧编辑栏" />
                 </Grid>
 
-                <DataGrid Grid.Row="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}">
+                <DataGrid Grid.Row="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}"
+                          PreviewMouseRightButtonDown="OnProjectsGridPreviewMouseRightButtonDown"
+                          ContextMenuOpening="OnProjectsGridContextMenuOpening">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="成员配置" Click="OnConfigureMembersClick" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="工厂" Binding="{Binding PlantName}" Width="140" />
                         <DataGridTextColumn Header="PBS根节点" Binding="{Binding PbsRootNodeName}" Width="170" />
@@ -118,6 +125,13 @@
                     <TextBlock Text="项目说明" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputMultiline}"
                              Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <Button Content="成员配置…" Click="OnConfigureMembersClick"
+                            Style="{StaticResource SecondaryButton}" Margin="0,14,0,0" HorizontalAlignment="Left"
+                            Visibility="{Binding CanManageMembers, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="也可在项目列表行上点鼠标右键，选择「成员配置」。"
+                               Visibility="{Binding CanManageMembers, Converter={StaticResource BoolToVis}}" />
 
                     <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
                         <Button Content="保存" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" />

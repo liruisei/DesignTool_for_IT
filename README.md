@@ -108,17 +108,18 @@ dotnet run --project src/WinDesign.DesignClient
 
 | 模块 | 客户端 | 状态 | 说明 |
 |------|--------|------|------|
-| 登录 | 共用 | ✅ | 服务器地址、账号密码、JWT、错误提示、记住服务器/用户名 |
+| 登录 | 共用 | ✅ | 服务器地址、账号密码、JWT、错误提示；**按客户端分别记住上次登录用户名**（首次登录为空）；密码默认掩码，输入框右侧眼睛按钮切换明文/密文 |
 | 客户端拆分 | 共用 | ✅ | 管理 / 设计两个独立 exe，共用登录、会话、API 客户端、设备属性弹窗与主题 |
 | 客户端隔离 | 服务端 | ✅ | 令牌带 `client` 声明；管理接口只接受管理令牌，设计接口只接受设计令牌，跨端调用返回 403 |
 | 管理主界面 | 管理 | ✅ | 左侧系统配置导航；顶部只显示管理模块与用户，不绑定工厂/项目 |
-| 项目配置 | 管理 | ✅ | 项目代号/名称/客户/地点/阶段/日期/状态，列表、搜索、编辑、归档；跨工厂维护并选择所属工厂与**项目 PBS 根节点**（默认工厂根节点/全厂，也可选工厂顶层节点，可被多个项目共用）；编辑栏默认收起，可展开/拖动调宽 |
+| 项目配置 | 管理 | ✅ | 项目代号/名称/客户/地点/阶段/日期/状态，列表、搜索、编辑、归档；跨工厂维护并选择所属工厂与**项目 PBS 根节点**（默认工厂根节点/全厂，也可选工厂顶层节点，可被多个项目共用）；**项目成员管理**（项目行右键「成员配置」：现有成员可改角色/移除，勾选用户清单 + 选择管理/设计/只读后批量授权；项目负责人不可移除或降级）；编辑栏默认收起，可展开/拖动调宽 |
 | 编码定义 | 管理 | ✅ | 编码类型 + 编码项两级维护，系统类型保护；编辑栏默认隐藏，点选编码类型条目弹出类型编辑，点选编码项行弹出编码项编辑（只显示一个）；「收起编辑」位于编辑栏标题行内，不额外占行，可拖动调整宽度 |
-| 用户管理 | 管理 | ✅ | 列表、搜索、新建、编辑、角色分配、重置密码、启用/停用、管理员保护；编辑栏默认收起，可展开/拖动调宽 |
+| 用户管理 | 管理 | ✅ | 列表、搜索、新建、编辑、用户类分配（表格勾选，可多选，权限取并集）、重置密码、启用/停用、管理员保护；**列表直接显示用户类；勾选启用/停用后点「保存」批量提交**；**行右键「修改 / 删除」**；密码输入默认掩码，眼睛按钮切换明文/密文；编辑栏默认收起，可展开/拖动调宽 |
+| 权限管理 | 管理 | ✅ | 固定 Admin / Designer / Viewer 三类，按「模块 × 增删改查」配置各类的**全局权限**；系统管理员类必须保留用户管理-查看/修改；保存后该类用户需重新登录生效 |
 | PBS管理 | 管理 | ✅ | **所有工厂同时作为根节点显示**，可独立展开/折叠；可新建/编辑/删除工厂；区域 → 装置 → 回路 → 设备目录树；右键菜单按层级裁剪 |
 | 工作区选择 | 设计 | ✅ | 登录后先选工厂（PBS 根实体）再选项目；非管理员只看到参与的项目 |
 | 设计主界面 | 设计 | ✅ | 左侧为「项目」「PBS」两个导航组；顶部工厂/项目上下文、切换工作区、刷新、当前用户/角色、退出 |
-| PBS 浏览（设计端） | 设计 | ✅ | 与「项目」同级常驻，只读显示当前项目的 PBS 范围（指定根节点的子树；根节点为空时显示全厂顶层节点）；PBS 维护仍在管理端 |
+| PBS 浏览（设计端） | 设计 | ✅ | 与「项目」同级常驻，显示当前项目的 PBS 范围（指定根节点的子树；根节点为空时显示全厂顶层节点）；装置下固定「设备 / 回路 / 建筑物」分类文件夹，右键可**新增**（设备→设备弹窗，回路/建筑物→装置下建对应 PBS 节点）与**刷新**；其他 PBS 维护仍在管理端 |
 | 切换工作区 | 设计 | ✅ | 工具栏/文件菜单可随时切换工厂或项目（预选当前工作区）；切换前自动保存待提交编辑，成功后关闭并重建当前文档，无需重新登录 |
 | 表单自动保存 | 管理 | ✅ | 项目配置/编码定义/用户管理：编辑已有记录后，点击表单外的任意区域即自动保存；新建记录必须点击「保存」按钮才会创建 |
 | 索引表录入 | 设计 | ✅ | 设备归工厂并纳入当前项目范围；自动显示完整 PBS 路径（区域/装置/回路）；网格浏览、双击属性弹窗、新建/编辑/复制/删除、位号查重与多维过滤；专业为 IT 时回路号不可填写 |
@@ -160,6 +161,8 @@ docker compose up -d
 - `admin`：管理客户端令牌，可调用用户、角色、工厂、项目、编码写入、PBS 写入；
 - `design`：设计客户端令牌，可调用索引/设备、PBS 与编码读取。
 
+令牌中的 `permission` 声明来自用户所属**用户类**的全局权限，权限码为 `module.create/read/update/delete`（如 `equipment.update`）。服务端通过 `[RequirePermission]` 在接口上校验增删改查；**项目成员角色只负责项目准入**，不改变全局 CRUD 权限。用户类权限或成员关系变更后，用户需要重新登录以刷新令牌。
+
 | 方法 | 路径 | 客户端 | 权限 | 说明 |
 |------|------|--------|------|------|
 | POST | `/api/auth/login` | — | 匿名 | 登录，返回 `client=auth` 的身份 JWT |
@@ -175,16 +178,25 @@ docker compose up -d
 | POST/PUT | `/api/users`、`/api/users/{id}` | admin | Admin | 新建/编辑用户 |
 | POST | `/api/users/{id}/reset-password` | admin | Admin | 重置密码 |
 | POST | `/api/users/{id}/toggle-active` | admin | Admin | 启用/停用 |
-| GET | `/api/roles` | admin | 登录 | 角色列表 |
+| DELETE | `/api/users/{id}` | admin | Admin | 删除用户；不能删除当前用户或最后一个启用的管理员；名下项目负责人自动转给当前操作的管理员 |
+| GET | `/api/roles` | admin | 登录 | 用户类（角色）列表 |
+| GET | `/api/roles/{id}/permissions` | admin | 登录 | 用户类当前的全局权限码 |
+| PUT | `/api/roles/{id}/permissions` | admin | Admin | 保存用户类的全局 CRUD 权限；Admin 类必须保留 `users.read` / `users.update` |
 | GET | `/api/projects` | admin | 登录 | 项目列表/搜索 |
 | POST/PUT | `/api/projects`、`/api/projects/{id}` | admin | Admin/Designer | 新建/编辑；`pbsRootNodeId` 为空表示放在工厂根节点（全厂），非空时必须是所属工厂的顶层 PBS 节点 |
 | DELETE | `/api/projects/{id}` | admin | Admin | 归档项目 |
+| GET | `/api/projects/{id}/members` | admin | 登录 | 项目成员列表（负责人排最前） |
+| POST | `/api/projects/{id}/members` | admin | Admin | 添加成员；角色为 `Manager` / `Designer` / `Viewer`（兼容旧 `Owner`，归一为 Manager） |
+| PUT | `/api/projects/{id}/members/{userId}` | admin | Admin | 修改成员角色；项目负责人不可修改 |
+| DELETE | `/api/projects/{id}/members/{userId}` | admin | Admin | 移除成员；项目负责人不可移除 |
+| POST | `/api/projects/{id}/members/bulk` | admin | Admin | 批量授权：一组用户统一授予管理/设计/只读 |
 | GET | `/api/dictionaries/types` | admin/design | 登录 | 编码类型 |
 | POST/PUT/DELETE | `/api/dictionaries/types...` | admin | Admin/Designer | 类型维护 |
 | GET | `/api/dictionaries/types/{code}/items` | admin/design | 登录 | 编码项 |
 | POST/PUT/DELETE | `/api/dictionaries/items...` | admin | Admin/Designer | 编码项维护 |
 | GET | `/api/plants/{id}/pbs` | admin/design | 登录（当前工厂） | PBS 节点（平铺，含设备数） |
 | POST | `/api/plants/{id}/pbs` | admin | Admin/Designer | 新建 PBS 节点（工厂即根节点，不接受 Root 类型） |
+| POST | `/api/units/{id}/pbs-children` | design | Admin/Designer | 设计端在装置下新增分类节点，类型仅限 `Loop` / `Building` |
 | PUT/DELETE | `/api/pbs/{id}` | admin | Admin/Designer | 编辑/删除 PBS 节点 |
 | GET | `/api/projects/{id}/equipments` | design | 登录（当前项目） | 索引表查询，只返回纳入当前项目的设备 |
 | POST | `/api/projects/{id}/equipments` | design | Admin/Designer | 在工厂下新建设备并纳入当前项目 |
@@ -221,7 +233,7 @@ docker compose up -d
 
 ## 10. 测试
 
-已部署三层测试，共 **134 个用例**，全部通过：
+已部署三层测试，共 **166 个用例**，全部通过：
 
 | 项目 | 内容 | 依赖 |
 |------|------|------|

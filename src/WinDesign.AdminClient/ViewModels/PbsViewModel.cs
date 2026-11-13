@@ -49,6 +49,7 @@ public partial class PbsNodeItem : ObservableObject
                 "Area" => "▦",
                 "Unit" => "▣",
                 "Loop" => "◇",
+                "Building" => "▤",
                 "System" => "◇",
                 "SubSystem" => "·",
                 _ => "·"
@@ -84,6 +85,7 @@ public partial class PbsViewModel : ViewModelBase
         new PbsNodeTypeOption("Area", "区域"),
         new PbsNodeTypeOption("Unit", "装置"),
         new PbsNodeTypeOption("Loop", "回路"),
+        new PbsNodeTypeOption("Building", "建筑物"),
         new PbsNodeTypeOption("System", "系统"),
         new PbsNodeTypeOption("SubSystem", "子系统")
     };

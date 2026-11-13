@@ -22,5 +22,6 @@ public enum PbsNodeType
     System = 3,
     SubSystem = 4,
     Equipment = 5,
-    Loop = 6
+    Loop = 6,
+    Building = 7
 }

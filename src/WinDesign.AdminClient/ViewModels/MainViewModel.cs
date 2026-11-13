@@ -85,6 +85,13 @@ public partial class MainViewModel : ObservableObject
             Glyph = "●",
             Open = OpenUsers
         });
+        system.Children.Add(new ExplorerNode
+        {
+            Key = "user-classes",
+            Title = "权限管理",
+            Glyph = "◈",
+            Open = OpenUserClasses
+        });
         ExplorerNodes.Add(system);
     }
 
@@ -104,6 +111,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenUsers() =>
         OpenDocument("users", "用户管理", () => new UserManagementViewModel(_session));
+
+    [RelayCommand]
+    private void OpenUserClasses() =>
+        OpenDocument("user-classes", "权限管理", () => new UserClassViewModel(_session));
 
     public void OpenExplorerNode(ExplorerNode? node) => node?.Open?.Invoke();
 

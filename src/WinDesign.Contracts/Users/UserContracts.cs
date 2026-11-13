@@ -10,7 +10,11 @@ public sealed record UserDto(
     bool IsSystemAdmin,
     IReadOnlyList<string> Roles,
     DateTime CreatedAt,
-    DateTime? LastLoginAt);
+    DateTime? LastLoginAt)
+{
+    /// <summary>用户类展示文本，例如 "Admin / Designer"。</summary>
+    public string RolesText => Roles is { Count: > 0 } ? string.Join(" / ", Roles) : string.Empty;
+}
 
 public sealed record CreateUserRequest(
     string UserName,

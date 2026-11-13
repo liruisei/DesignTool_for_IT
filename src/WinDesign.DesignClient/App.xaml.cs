@@ -19,7 +19,7 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         var session = new SessionService();
-        var settings = SettingsService.Load();
+        var settings = SettingsService.Load("design");
 
         while (true)
         {
@@ -32,7 +32,7 @@ public partial class App : Application
             }
 
             settings = new AppSettings(session.Api.BaseUrl, session.User?.UserName ?? settings.UserName);
-            SettingsService.Save(settings);
+            SettingsService.Save("design", settings);
 
             // 登录成功后必须先选择工作区：工厂（PBS 根节点）→ 项目。
             var workspaceSelected = false;

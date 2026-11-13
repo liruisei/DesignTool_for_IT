@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Domain;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
@@ -25,6 +26,7 @@ public sealed class PbsController : ApiControllerBase
 
     [HttpGet("plants/{plantId:guid}/pbs")]
     [Authorize(Policy = AuthorizationPolicies.ClientAccess)]
+    [RequirePermission("pbs.read")]
     public async Task<ActionResult<IReadOnlyList<PbsNodeDto>>> Get(Guid plantId, CancellationToken ct)
     {
         if (EnsureWorkspacePlant(plantId) is ActionResult denied)
@@ -90,6 +92,7 @@ public sealed class PbsController : ApiControllerBase
     [HttpPost("plants/{plantId:guid}/pbs")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("pbs.create")]
     public async Task<ActionResult<PbsNodeDto>> Create(
         Guid plantId,
         [FromBody] CreatePbsNodeRequest request,
@@ -146,9 +149,77 @@ public sealed class PbsController : ApiControllerBase
         return Ok(ToDto(node, 0, 0));
     }
 
+    /// <summary>
+    /// 设计端在装置的「回路」「建筑物」分类文件夹上右键新增。
+    /// 该接口只允许创建 Loop / Building 两类子节点，PBS 的其他维护仍走管理端。
+    /// </summary>
+    [HttpPost("units/{unitId:guid}/pbs-children")]
+    [Authorize(Policy = AuthorizationPolicies.DesignClient)]
+    [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("pbs.create")]
+    public async Task<ActionResult<PbsNodeDto>> CreateUnitChild(
+        Guid unitId,
+        [FromBody] CreateUnitChildRequest request,
+        CancellationToken ct)
+    {
+        var unit = await _db.PbsNodes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == unitId, ct);
+        if (unit is null)
+        {
+            return NotFound(new ApiError("装置不存在"));
+        }
+        if (EnsureWorkspacePlant(unit.PlantId) is ActionResult denied)
+        {
+            return denied;
+        }
+        if (unit.NodeType != PbsNodeType.Unit)
+        {
+            return BadRequest(new ApiError("只能在装置下新增回路或建筑物"));
+        }
+        if (!Enum.TryParse<PbsNodeType>(request.NodeType, true, out var nodeType) ||
+            nodeType is not (PbsNodeType.Loop or PbsNodeType.Building))
+        {
+            return BadRequest(new ApiError("只能新增回路或建筑物"));
+        }
+
+        var code = request.Code.Trim();
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name))
+        {
+            return BadRequest(new ApiError("编码和名称不能为空"));
+        }
+        if (await _db.PbsNodes.AnyAsync(x => x.PlantId == unit.PlantId && x.Code == code, ct))
+        {
+            return Conflict(new ApiError("编码已存在"));
+        }
+
+        var maxSort = await _db.PbsNodes
+            .Where(x => x.ParentId == unitId)
+            .Select(x => (int?)x.SortOrder)
+            .MaxAsync(ct);
+
+        var node = new PbsNode
+        {
+            PlantId = unit.PlantId,
+            ParentId = unitId,
+            Code = code,
+            Name = request.Name.Trim(),
+            NodeType = nodeType,
+            SortOrder = (maxSort ?? 0) + 1,
+            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim()
+        };
+        _db.PbsNodes.Add(node);
+        _db.AddAudit(CurrentUserId, CurrentUserName, "Create", "PbsNode", node.Id.ToString(),
+            $"{nodeType} {code} {node.Name}");
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(ToDto(node, 0, 0));
+    }
+
     [HttpPut("pbs/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("pbs.update")]
     public async Task<ActionResult<PbsNodeDto>> Update(
         Guid id,
         [FromBody] UpdatePbsNodeRequest request,
@@ -221,6 +292,7 @@ public sealed class PbsController : ApiControllerBase
     [HttpDelete("pbs/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("pbs.delete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var node = await _db.PbsNodes.SingleOrDefaultAsync(x => x.Id == id, ct);

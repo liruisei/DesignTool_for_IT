@@ -180,9 +180,9 @@
                                   ContextMenuOpening="OnPbsExplorerContextMenuOpening">
                             <TreeView.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="新增设备" Command="{Binding AddEquipmentCommand}"
-                                              Visibility="{Binding IsEquipmentFolderSelected, Converter={StaticResource BoolToVis}}" />
-                                    <Separator Visibility="{Binding IsEquipmentFolderSelected, Converter={StaticResource BoolToVis}}" />
+                                    <MenuItem Header="新增" Command="{Binding AddCategoryItemCommand}"
+                                              Visibility="{Binding IsCategoryFolderSelected, Converter={StaticResource BoolToVis}}" />
+                                    <Separator Visibility="{Binding IsCategoryFolderSelected, Converter={StaticResource BoolToVis}}" />
                                     <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
                                 </ContextMenu>
                             </TreeView.ContextMenu>

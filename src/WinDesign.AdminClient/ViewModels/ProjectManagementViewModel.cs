@@ -5,10 +5,28 @@ using CommunityToolkit.Mvvm.Input;
 using WinDesign.Client.Services;
 using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
+using WinDesign.Contracts.Users;
 
 namespace WinDesign.AdminClient.ViewModels;
 
 public sealed record StatusOption(string Code, string Name);
+
+/// <summary>授权用户清单中的一行：用户名 + 勾选状态。</summary>
+public partial class UserSelectionItem : ObservableObject
+{
+    public UserSelectionItem(UserDto user)
+    {
+        User = user;
+    }
+
+    public UserDto User { get; }
+    public Guid UserId => User.Id;
+    public string UserName => User.UserName;
+    public string DisplayName => User.DisplayName;
+
+    [ObservableProperty]
+    private bool isSelected;
+}
 
 public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
 {
@@ -84,6 +102,36 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
     [ObservableProperty]
     private string? statusMessage;
 
+    // ---------- 项目成员 ----------
+
+    public ObservableCollection<ProjectMemberDto> Members { get; } = new();
+
+    /// <summary>授权用户清单：启用状态的用户，勾选后统一授予所选项目角色。</summary>
+    public ObservableCollection<UserSelectionItem> UserSelectionItems { get; } = new();
+
+    public IReadOnlyList<ProjectRoleOptionDto> MemberRoleOptions => ProjectRoleCatalog.Options;
+
+    private readonly List<UserDto> _allUsers = new();
+
+    [ObservableProperty]
+    private ProjectMemberDto? selectedMember;
+
+    [ObservableProperty]
+    private string editMemberRole = ProjectRoleCatalog.Designer;
+
+    /// <summary>批量授权时使用的项目角色。</summary>
+    [ObservableProperty]
+    private string grantRole = ProjectRoleCatalog.Designer;
+
+    /// <summary>只有已保存的项目才能分配成员；新建未保存的项目没有 Id。</summary>
+    public bool CanManageMembers => !IsCreating && SelectedProject is not null;
+
+    /// <summary>项目负责人不能被移除或降级，界面据此禁用编辑按钮。</summary>
+    public bool CanEditSelectedMember =>
+        SelectedMember is not null &&
+        SelectedProject is not null &&
+        SelectedMember.UserId != SelectedProject.OwnerUserId;
+
     public string PlantName => IsManagementMode ? "全部工厂" : _session.Plant?.Name ?? "未选择工厂";
     public bool IsManagementMode => _session.IsManagementMode;
     /// <summary>管理模块新建项目时需要选择所属工厂；编辑已有项目不允许改工厂。</summary>
@@ -102,8 +150,17 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         {
             await LoadPlantsAsync();
         }
+        await LoadUsersAsync();
         await LoadProjectsAsync();
     });
+
+    private async Task LoadUsersAsync()
+    {
+        var result = await _session.Api.GetUsersAsync(null, 1, 200);
+        _allUsers.Clear();
+        _allUsers.AddRange(result.Items);
+        RefreshUserSelectionItems();
+    }
 
     private async Task LoadPlantsAsync()
     {
@@ -154,6 +211,10 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         EditDescription = string.Empty;
         SelectedPbsRoot = null;
         EditPbsRootNodeId = null;
+        SelectedMember = null;
+        Members.Clear();
+        ClearUserSelection();
+        OnPropertyChanged(nameof(CanManageMembers));
         _ = LoadPbsRootOptionsAsync(SelectedPlant?.Id ?? _session.PlantId, null);
         StatusMessage = null;
     }
@@ -238,6 +299,155 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         await LoadProjectsAsync();
     });
 
+    // ---------- 项目成员 ----------
+
+    /// <summary>勾选用户 → 选择角色 → 确认授权（批量）。</summary>
+    [RelayCommand]
+    private Task GrantMembers() => RunAsync(async () =>
+    {
+        if (SelectedProject is null)
+        {
+            throw new ApiException("请先选择项目");
+        }
+
+        var userIds = UserSelectionItems
+            .Where(x => x.IsSelected)
+            .Select(x => x.UserId)
+            .ToList();
+        if (userIds.Count == 0)
+        {
+            throw new ApiException("请至少勾选一个用户");
+        }
+
+        var members = await _session.Api.BulkGrantProjectMembersAsync(
+            SelectedProject.Id,
+            new BulkGrantProjectMembersRequest(userIds, GrantRole));
+
+        Members.Clear();
+        foreach (var member in members)
+        {
+            Members.Add(member);
+        }
+        SelectedMember = null;
+        ClearUserSelection();
+        StatusMessage = $"已授权 {userIds.Count} 个用户；项目角色：{ProjectRoleCatalog.DisplayName(GrantRole)}";
+    });
+
+    [RelayCommand]
+    private void SelectAllUsers()
+    {
+        foreach (var item in UserSelectionItems)
+        {
+            item.IsSelected = true;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearUserSelection()
+    {
+        foreach (var item in UserSelectionItems)
+        {
+            item.IsSelected = false;
+        }
+    }
+
+    [RelayCommand]
+    private Task UpdateMemberRole() => RunAsync(async () =>
+    {
+        if (SelectedProject is null || SelectedMember is null)
+        {
+            throw new ApiException("请先选择项目成员");
+        }
+
+        var updated = await _session.Api.UpdateProjectMemberAsync(
+            SelectedProject.Id,
+            SelectedMember.UserId,
+            new UpsertProjectMemberRequest(SelectedMember.UserId, EditMemberRole));
+        var index = Members.IndexOf(SelectedMember);
+        if (index >= 0)
+        {
+            Members[index] = updated;
+            SelectedMember = updated;
+        }
+        StatusMessage = $"已更新 {updated.DisplayName} 的项目角色";
+    });
+
+    [RelayCommand]
+    private Task RemoveMember() => RunAsync(async () =>
+    {
+        if (SelectedProject is null || SelectedMember is null)
+        {
+            throw new ApiException("请先选择项目成员");
+        }
+
+        var removed = SelectedMember;
+        await _session.Api.RemoveProjectMemberAsync(SelectedProject.Id, removed.UserId);
+        Members.Remove(removed);
+        SelectedMember = null;
+        StatusMessage = $"已移除成员：{removed.DisplayName}";
+    });
+
+    /// <summary>打开成员配置弹窗前刷新用户与成员列表，避免显示过期数据。</summary>
+    public Task ReloadMembersAsync() => RunAsync(async () =>
+    {
+        await LoadUsersAsync();
+        if (SelectedProject is { } project)
+        {
+            await LoadMembersAsync(project);
+        }
+    });
+
+    private async Task LoadMembersAsync(ProjectDto project)
+    {
+        try
+        {
+            var members = await _session.Api.GetProjectMembersAsync(project.Id);
+            if (SelectedProject?.Id != project.Id)
+            {
+                // 加载期间已切换到其他项目，丢弃过期结果。
+                return;
+            }
+
+            Members.Clear();
+            foreach (var member in members)
+            {
+                Members.Add(member);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (SelectedProject?.Id == project.Id)
+            {
+                ErrorMessage = "加载项目成员失败：" + ex.Message;
+            }
+        }
+    }
+
+    private void RefreshUserSelectionItems()
+    {
+        var selectedIds = UserSelectionItems
+            .Where(x => x.IsSelected)
+            .Select(x => x.UserId)
+            .ToHashSet();
+
+        UserSelectionItems.Clear();
+        foreach (var user in _allUsers
+                     .Where(x => x.IsActive)
+                     .OrderBy(x => x.UserName, StringComparer.OrdinalIgnoreCase))
+        {
+            UserSelectionItems.Add(new UserSelectionItem(user)
+            {
+                IsSelected = selectedIds.Contains(user.Id)
+            });
+        }
+    }
+
+    partial void OnSelectedMemberChanged(ProjectMemberDto? value)
+    {
+        EditMemberRole = ProjectRoleCatalog.Normalize(value?.RoleInProject);
+        OnPropertyChanged(nameof(CanEditSelectedMember));
+    }
+
     partial void OnSelectedProjectChanged(ProjectDto? value)
     {
         if (value is null)
@@ -248,6 +458,7 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         IsCreating = false;
         EditorTitle = "编辑项目：" + value.Code;
         OnPropertyChanged(nameof(CanSelectPlant));
+        OnPropertyChanged(nameof(CanManageMembers));
         EditCode = value.Code;
         EditName = value.Name;
         EditClient = value.ClientName ?? string.Empty;
@@ -258,7 +469,10 @@ public partial class ProjectManagementViewModel : ViewModelBase, IPendingChanges
         EditStatus = value.Status;
         EditDescription = value.Description ?? string.Empty;
         EditPbsRootNodeId = value.PbsRootNodeId;
+        SelectedMember = null;
+        Members.Clear();
         _ = ApplySelectedProjectAsync(value);
+        _ = LoadMembersAsync(value);
         StatusMessage = null;
     }
 

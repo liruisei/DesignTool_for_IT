@@ -17,9 +17,9 @@ public class AdminMainViewModelTests
         var system = Assert.Single(viewModel.ExplorerNodes);
         Assert.Equal("system", system.Key);
 
-        // 导航顺序：PBS管理 → 项目配置 → 编码管理 → 用户管理
+        // 导航顺序：PBS管理 → 项目配置 → 编码管理 → 用户管理 → 权限管理
         Assert.Equal(
-            new[] { "pbs", "project-config", "dictionaries", "users" },
+            new[] { "pbs", "project-config", "dictionaries", "users", "user-classes" },
             system.Children.Select(x => x.Key));
         Assert.Equal("编码管理", system.Children.Single(x => x.Key == "dictionaries").Title);
 

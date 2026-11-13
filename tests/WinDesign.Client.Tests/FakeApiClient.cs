@@ -5,6 +5,7 @@ using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Materials;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Users;
@@ -109,6 +110,10 @@ public sealed class FakeApiClient : IApiClient
     public List<MaterialItemDto> Materials { get; } = new();
     public List<DictionaryItemDto> EquipmentTypes { get; } = new();
     public List<DictionaryTypeDto> DictionaryTypes { get; } = new();
+    public List<ProjectMemberDto> ProjectMembers { get; } = new();
+    public List<UserDto> Users { get; } = new();
+    public List<RoleDto> Roles { get; } = new();
+    public Dictionary<Guid, List<string>> RolePermissionCodes { get; } = new();
 
     public void Configure(string baseUrl) => BaseUrl = baseUrl;
 
@@ -222,8 +227,15 @@ public sealed class FakeApiClient : IApiClient
     public Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default) =>
         Task.FromResult(new DashboardDto(0, 1, 0, 0, new[] { Project }));
 
-    public Task<PagedResult<UserDto>> GetUsersAsync(string? search, int page = 1, int pageSize = 200, CancellationToken ct = default) =>
-        Task.FromResult(new PagedResult<UserDto>(Array.Empty<UserDto>(), 0, page, pageSize));
+    public Task<PagedResult<UserDto>> GetUsersAsync(string? search, int page = 1, int pageSize = 200, CancellationToken ct = default)
+    {
+        var items = Users
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        x.UserName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        x.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        return Task.FromResult(new PagedResult<UserDto>(items, items.Count, page, pageSize));
+    }
 
     public Task<UserDto> CreateUserAsync(CreateUserRequest request, CancellationToken ct = default) =>
         throw new NotSupportedException();
@@ -234,11 +246,45 @@ public sealed class FakeApiClient : IApiClient
     public Task ResetPasswordAsync(Guid id, string newPassword, CancellationToken ct = default) =>
         throw new NotSupportedException();
 
-    public Task<UserDto> ToggleUserActiveAsync(Guid id, CancellationToken ct = default) =>
-        throw new NotSupportedException();
+    public Task DeleteUserAsync(Guid id, CancellationToken ct = default)
+    {
+        Users.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task<UserDto> ToggleUserActiveAsync(Guid id, CancellationToken ct = default)
+    {
+        var index = Users.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("用户不存在");
+        }
+
+        var updated = Users[index] with { IsActive = !Users[index].IsActive };
+        Users[index] = updated;
+        return Task.FromResult(updated);
+    }
 
     public Task<IReadOnlyList<RoleDto>> GetRolesAsync(CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<RoleDto>>(Array.Empty<RoleDto>());
+        Task.FromResult<IReadOnlyList<RoleDto>>(Roles.ToList());
+
+    public Task<RolePermissionDto> GetRolePermissionsAsync(Guid roleId, CancellationToken ct = default)
+    {
+        var code = Roles.FirstOrDefault(x => x.Id == roleId)?.Code ?? "Unknown";
+        var codes = RolePermissionCodes.TryGetValue(roleId, out var existing)
+            ? existing.ToList()
+            : new List<string>();
+        return Task.FromResult(new RolePermissionDto(roleId, code, codes));
+    }
+
+    public Task<RolePermissionDto> UpdateRolePermissionsAsync(
+        Guid roleId,
+        IReadOnlyList<string> permissionCodes,
+        CancellationToken ct = default)
+    {
+        RolePermissionCodes[roleId] = permissionCodes.ToList();
+        return GetRolePermissionsAsync(roleId, ct);
+    }
 
     public Task<PagedResult<ProjectDto>> GetProjectsAsync(string? search = null, string? status = null, CancellationToken ct = default) =>
         Task.FromResult(new PagedResult<ProjectDto>(new[] { Project }, 1, 1, 200));
@@ -268,6 +314,68 @@ public sealed class FakeApiClient : IApiClient
 
     public Task ArchiveProjectAsync(Guid id, CancellationToken ct = default) =>
         throw new NotSupportedException();
+
+    public Task<IReadOnlyList<ProjectMemberDto>> GetProjectMembersAsync(Guid projectId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ProjectMemberDto>>(ProjectMembers.ToList());
+
+    public Task<ProjectMemberDto> AddProjectMemberAsync(
+        Guid projectId,
+        UpsertProjectMemberRequest request,
+        CancellationToken ct = default)
+    {
+        var user = Users.Single(x => x.Id == request.UserId);
+        var member = new ProjectMemberDto(
+            user.Id, user.UserName, user.DisplayName, request.RoleInProject, user.IsActive);
+        ProjectMembers.Add(member);
+        return Task.FromResult(member);
+    }
+
+    public Task<ProjectMemberDto> UpdateProjectMemberAsync(
+        Guid projectId,
+        Guid userId,
+        UpsertProjectMemberRequest request,
+        CancellationToken ct = default)
+    {
+        var index = ProjectMembers.FindIndex(x => x.UserId == userId);
+        if (index < 0)
+        {
+            throw new ApiException("该用户不是项目成员");
+        }
+
+        var updated = ProjectMembers[index] with { RoleInProject = request.RoleInProject };
+        ProjectMembers[index] = updated;
+        return Task.FromResult(updated);
+    }
+
+    public Task RemoveProjectMemberAsync(Guid projectId, Guid userId, CancellationToken ct = default)
+    {
+        ProjectMembers.RemoveAll(x => x.UserId == userId);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ProjectMemberDto>> BulkGrantProjectMembersAsync(
+        Guid projectId,
+        BulkGrantProjectMembersRequest request,
+        CancellationToken ct = default)
+    {
+        foreach (var userId in request.UserIds.Distinct())
+        {
+            var user = Users.Single(x => x.Id == userId);
+            var index = ProjectMembers.FindIndex(x => x.UserId == userId);
+            var member = new ProjectMemberDto(
+                user.Id, user.UserName, user.DisplayName, request.RoleInProject, user.IsActive);
+            if (index < 0)
+            {
+                ProjectMembers.Add(member);
+            }
+            else
+            {
+                ProjectMembers[index] = member;
+            }
+        }
+
+        return Task.FromResult<IReadOnlyList<ProjectMemberDto>>(ProjectMembers.ToList());
+    }
 
     public Task<IReadOnlyList<DictionaryTypeDto>> GetDictionaryTypesAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<DictionaryTypeDto>>(DictionaryTypes);
@@ -333,6 +441,23 @@ public sealed class FakeApiClient : IApiClient
     {
         PbsNodes.RemoveAll(x => x.Id == id);
         return Task.CompletedTask;
+    }
+
+    /// <summary>设计端在装置下新增回路 / 建筑物的调用记录。</summary>
+    public List<(Guid UnitId, CreateUnitChildRequest Request)> UnitChildren { get; } = new();
+
+    public Task<PbsNodeDto> CreateUnitChildAsync(
+        Guid unitId,
+        CreateUnitChildRequest request,
+        CancellationToken ct = default)
+    {
+        var unit = PbsNodes.Single(x => x.Id == unitId);
+        var dto = new PbsNodeDto(
+            Guid.NewGuid(), unit.PlantId, unitId, request.Code, request.Name,
+            request.NodeType, 99, request.Description, 0, 0);
+        PbsNodes.Add(dto);
+        UnitChildren.Add((unitId, request));
+        return Task.FromResult(dto);
     }
 
     public Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(

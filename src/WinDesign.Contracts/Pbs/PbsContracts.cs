@@ -27,3 +27,13 @@ public sealed record UpdatePbsNodeRequest(
     string NodeType,
     int SortOrder,
     string? Description);
+
+/// <summary>
+/// 设计端在装置下新增分类节点（回路 / 建筑物）。
+/// 父节点由路由中的装置决定，类型只允许 Loop 与 Building。
+/// </summary>
+public sealed record CreateUnitChildRequest(
+    string Code,
+    string Name,
+    string NodeType,
+    string? Description);

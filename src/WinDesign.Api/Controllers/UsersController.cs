@@ -1,8 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
+using WinDesign.Contracts.Permissions;
+using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Users;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
@@ -22,6 +24,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpGet]
+    [RequirePermission("users.read")]
     public async Task<ActionResult<PagedResult<UserDto>>> Get(
         [FromQuery] string? search,
         [FromQuery] int page = 1,
@@ -53,6 +56,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("users.read")]
     public async Task<ActionResult<UserDto>> GetById(Guid id, CancellationToken ct)
     {
         var user = await _db.Users
@@ -65,6 +69,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPost]
+    [RequirePermission("users.create")]
     public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserRequest request, CancellationToken ct)
     {
         var userName = request.UserName.Trim();
@@ -109,6 +114,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequirePermission("users.update")]
     public async Task<ActionResult<UserDto>> Update(Guid id, [FromBody] UpdateUserRequest request, CancellationToken ct)
     {
         var user = await _db.Users
@@ -157,7 +163,80 @@ public sealed class UsersController : ApiControllerBase
         return Ok(ToDto(user));
     }
 
+    /// <summary>
+    /// 删除用户。当前用户和最后一个启用的管理员不能被删除。
+    /// 该用户名下的项目负责人自动转给当前操作的管理员，并补授该管理员「管理」项目角色。
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [RequirePermission("users.delete")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        if (id == CurrentUserId)
+        {
+            return BadRequest(new ApiError("不能删除当前登录用户"));
+        }
+
+        var user = await _db.Users
+            .Include(x => x.UserRoles)
+                .ThenInclude(x => x.Role)
+            .SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (user is null)
+        {
+            return NotFound(new ApiError("用户不存在"));
+        }
+
+        var isActiveAdmin = user.IsActive &&
+                            user.UserRoles.Any(x => string.Equals(x.Role.Code, "Admin", StringComparison.OrdinalIgnoreCase));
+        if (isActiveAdmin && !await HasAnotherActiveAdminAsync(id, ct))
+        {
+            return BadRequest(new ApiError("系统至少保留一个启用的管理员"));
+        }
+
+        // 项目负责人转给当前操作的管理员；同时保证其成为该项目的「管理」成员。
+        var ownedProjects = await _db.Projects
+            .Where(x => x.OwnerUserId == id)
+            .ToListAsync(ct);
+        foreach (var project in ownedProjects)
+        {
+            project.OwnerUserId = CurrentUserId;
+            project.UpdatedAt = DateTime.UtcNow;
+
+            var newOwner = await _db.ProjectMembers
+                .SingleOrDefaultAsync(x => x.ProjectId == project.Id && x.UserId == CurrentUserId, ct);
+            if (newOwner is null)
+            {
+                _db.ProjectMembers.Add(new ProjectMember
+                {
+                    ProjectId = project.Id,
+                    UserId = CurrentUserId,
+                    RoleInProject = ProjectRoleCatalog.Manager
+                });
+            }
+            else
+            {
+                newOwner.RoleInProject = ProjectRoleCatalog.Manager;
+            }
+        }
+
+        var memberships = await _db.ProjectMembers
+            .Where(x => x.UserId == id)
+            .ToListAsync(ct);
+        _db.ProjectMembers.RemoveRange(memberships);
+        _db.UserRoles.RemoveRange(user.UserRoles);
+        _db.Users.Remove(user);
+
+        _db.AddAudit(CurrentUserId, CurrentUserName, "Delete", "User", id.ToString(), user.UserName);
+        if (ownedProjects.Count > 0)
+        {
+            _db.AddAudit(CurrentUserId, CurrentUserName, "TransferProjects", "User", id.ToString(),
+                user.UserName + " → " + CurrentUserName + "：" + string.Join("、", ownedProjects.Select(x => x.Code)));
+        }
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/reset-password")]
+    [RequirePermission("users.update")]
     public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
@@ -179,6 +258,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPost("{id:guid}/toggle-active")]
+    [RequirePermission("users.update")]
     public async Task<ActionResult<UserDto>> ToggleActive(Guid id, CancellationToken ct)
     {
         if (id == CurrentUserId)

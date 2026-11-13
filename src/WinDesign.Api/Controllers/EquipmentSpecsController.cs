@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
 
@@ -25,6 +26,7 @@ public sealed class EquipmentSpecsController : ApiControllerBase
     }
 
     [HttpGet("projects/{projectId:guid}/specs")]
+    [RequirePermission("specs.read")]
     public async Task<ActionResult<PagedResult<EquipmentSpecDto>>> Get(
         Guid projectId,
         [FromQuery] string? search,
@@ -85,6 +87,7 @@ public sealed class EquipmentSpecsController : ApiControllerBase
 
     [HttpPost("equipments/{equipmentId:guid}/specs")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("specs.create")]
     public async Task<ActionResult<EquipmentSpecDto>> Create(
         Guid equipmentId,
         [FromBody] EquipmentSpecUpsertRequest request,
@@ -135,6 +138,7 @@ public sealed class EquipmentSpecsController : ApiControllerBase
 
     [HttpPut("specs/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("specs.update")]
     public async Task<ActionResult<EquipmentSpecDto>> Update(
         Guid id,
         [FromBody] EquipmentSpecUpsertRequest request,
@@ -182,6 +186,7 @@ public sealed class EquipmentSpecsController : ApiControllerBase
 
     [HttpDelete("specs/{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("specs.delete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var spec = await _db.EquipmentSpecs.Include(x => x.Equipment)

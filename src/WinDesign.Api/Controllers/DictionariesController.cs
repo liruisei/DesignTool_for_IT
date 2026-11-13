@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Dictionaries;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
 
@@ -21,6 +22,7 @@ public sealed class DictionariesController : ApiControllerBase
 
     [HttpGet("types")]
     [Authorize(Policy = AuthorizationPolicies.ClientAccess)]
+    [RequirePermission("dictionaries.read")]
     public async Task<ActionResult<IReadOnlyList<DictionaryTypeDto>>> GetTypes(CancellationToken ct)
     {
         var types = await _db.DictionaryTypes
@@ -36,6 +38,7 @@ public sealed class DictionariesController : ApiControllerBase
     [HttpPost("types")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("dictionaries.create")]
     public async Task<ActionResult<DictionaryTypeDto>> CreateType(
         [FromBody] CreateDictionaryTypeRequest request,
         CancellationToken ct)
@@ -66,6 +69,7 @@ public sealed class DictionariesController : ApiControllerBase
     [HttpPut("types/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("dictionaries.update")]
     public async Task<ActionResult<DictionaryTypeDto>> UpdateType(
         Guid id,
         [FromBody] UpdateDictionaryTypeRequest request,
@@ -90,6 +94,7 @@ public sealed class DictionariesController : ApiControllerBase
     [HttpDelete("types/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin")]
+    [RequirePermission("dictionaries.delete")]
     public async Task<IActionResult> DeleteType(Guid id, CancellationToken ct)
     {
         var type = await _db.DictionaryTypes.Include(x => x.Items)
@@ -112,6 +117,7 @@ public sealed class DictionariesController : ApiControllerBase
 
     [HttpGet("types/{typeCode}/items")]
     [Authorize(Policy = AuthorizationPolicies.ClientAccess)]
+    [RequirePermission("dictionaries.read")]
     public async Task<ActionResult<IReadOnlyList<DictionaryItemDto>>> GetItems(
         string typeCode,
         [FromQuery] bool includeInactive = true,
@@ -140,6 +146,7 @@ public sealed class DictionariesController : ApiControllerBase
     [HttpPost("types/{typeCode}/items")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("dictionaries.create")]
     public async Task<ActionResult<DictionaryItemDto>> CreateItem(
         string typeCode,
         [FromBody] CreateDictionaryItemRequest request,
@@ -179,6 +186,7 @@ public sealed class DictionariesController : ApiControllerBase
     [HttpPut("items/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("dictionaries.update")]
     public async Task<ActionResult<DictionaryItemDto>> UpdateItem(
         Guid id,
         [FromBody] UpdateDictionaryItemRequest request,
@@ -213,6 +221,7 @@ public sealed class DictionariesController : ApiControllerBase
     [HttpDelete("items/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("dictionaries.delete")]
     public async Task<IActionResult> DeleteItem(Guid id, CancellationToken ct)
     {
         var item = await _db.DictionaryItems.Include(x => x.Type)

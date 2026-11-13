@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Domain;
 using WinDesign.Domain.Entities;
 
@@ -13,31 +14,14 @@ public static class DatabaseSeeder
             return;
         }
 
-        var permissionDefs = new (string Code, string Name, string Module)[]
-        {
-            ("users.read", "查看用户", "用户管理"),
-            ("users.write", "维护用户", "用户管理"),
-            ("projects.read", "查看项目", "项目管理"),
-            ("projects.write", "维护项目", "项目管理"),
-            ("dictionaries.read", "查看编码定义", "编码定义"),
-            ("dictionaries.write", "维护编码定义", "编码定义"),
-            ("pbs.read", "查看 PBS", "PBS管理"),
-            ("pbs.write", "维护 PBS", "PBS管理"),
-            ("equipment.read", "查看设备索引", "设备索引"),
-            ("equipment.write", "维护设备索引", "设备索引"),
-            ("specs.read", "查看设备规格", "设备规格"),
-            ("specs.write", "维护设备规格", "设备规格"),
-            ("materials.read", "查看材料附件", "材料附件"),
-            ("materials.write", "维护材料附件", "材料附件"),
-            ("reports.read", "查看报表", "报表输出")
-        };
-
-        var permissions = permissionDefs.Select(p => new Permission
-        {
-            Code = p.Code,
-            Name = p.Name,
-            Module = p.Module
-        }).ToList();
+        var permissions = PermissionCatalog.Modules
+            .SelectMany(module => PermissionCatalog.Actions.Select(action => new Permission
+            {
+                Code = PermissionCatalog.Code(module.Code, action.Code),
+                Name = PermissionCatalog.DisplayName(module.Code, action.Code),
+                Module = module.Name
+            }))
+            .ToList();
         db.Permissions.AddRange(permissions);
 
         var adminRole = new Role { Code = "Admin", Name = "系统管理员", Description = "全部权限", IsSystem = true };
@@ -45,20 +29,11 @@ public static class DatabaseSeeder
         var viewerRole = new Role { Code = "Viewer", Name = "只读用户", Description = "只读访问", IsSystem = true };
         db.Roles.AddRange(adminRole, designerRole, viewerRole);
 
-        var designerCodes = new HashSet<string>
-        {
-            "projects.read", "projects.write",
-            "dictionaries.read",
-            "pbs.read", "pbs.write",
-            "equipment.read", "equipment.write",
-            "specs.read", "specs.write",
-            "materials.read", "materials.write",
-            "reports.read"
-        };
         foreach (var permission in permissions)
         {
             db.RolePermissions.Add(new RolePermission { RoleId = adminRole.Id, PermissionId = permission.Id });
-            if (designerCodes.Contains(permission.Code))
+
+            if (IsDesignerDefault(permission.Code))
             {
                 db.RolePermissions.Add(new RolePermission { RoleId = designerRole.Id, PermissionId = permission.Id });
             }
@@ -150,11 +125,11 @@ public static class DatabaseSeeder
         };
         db.Projects.AddRange(project1, project2, project3);
         db.ProjectMembers.AddRange(
-            new ProjectMember { ProjectId = project1.Id, UserId = admin.Id, RoleInProject = "Owner" },
+            new ProjectMember { ProjectId = project1.Id, UserId = admin.Id, RoleInProject = "Manager" },
             new ProjectMember { ProjectId = project1.Id, UserId = designer.Id, RoleInProject = "Designer" },
             new ProjectMember { ProjectId = project1.Id, UserId = viewer.Id, RoleInProject = "Viewer" },
-            new ProjectMember { ProjectId = project2.Id, UserId = designer.Id, RoleInProject = "Owner" },
-            new ProjectMember { ProjectId = project3.Id, UserId = designer.Id, RoleInProject = "Owner" });
+            new ProjectMember { ProjectId = project2.Id, UserId = designer.Id, RoleInProject = "Manager" },
+            new ProjectMember { ProjectId = project3.Id, UserId = designer.Id, RoleInProject = "Manager" });
 
         // PBS 节点归工厂；根节点由工厂本身承载，不再单独建 Root 节点。
         var area = new PbsNode { PlantId = plantA.Id, Code = "AREA-A", Name = "A 区", NodeType = PbsNodeType.Area, SortOrder = 1 };
@@ -267,5 +242,152 @@ public static class DatabaseSeeder
         });
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// 幂等升级权限数据：补齐 CRUD 权限、把旧的 module.write 映射为增/改/删、
+    /// 并把历史项目成员角色 Owner 归一为 Manager。不修改表结构，可在 EnsureCreated 后每次启动执行。
+    /// </summary>
+    public static async Task EnsurePermissionCatalogAsync(WinDesignDbContext db, CancellationToken ct = default)
+    {
+        var permissions = await db.Permissions.ToListAsync(ct);
+        var byCode = permissions.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+
+        var added = false;
+        foreach (var module in PermissionCatalog.Modules)
+        {
+            foreach (var action in PermissionCatalog.Actions)
+            {
+                var code = PermissionCatalog.Code(module.Code, action.Code);
+                if (byCode.ContainsKey(code))
+                {
+                    continue;
+                }
+
+                var permission = new Permission
+                {
+                    Code = code,
+                    Name = PermissionCatalog.DisplayName(module.Code, action.Code),
+                    Module = module.Name
+                };
+                db.Permissions.Add(permission);
+                byCode[code] = permission;
+                added = true;
+            }
+        }
+        if (added)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+
+        var roles = await db.Roles
+            .Include(x => x.RolePermissions)
+                .ThenInclude(x => x.Permission)
+            .ToListAsync(ct);
+
+        var changed = false;
+        var legacyMigrated = false;
+        foreach (var role in roles)
+        {
+            var codes = role.RolePermissions
+                .Select(x => x.Permission.Code)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var module in PermissionCatalog.Modules)
+            {
+                if (!codes.Contains(module.Code + ".write"))
+                {
+                    continue;
+                }
+
+                foreach (var action in new[] { "create", "update", "delete" })
+                {
+                    var code = PermissionCatalog.Code(module.Code, action);
+                    if (codes.Add(code))
+                    {
+                        db.RolePermissions.Add(new RolePermission
+                        {
+                            RoleId = role.Id,
+                            PermissionId = byCode[code].Id
+                        });
+                        changed = true;
+                    }
+                }
+            }
+
+            // 旧的 module.write 授权只用于本次迁移，迁移后移除，避免每次启动重复添加。
+            var legacyLinks = role.RolePermissions
+                .Where(x => x.Permission.Code.EndsWith(".write", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (legacyLinks.Count > 0)
+            {
+                db.RolePermissions.RemoveRange(legacyLinks);
+                changed = true;
+                legacyMigrated = true;
+            }
+        }
+
+        if (changed)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+
+        // 旧库迁移时，管理员类补齐全部 CRUD 权限（旧库没有 reports.write，迁移映射不到）。
+        if (legacyMigrated)
+        {
+            var adminRole = await db.Roles
+                .Include(x => x.RolePermissions)
+                    .ThenInclude(x => x.Permission)
+                .SingleOrDefaultAsync(x => x.Code == "Admin", ct);
+            if (adminRole is not null)
+            {
+                var adminCodes = adminRole.RolePermissions
+                    .Select(x => x.Permission.Code)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var adminAdded = false;
+                foreach (var code in PermissionCatalog.AllCodes())
+                {
+                    if (adminCodes.Add(code))
+                    {
+                        db.RolePermissions.Add(new RolePermission
+                        {
+                            RoleId = adminRole.Id,
+                            PermissionId = byCode[code].Id
+                        });
+                        adminAdded = true;
+                    }
+                }
+
+                if (adminAdded)
+                {
+                    await db.SaveChangesAsync(ct);
+                }
+            }
+        }
+
+        var members = await db.ProjectMembers.ToListAsync(ct);
+        foreach (var member in members.Where(x =>
+                     string.Equals(x.RoleInProject, "Owner", StringComparison.OrdinalIgnoreCase)))
+        {
+            member.RoleInProject = "Manager";
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    private static bool IsDesignerDefault(string code)
+    {
+        if (code == "reports.read")
+        {
+            return true;
+        }
+
+        var module = code[..code.IndexOf('.')];
+        return module is "projects" or "dictionaries" or "pbs" or "equipment" or "specs" or "materials";
     }
 }

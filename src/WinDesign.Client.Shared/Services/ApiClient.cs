@@ -9,6 +9,7 @@ using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Materials;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Users;
@@ -178,11 +179,28 @@ public sealed class ApiClient : IApiClient
         return SendNoContentAsync(message, ct);
     }
 
+    public Task DeleteUserAsync(Guid id, CancellationToken ct = default) =>
+        SendNoContentAsync(Request(HttpMethod.Delete, $"api/users/{id}"), ct);
+
     public Task<UserDto> ToggleUserActiveAsync(Guid id, CancellationToken ct = default) =>
         SendAsync<UserDto>(Request(HttpMethod.Post, $"api/users/{id}/toggle-active"), ct);
 
     public Task<IReadOnlyList<RoleDto>> GetRolesAsync(CancellationToken ct = default) =>
         SendAsync<IReadOnlyList<RoleDto>>(Request(HttpMethod.Get, "api/roles"), ct);
+
+    public Task<RolePermissionDto> GetRolePermissionsAsync(Guid roleId, CancellationToken ct = default) =>
+        SendAsync<RolePermissionDto>(Request(HttpMethod.Get, $"api/roles/{roleId}/permissions"), ct);
+
+    public Task<RolePermissionDto> UpdateRolePermissionsAsync(
+        Guid roleId,
+        IReadOnlyList<string> permissionCodes,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/roles/{roleId}/permissions");
+        message.Content = JsonContent.Create(
+            new UpdateRolePermissionsRequest(permissionCodes), options: JsonOptions);
+        return SendAsync<RolePermissionDto>(message, ct);
+    }
 
     // ---------- plants ----------
     public Task<IReadOnlyList<PlantDto>> GetPlantsAsync(CancellationToken ct = default) =>
@@ -236,6 +254,47 @@ public sealed class ApiClient : IApiClient
 
     public Task ArchiveProjectAsync(Guid id, CancellationToken ct = default) =>
         SendNoContentAsync(Request(HttpMethod.Delete, $"api/projects/{id}"), ct);
+
+    // ---------- project members ----------
+    public Task<IReadOnlyList<ProjectMemberDto>> GetProjectMembersAsync(
+        Guid projectId,
+        CancellationToken ct = default) =>
+        SendAsync<IReadOnlyList<ProjectMemberDto>>(
+            Request(HttpMethod.Get, $"api/projects/{projectId}/members"), ct);
+
+    public Task<ProjectMemberDto> AddProjectMemberAsync(
+        Guid projectId,
+        UpsertProjectMemberRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, $"api/projects/{projectId}/members");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<ProjectMemberDto>(message, ct);
+    }
+
+    public Task<ProjectMemberDto> UpdateProjectMemberAsync(
+        Guid projectId,
+        Guid userId,
+        UpsertProjectMemberRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/projects/{projectId}/members/{userId}");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<ProjectMemberDto>(message, ct);
+    }
+
+    public Task RemoveProjectMemberAsync(Guid projectId, Guid userId, CancellationToken ct = default) =>
+        SendNoContentAsync(Request(HttpMethod.Delete, $"api/projects/{projectId}/members/{userId}"), ct);
+
+    public Task<IReadOnlyList<ProjectMemberDto>> BulkGrantProjectMembersAsync(
+        Guid projectId,
+        BulkGrantProjectMembersRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, $"api/projects/{projectId}/members/bulk");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<IReadOnlyList<ProjectMemberDto>>(message, ct);
+    }
 
     // ---------- dictionaries ----------
     public Task<IReadOnlyList<DictionaryTypeDto>> GetDictionaryTypesAsync(CancellationToken ct = default) =>
@@ -306,6 +365,16 @@ public sealed class ApiClient : IApiClient
 
     public Task DeletePbsNodeAsync(Guid id, CancellationToken ct = default) =>
         SendNoContentAsync(Request(HttpMethod.Delete, $"api/pbs/{id}"), ct);
+
+    public Task<PbsNodeDto> CreateUnitChildAsync(
+        Guid unitId,
+        CreateUnitChildRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, $"api/units/{unitId}/pbs-children");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<PbsNodeDto>(message, ct);
+    }
 
     // ---------- equipment ----------
     public Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(

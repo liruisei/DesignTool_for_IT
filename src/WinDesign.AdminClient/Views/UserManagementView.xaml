@@ -22,6 +22,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="用户列表" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
                     <TextBox Grid.Column="1" Style="{StaticResource Input}"
@@ -31,17 +32,39 @@
                     <Button Grid.Column="3" Content="新建" Command="{Binding NewUserCommand}"
                             Click="OnNewUserClick"
                             Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" />
-                    <Button Grid.Column="4" x:Name="ToggleEditorButton" Content="展开编辑"
+                    <Button Grid.Column="4" Content="保存"
+                            Command="{Binding SaveActiveChangesCommand}"
+                            Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                            IsEnabled="{Binding HasPendingActiveChanges}"
+                            ToolTip="保存列表中勾选的启用/停用状态" />
+                    <Button Grid.Column="5" x:Name="ToggleEditorButton" Content="展开编辑"
                             Style="{StaticResource ToolButton}" Margin="8,0,0,0"
                             Click="OnToggleEditorClick" ToolTip="展开/收起右侧编辑栏" />
                 </Grid>
 
-                <DataGrid Grid.Row="1" ItemsSource="{Binding Users}" SelectedItem="{Binding SelectedUser}">
+                <DataGrid Grid.Row="1" ItemsSource="{Binding UserRows}" SelectedItem="{Binding SelectedUserRow}"
+                          PreviewMouseRightButtonDown="OnUsersGridPreviewMouseRightButtonDown"
+                          ContextMenuOpening="OnUsersGridContextMenuOpening">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="修改" Click="OnEditUserClick" />
+                            <MenuItem Header="删除" Click="OnDeleteUserClick" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="用户名" Binding="{Binding UserName}" Width="130" />
                         <DataGridTextColumn Header="显示名称" Binding="{Binding DisplayName}" Width="*" />
+                        <DataGridTextColumn Header="用户类" Binding="{Binding RolesText}" Width="150" />
                         <DataGridTextColumn Header="邮箱" Binding="{Binding Email}" Width="200" />
-                        <DataGridCheckBoxColumn Header="启用" Binding="{Binding IsActive}" Width="70" />
+                        <DataGridTemplateColumn Header="启用" Width="70">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsActive, UpdateSourceTrigger=PropertyChanged}"
+                                              HorizontalAlignment="Center"
+                                              ToolTip="勾选启用，取消勾选停用；修改后点上方「保存」提交" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="最近登录"
                                             Binding="{Binding LastLoginAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}"
                                             Width="140" />
@@ -62,7 +85,8 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <TextBlock Text="{Binding EditorTitle}" Style="{StaticResource SectionTitle}" />
-                    <TextBlock Text="角色决定可访问的模块与操作。" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+                    <TextBlock Text="用户类决定全局模块的增删改查权限；可选择多个用户类，权限取并集。项目内的准入与成员角色在「项目配置 → 成员配置」中单独授权。"
+                               Style="{StaticResource MutedText}" Margin="0,6,0,0" TextWrapping="Wrap" />
 
                     <TextBlock Text="用户名" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreating}"
@@ -81,19 +105,42 @@
                              Text="{Binding EditPhone, UpdateSourceTrigger=PropertyChanged}" />
 
                     <TextBlock Text="密码" Style="{StaticResource FieldLabel}" />
-                    <TextBox Style="{StaticResource Input}"
-                             Text="{Binding EditPassword, UpdateSourceTrigger=PropertyChanged}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <PasswordBox x:Name="PasswordHidden" Style="{StaticResource PasswordInput}"
+                                     Height="38" PasswordChanged="OnPasswordChanged" />
+                        <TextBox x:Name="PasswordVisible" Style="{StaticResource Input}"
+                                 Height="38" Visibility="Collapsed"
+                                 Text="{Binding EditPassword, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <Button x:Name="PasswordEyeButton" Grid.Column="1" Content="&#xE052;"
+                                FontFamily="Segoe MDL2 Assets" FontSize="15"
+                                Style="{StaticResource ToolButton}" Width="34" Height="38"
+                                Margin="6,0,0,0" Click="OnTogglePasswordVisibility"
+                                ToolTip="显示密码" />
+                    </Grid>
                     <TextBlock Text="创建用户或重置密码时填写，至少 6 位。" Style="{StaticResource MutedText}" Margin="0,5,0,0" />
 
-                    <TextBlock Text="角色" Style="{StaticResource FieldLabel}" />
-                    <ItemsControl ItemsSource="{Binding RoleOptions}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}"
-                                          Margin="0,5,0,0" FontSize="13" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <TextBlock Text="用户类" Style="{StaticResource FieldLabel}" />
+                    <DataGrid ItemsSource="{Binding RoleOptions}" Height="132"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="用户类" Binding="{Binding Name}" Width="*" />
+                            <DataGridTemplateColumn Header="勾选" Width="60">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
 
                     <CheckBox Content="启用该账号" IsChecked="{Binding EditIsActive}" Margin="0,14,0,0" FontSize="13" />
 

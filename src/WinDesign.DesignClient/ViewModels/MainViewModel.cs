@@ -18,6 +18,7 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly SessionService _session;
     private readonly IEquipmentDialogService _equipmentDialogs;
+    private readonly ICategoryDialogService _categoryDialogs;
     private readonly ProjectContext _projectContext = new();
     private ExplorerNode? _pbsExplorerNode;
     private IReadOnlyList<PbsNodeDto> _pbsNodes = Array.Empty<PbsNodeDto>();
@@ -58,10 +59,14 @@ public partial class MainViewModel : ObservableObject
 
     public SessionService Session => _session;
 
-    public MainViewModel(SessionService session, IEquipmentDialogService? equipmentDialogs = null)
+    public MainViewModel(
+        SessionService session,
+        IEquipmentDialogService? equipmentDialogs = null,
+        ICategoryDialogService? categoryDialogs = null)
     {
         _session = session;
         _equipmentDialogs = equipmentDialogs ?? new EquipmentDialogService();
+        _categoryDialogs = categoryDialogs ?? new CategoryDialogService();
         _projectContext.CurrentProject = ToProjectDto(session);
         BuildExplorer();
         PbsTreeLoadTask = LoadPbsTreeAsync();
@@ -113,10 +118,11 @@ public partial class MainViewModel : ObservableObject
         ProjectExplorerNodes.Add(project);
 
         // PBS 独立成下方只读面板，展示当前项目的 PBS 根节点及其子节点。
+        // 根节点用工厂编码；工厂、装置、建筑物在树中只显示编号，名称不展开。
         _pbsExplorerNode = new ExplorerNode
         {
             Key = "pbs",
-            Title = "PBS",
+            Title = _session.Plant?.Code ?? "PBS",
             Glyph = "⌂",
             IsFolder = true
         };
@@ -202,12 +208,13 @@ public partial class MainViewModel : ObservableObject
         var item = new ExplorerNode
         {
             Key = "pbs:" + node.Id,
-            Title = node.Code + "  " + node.Name,
+            Title = FormatPbsNodeTitle(node),
             Glyph = node.NodeType switch
             {
                 "Area" => "▦",
                 "Unit" => "▣",
                 "Loop" => "◇",
+                "Building" => "▤",
                 "System" => "◇",
                 "SubSystem" => "·",
                 _ => "·"
@@ -221,10 +228,12 @@ public partial class MainViewModel : ObservableObject
             return item;
         }
 
+        var isUnit = string.Equals(node.NodeType, "Unit", StringComparison.OrdinalIgnoreCase);
+
         // 装置层级默认固定三个分类文件夹；设备文件夹填充当前装置下的设备位号。
-        if (string.Equals(node.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
+        if (isUnit)
         {
-            AddUnitDefaultFolders(item, node.Id, equipmentByPbsNode);
+            AddUnitDefaultFolders(item, node.Id, equipmentByPbsNode, childrenByParent, path);
         }
 
         if (childrenByParent.TryGetValue(node.Id, out var children))
@@ -233,6 +242,12 @@ public partial class MainViewModel : ObservableObject
                          .OrderBy(x => x.SortOrder)
                          .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
             {
+                // 装置的回路 / 建筑物节点已经归入对应分类文件夹，不再作为普通子节点重复显示。
+                if (isUnit && IsCategoryChild(child.NodeType))
+                {
+                    continue;
+                }
+
                 item.Children.Add(BuildPbsExplorerItem(child, childrenByParent, equipmentByPbsNode, path));
             }
         }
@@ -247,7 +262,9 @@ public partial class MainViewModel : ObservableObject
     private static void AddUnitDefaultFolders(
         ExplorerNode unitItem,
         Guid unitId,
-        IReadOnlyDictionary<Guid, List<EquipmentDto>> equipmentByPbsNode)
+        IReadOnlyDictionary<Guid, List<EquipmentDto>> equipmentByPbsNode,
+        IReadOnlyDictionary<Guid, List<PbsNodeDto>> childrenByParent,
+        HashSet<Guid> path)
     {
         var devicesFolder = new ExplorerNode
         {
@@ -256,7 +273,7 @@ public partial class MainViewModel : ObservableObject
             Glyph = "\uED25",
             GlyphFontFamily = "Segoe MDL2 Assets",
             IsFolder = true,
-            IsEquipmentFolder = true,
+            CategoryFolder = ExplorerCategoryFolder.Equipment,
             RelatedPbsNodeId = unitId
         };
         if (equipmentByPbsNode.TryGetValue(unitId, out var equipments))
@@ -275,23 +292,70 @@ public partial class MainViewModel : ObservableObject
         }
 
         unitItem.Children.Add(devicesFolder);
-        unitItem.Children.Add(new ExplorerNode
+        var loopsFolder = new ExplorerNode
         {
             Key = $"pbs:{unitId}:loops",
+            CategoryFolder = ExplorerCategoryFolder.Loop,
+            RelatedPbsNodeId = unitId,
             Title = "回路",
             Glyph = "\uED25",
             GlyphFontFamily = "Segoe MDL2 Assets",
             IsFolder = true
-        });
-        unitItem.Children.Add(new ExplorerNode
+        };
+        AddCategoryChildren(loopsFolder, unitId, "Loop", childrenByParent, equipmentByPbsNode, path);
+        unitItem.Children.Add(loopsFolder);
+        var buildingsFolder = new ExplorerNode
         {
             Key = $"pbs:{unitId}:buildings",
+            CategoryFolder = ExplorerCategoryFolder.Building,
+            RelatedPbsNodeId = unitId,
             Title = "建筑物",
             Glyph = "\uED25",
             GlyphFontFamily = "Segoe MDL2 Assets",
             IsFolder = true
-        });
+        };
+        AddCategoryChildren(buildingsFolder, unitId, "Building", childrenByParent, equipmentByPbsNode, path);
+        unitItem.Children.Add(buildingsFolder);
     }
+
+    /// <summary>把装置下指定 PBS 类型的子节点放入对应分类文件夹。</summary>
+    private static void AddCategoryChildren(
+        ExplorerNode folder,
+        Guid unitId,
+        string nodeType,
+        IReadOnlyDictionary<Guid, List<PbsNodeDto>> childrenByParent,
+        IReadOnlyDictionary<Guid, List<EquipmentDto>> equipmentByPbsNode,
+        HashSet<Guid> path)
+    {
+        if (!childrenByParent.TryGetValue(unitId, out var children))
+        {
+            return;
+        }
+
+        foreach (var child in children
+                     .Where(x => string.Equals(x.NodeType, nodeType, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(x => x.SortOrder)
+                     .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
+        {
+            folder.Children.Add(BuildPbsExplorerItem(child, childrenByParent, equipmentByPbsNode, path));
+        }
+    }
+
+    /// <summary>
+    /// PBS 节点标题：工厂根节点、装置与建筑物只显示编号，其余层级显示「编号 名称」。
+    /// </summary>
+    private static string FormatPbsNodeTitle(PbsNodeDto node) =>
+        IsCodeOnlyNodeType(node.NodeType)
+            ? node.Code
+            : node.Code + "  " + node.Name;
+
+    private static bool IsCodeOnlyNodeType(string nodeType) =>
+        string.Equals(nodeType, "Unit", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(nodeType, "Building", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCategoryChild(string nodeType) =>
+        nodeType.Equals("Loop", StringComparison.OrdinalIgnoreCase) ||
+        nodeType.Equals("Building", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// 项目未设置 PBS 根节点（Id 为空）时，项目放在工厂根节点上，范围为整个工厂：
@@ -400,8 +464,72 @@ public partial class MainViewModel : ObservableObject
     /// <summary>当前右键是否位于装置下的“设备”文件夹。</summary>
     public bool IsEquipmentFolderSelected => SelectedPbsNode?.IsEquipmentFolder == true;
 
-    partial void OnSelectedPbsNodeChanged(ExplorerNode? value) =>
+    /// <summary>当前右键是否位于装置下的分类文件夹（设备 / 回路 / 建筑物）。</summary>
+    public bool IsCategoryFolderSelected => SelectedPbsNode?.IsCategoryFolder == true;
+
+    partial void OnSelectedPbsNodeChanged(ExplorerNode? value)
+    {
         OnPropertyChanged(nameof(IsEquipmentFolderSelected));
+        OnPropertyChanged(nameof(IsCategoryFolderSelected));
+    }
+
+    /// <summary>
+    /// 分类文件夹右键「新增」：设备走设备属性弹窗，回路 / 建筑物在装置下新增对应 PBS 节点。
+    /// </summary>
+    [RelayCommand]
+    private async Task AddCategoryItemAsync()
+    {
+        var folder = SelectedPbsNode;
+        if (folder?.IsCategoryFolder != true || folder.RelatedPbsNodeId is not Guid unitId)
+        {
+            StatusText = "请在装置下的分类文件夹上新增";
+            return;
+        }
+
+        switch (folder.CategoryFolder)
+        {
+            case ExplorerCategoryFolder.Equipment:
+                await AddEquipmentAsync();
+                break;
+            case ExplorerCategoryFolder.Loop:
+                await AddUnitCategoryChildAsync(unitId, "Loop", "回路");
+                break;
+            case ExplorerCategoryFolder.Building:
+                await AddUnitCategoryChildAsync(unitId, "Building", "建筑物");
+                break;
+        }
+    }
+
+    private async Task AddUnitCategoryChildAsync(Guid unitId, string nodeType, string title)
+    {
+        var unit = _pbsNodes.FirstOrDefault(x => x.Id == unitId);
+        var unitTitle = unit is null ? string.Empty : unit.Code + "  " + unit.Name;
+        var category = nodeType == "Loop" ? ExplorerCategoryFolder.Loop : ExplorerCategoryFolder.Building;
+
+        var result = _categoryDialogs.EditCategory(
+            new CategoryEditorContext(category, unitTitle, null, null, null, IsReadOnly: false));
+        if (result is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _session.Api.CreateUnitChildAsync(
+                unitId,
+                new CreateUnitChildRequest(result.Code, result.Name, nodeType, result.Description));
+            StatusText = title + "已创建";
+            await LoadPbsTreeAsync();
+        }
+        catch (ApiException ex)
+        {
+            StatusText = "新增" + title + "失败：" + ex.Message;
+        }
+        catch (Exception ex)
+        {
+            StatusText = "新增" + title + "失败：" + ex.Message;
+        }
+    }
 
     /// <summary>在装置下的“设备”文件夹右键新增设备，保存流程与索引表一致。</summary>
     [RelayCommand]

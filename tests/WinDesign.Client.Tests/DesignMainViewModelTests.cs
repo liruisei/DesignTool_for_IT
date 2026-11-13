@@ -46,6 +46,8 @@ public class DesignMainViewModelTests
 
         // PBS 独立到下方面板，两个 Explorer 互不混入对方的根节点。
         var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
+        // 工厂根节点只显示工厂编码。
+        Assert.Equal(api.Plant.Code, pbs.Title);
         Assert.DoesNotContain(pbs.Children, x => x.Key == "index");
         Assert.DoesNotContain(viewModel.ProjectExplorerNodes, x => x.Key == "pbs");
         Assert.DoesNotContain(viewModel.PbsExplorerNodes, x => x.Key == "project");
@@ -77,10 +79,15 @@ public class DesignMainViewModelTests
         Assert.Contains("AREA-A", rootItem.Title);
 
         var unitItem = Assert.Single(rootItem.Children);
-        Assert.Contains("CDU", unitItem.Title);
+        // 装置只显示编号，不拼接名称。
+        Assert.Equal("CDU", unitItem.Title);
         Assert.Equal(new[] { "设备", "回路", "建筑物" },
             unitItem.Children.Take(3).Select(x => x.Title));
-        Assert.Contains(unitItem.Children, x => x.Title.Contains("L-1001"));
+
+        // 回路 PBS 节点归入「回路」分类文件夹，不再作为装置的普通子节点显示。
+        var loopsFolder = Assert.Single(unitItem.Children, x => x.CategoryFolder == ExplorerCategoryFolder.Loop);
+        Assert.Contains(loopsFolder.Children, x => x.Title.Contains("L-1001"));
+        Assert.DoesNotContain(unitItem.Children, x => x.Title.Contains("L-1001"));
 
         // 同一工厂下与项目无关的另一棵顶层子树不应出现。
         Assert.DoesNotContain(pbs.Children, x => x.Title.Contains("AREA-B"));
@@ -271,6 +278,92 @@ public class DesignMainViewModelTests
         Assert.Contains("索引表", error);
         Assert.Contains("保存失败", error);
         Assert.Equal(0, later.SaveCount);
+    }
+
+    [Theory]
+    [InlineData(ExplorerCategoryFolder.Loop, "Loop", "回路", "L-9001")]
+    [InlineData(ExplorerCategoryFolder.Building, "Building", "建筑物", "BLD-01")]
+    public async Task AddFromCategoryFolder_CreatesTypedPbsChild_AndRefreshesTree(
+        ExplorerCategoryFolder category,
+        string nodeType,
+        string folderTitle,
+        string code)
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var unit = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "CDU", "常减压装置", "Unit", 1, null, 0, 0);
+        api.PbsNodes.Add(unit);
+
+        var dialogs = new FakeCategoryDialogService
+        {
+            NextResult = new CategoryEditResult(code, code + " 名称", "备注")
+        };
+        var viewModel = new MainViewModel(
+            api.CreateSession(),
+            new FakeEquipmentDialogService(),
+            dialogs);
+        await viewModel.PbsTreeLoadTask;
+
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
+        var unitItem = Assert.Single(Assert.Single(pbs.Children).Children);
+        viewModel.SelectedPbsNode = Assert.Single(unitItem.Children, x => x.CategoryFolder == category);
+
+        Assert.True(viewModel.IsCategoryFolderSelected);
+        Assert.False(viewModel.IsEquipmentFolderSelected);
+        Assert.Equal(folderTitle, viewModel.SelectedPbsNode!.Title);
+
+        await viewModel.AddCategoryItemCommand.ExecuteAsync(null);
+
+        Assert.NotNull(dialogs.LastContext);
+        Assert.Equal(category, dialogs.LastContext!.Category);
+        var call = Assert.Single(api.UnitChildren);
+        Assert.Equal(unit.Id, call.UnitId);
+        Assert.Equal(nodeType, call.Request.NodeType);
+        Assert.Equal(code, call.Request.Code);
+
+        var refreshedUnit = Assert.Single(Assert.Single(
+            Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs").Children).Children);
+        var refreshedFolder = Assert.Single(refreshedUnit.Children, x => x.CategoryFolder == category);
+        Assert.Contains(refreshedFolder.Children, x => x.Title.Contains(code));
+    }
+
+    [Fact]
+    public async Task AddFromCategoryFolder_Cancelled_DoesNotCreate()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var unit = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "CDU", "常减压装置", "Unit", 1, null, 0, 0);
+        api.PbsNodes.Add(unit);
+
+        var viewModel = new MainViewModel(
+            api.CreateSession(),
+            new FakeEquipmentDialogService(),
+            new FakeCategoryDialogService { NextResult = null });
+        await viewModel.PbsTreeLoadTask;
+
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
+        var unitItem = Assert.Single(Assert.Single(pbs.Children).Children);
+        viewModel.SelectedPbsNode = Assert.Single(
+            unitItem.Children, x => x.CategoryFolder == ExplorerCategoryFolder.Loop);
+
+        await viewModel.AddCategoryItemCommand.ExecuteAsync(null);
+
+        Assert.Empty(api.UnitChildren);
+        Assert.DoesNotContain(api.PbsNodes, x => x.ParentId == unit.Id);
+    }
+
+    private sealed class FakeCategoryDialogService : ICategoryDialogService
+    {
+        public CategoryEditorContext? LastContext { get; private set; }
+        public CategoryEditResult? NextResult { get; set; }
+
+        public CategoryEditResult? EditCategory(CategoryEditorContext context)
+        {
+            LastContext = context;
+            return NextResult;
+        }
     }
 
     private sealed class TrackingPendingViewModel : ViewModelBase, IPendingChanges

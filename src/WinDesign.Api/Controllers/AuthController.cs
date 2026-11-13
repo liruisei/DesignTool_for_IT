@@ -232,12 +232,14 @@ public sealed class AuthController : ApiControllerBase
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-    private async Task<List<string>> SelectPermissionsAsync(User user, CancellationToken ct) =>
-        user.IsSystemAdmin
-            ? await _db.Permissions.Select(x => x.Code).ToListAsync(ct)
-            : user.UserRoles
-                .SelectMany(x => x.Role.RolePermissions)
-                .Select(x => x.Permission.Code)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+    /// <summary>
+    /// 权限完全由用户类（角色）配置决定，管理员也不例外；
+    /// 管理端「权限管理」保存后，用户重新登录即可获得新的 permission 声明。
+    /// </summary>
+    private static Task<List<string>> SelectPermissionsAsync(User user, CancellationToken ct) =>
+        Task.FromResult(user.UserRoles
+            .SelectMany(x => x.Role.RolePermissions)
+            .Select(x => x.Permission.Code)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList());
 }

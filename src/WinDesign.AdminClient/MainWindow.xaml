@@ -24,6 +24,9 @@
         <DataTemplate DataType="{x:Type vm:UserManagementViewModel}">
             <views:UserManagementView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:UserClassViewModel}">
+            <views:UserClassView />
+        </DataTemplate>
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -89,8 +92,8 @@
 
         <Grid Grid.Row="3" Background="{StaticResource BgBrush}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250" />
-                <ColumnDefinition Width="4" />
+                <ColumnDefinition x:Name="ExplorerColumn" Width="250" MinWidth="0" />
+                <ColumnDefinition Width="18" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -135,8 +138,42 @@
                 </Grid>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
-                          Background="{StaticResource BorderBrush}" ResizeBehavior="PreviousAndNext" />
+            <!-- 整条隔断既是拖拽条也是收起/展开热区：单击切换、拖动调宽，悬停显示小手。
+                 分隔条必须是外层 Grid 的直接子元素，否则找不到相邻列、无法拖动调宽。 -->
+            <Border Grid.Column="1" Width="1" HorizontalAlignment="Center"
+                    Background="{StaticResource BorderBrush}" IsHitTestVisible="False" />
+            <GridSplitter Grid.Column="1" x:Name="ExplorerSplitter" Width="18" HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch" Background="Transparent"
+                          ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                          Cursor="Hand"
+                          ToolTip="单击收起左侧面板；拖动可调整宽度"
+                          DragStarted="OnExplorerSplitterDragStarted"
+                          DragDelta="OnExplorerSplitterDragDelta"
+                          PreviewMouseLeftButtonUp="OnExplorerSplitterPreviewMouseLeftButtonUp"
+                          DragCompleted="OnExplorerSplitterDragCompleted" />
+            <Border Grid.Column="1" x:Name="ExplorerToggleHandle" Width="18" Height="64" CornerRadius="7"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    BorderThickness="1" IsHitTestVisible="False">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="White" />
+                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect Color="#000000" Opacity="0.08" BlurRadius="6" ShadowDepth="1" />
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=ExplorerSplitter}" Value="True">
+                                <Setter Property="Background" Value="#F2F2F2" />
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock x:Name="ExplorerToggleGlyph" Text="‹" FontSize="15" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
 
             <TabControl Grid.Column="2" ItemsSource="{Binding Documents}"
                         SelectedItem="{Binding SelectedDocument, Mode=TwoWay}">

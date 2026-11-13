@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WinDesign.Domain\WinDesign.Domain.csproj" />
+    <ProjectReference Include="..\WinDesign.Contracts\WinDesign.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

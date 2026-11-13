@@ -128,6 +128,42 @@ public class PbsTests : ApiTestBase
     }
 
     [Fact]
+    public async Task DesignClient_CreatesLoopOrBuildingUnderUnit_Only()
+    {
+        // 设计端令牌：在装置下新增回路 / 建筑物。
+        await LoginAsync();
+        var unit = (await GetNodesAsync()).First(x => x.NodeType == "Unit" && x.Code == "CDU");
+        var code = UniqueCode("L");
+
+        var created = await Client.PostAsJsonAsync($"/api/units/{unit.Id}/pbs-children", new
+        {
+            code,
+            name = "测试回路",
+            nodeType = "Loop",
+            description = ""
+        });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        var node = (await created.Content.ReadFromJsonAsync<PbsNodeDto>())!;
+        Assert.Equal("Loop", node.NodeType);
+        Assert.Equal(unit.Id, node.ParentId);
+
+        // 该接口只接受 Loop / Building，区域等其他类型必须拒绝。
+        var invalid = await Client.PostAsJsonAsync($"/api/units/{unit.Id}/pbs-children", new
+        {
+            code = UniqueCode("A"),
+            name = "非法节点",
+            nodeType = "Area",
+            description = ""
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+        // 设计端没有 PBS 删除权限，切回管理令牌清理测试数据。
+        await LoginManagementAsync();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await Client.DeleteAsync($"/api/pbs/{node.Id}")).StatusCode);
+    }
+
+    [Fact]
     public async Task Pbs_DeleteWithChildren_ReturnsBadRequest()
     {
         await LoginManagementAsync();

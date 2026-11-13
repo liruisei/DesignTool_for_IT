@@ -1,4 +1,6 @@
 using WinDesign.AdminClient.ViewModels;
+using WinDesign.Contracts.Projects;
+using WinDesign.Contracts.Users;
 
 namespace WinDesign.Client.Tests;
 
@@ -72,4 +74,107 @@ public class ProjectManagementViewModelTests
 
         Assert.Contains("不能早于", viewModel.ErrorMessage);
     }
+
+    [Fact]
+    public async Task SelectingProject_LoadsMembersAndUserSelectionList()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var memberUser = NewUser("designer", "设计人员");
+        var candidate = NewUser("viewer", "只读用户");
+        api.Users.AddRange(new[] { memberUser, candidate });
+        api.ProjectMembers.Add(new ProjectMemberDto(
+            memberUser.Id, memberUser.UserName, memberUser.DisplayName, "Designer", true));
+
+        var viewModel = new ProjectManagementViewModel(api.CreateSession());
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedProject = viewModel.Projects.Single();
+
+        Assert.Single(viewModel.Members);
+        Assert.Equal(memberUser.Id, viewModel.Members[0].UserId);
+        Assert.Contains(viewModel.UserSelectionItems, x => x.UserId == candidate.Id);
+        Assert.Contains(viewModel.UserSelectionItems, x => x.UserId == memberUser.Id);
+    }
+
+    [Fact]
+    public async Task GrantMembers_GrantsCheckedUsersWithSelectedRole()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var candidate = NewUser("viewer", "只读用户");
+        api.Users.Add(candidate);
+
+        var viewModel = new ProjectManagementViewModel(api.CreateSession());
+        await viewModel.RefreshAsync();
+        viewModel.SelectedProject = viewModel.Projects.Single();
+
+        var item = viewModel.UserSelectionItems.Single(x => x.UserId == candidate.Id);
+        item.IsSelected = true;
+        viewModel.GrantRole = "Viewer";
+        await viewModel.GrantMembersCommand.ExecuteAsync(null);
+
+        Assert.Contains(api.ProjectMembers,
+            x => x.UserId == candidate.Id && x.RoleInProject == "Viewer");
+        Assert.Contains(viewModel.Members, x => x.UserId == candidate.Id);
+        Assert.False(item.IsSelected);
+        Assert.Null(viewModel.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task UpdateMemberRole_ChangesRoleOnServer()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var memberUser = NewUser("designer", "设计人员");
+        api.Users.Add(memberUser);
+        api.ProjectMembers.Add(new ProjectMemberDto(
+            memberUser.Id, memberUser.UserName, memberUser.DisplayName, "Designer", true));
+
+        var viewModel = new ProjectManagementViewModel(api.CreateSession());
+        await viewModel.RefreshAsync();
+        viewModel.SelectedProject = viewModel.Projects.Single();
+        viewModel.SelectedMember = viewModel.Members.Single();
+
+        viewModel.EditMemberRole = "Viewer";
+        await viewModel.UpdateMemberRoleCommand.ExecuteAsync(null);
+
+        Assert.Equal("Viewer", api.ProjectMembers.Single().RoleInProject);
+        Assert.Null(viewModel.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task RemoveMember_RemovesUserFromProject()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var memberUser = NewUser("designer", "设计人员");
+        api.Users.Add(memberUser);
+        api.ProjectMembers.Add(new ProjectMemberDto(
+            memberUser.Id, memberUser.UserName, memberUser.DisplayName, "Designer", true));
+
+        var viewModel = new ProjectManagementViewModel(api.CreateSession());
+        await viewModel.RefreshAsync();
+        viewModel.SelectedProject = viewModel.Projects.Single();
+        viewModel.SelectedMember = viewModel.Members.Single();
+
+        await viewModel.RemoveMemberCommand.ExecuteAsync(null);
+
+        Assert.Empty(api.ProjectMembers);
+        Assert.Empty(viewModel.Members);
+        Assert.Contains(viewModel.UserSelectionItems, x => x.UserId == memberUser.Id);
+        Assert.Null(viewModel.ErrorMessage);
+    }
+
+    private static UserDto NewUser(string userName, string displayName) => new(
+        Guid.NewGuid(),
+        userName,
+        displayName,
+        null,
+        null,
+        true,
+        false,
+        Array.Empty<string>(),
+        DateTime.UtcNow,
+        null);
 }

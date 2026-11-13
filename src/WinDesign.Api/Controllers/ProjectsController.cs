@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
+using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Projects;
 using WinDesign.Domain;
 using WinDesign.Domain.Entities;
@@ -22,6 +23,7 @@ public sealed class ProjectsController : ApiControllerBase
     }
 
     [HttpGet]
+    [RequirePermission("projects.read")]
     public async Task<ActionResult<PagedResult<ProjectDto>>> Get(
         [FromQuery] string? search,
         [FromQuery] string? status,
@@ -77,6 +79,7 @@ public sealed class ProjectsController : ApiControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("projects.read")]
     public async Task<ActionResult<ProjectDto>> GetById(Guid id, CancellationToken ct)
     {
         var project = await _db.Projects
@@ -102,8 +105,292 @@ public sealed class ProjectsController : ApiControllerBase
         return Ok(ToDto(project));
     }
 
+    // ---------- 项目成员 ----------
+
+    /// <summary>项目成员列表。项目负责人排在最前，便于界面识别不可移除的成员。</summary>
+    [HttpGet("{id:guid}/members")]
+    [RequirePermission("projects.read")]
+    public async Task<ActionResult<IReadOnlyList<ProjectMemberDto>>> GetMembers(Guid id, CancellationToken ct)
+    {
+        var project = await _db.Projects.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (project is null)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (!await CanAccessAsync(project.Id, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
+        }
+
+        var members = await _db.ProjectMembers
+            .Include(x => x.User)
+            .AsNoTracking()
+            .Where(x => x.ProjectId == id)
+            .ToListAsync(ct);
+
+        var result = members
+            .OrderBy(x => x.UserId == project.OwnerUserId ? 0 : 1)
+            .ThenBy(x => x.User.UserName, StringComparer.OrdinalIgnoreCase)
+            .Select(ToMemberDto)
+            .ToList();
+
+        return Ok(result);
+    }
+
+    /// <summary>新增项目成员。只有管理员可以分配成员。</summary>
+    [HttpPost("{id:guid}/members")]
+    [Authorize(Roles = "Admin")]
+    [RequirePermission("projects.update")]
+    public async Task<ActionResult<ProjectMemberDto>> AddMember(
+        Guid id,
+        [FromBody] UpsertProjectMemberRequest request,
+        CancellationToken ct)
+    {
+        var project = await _db.Projects.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (project is null)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (!await CanAccessAsync(project.Id, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
+        }
+
+        var roleError = ValidateAssignableRole(request.RoleInProject, out var role);
+        if (roleError is not null)
+        {
+            return BadRequest(new ApiError(roleError));
+        }
+
+        var user = await _db.Users.SingleOrDefaultAsync(x => x.Id == request.UserId, ct);
+        if (user is null)
+        {
+            return NotFound(new ApiError("用户不存在"));
+        }
+        if (!user.IsActive)
+        {
+            return BadRequest(new ApiError("用户已停用，不能加入项目"));
+        }
+        if (user.Id == project.OwnerUserId ||
+            await _db.ProjectMembers.AnyAsync(x => x.ProjectId == id && x.UserId == user.Id, ct))
+        {
+            return Conflict(new ApiError("该用户已是项目成员"));
+        }
+
+        var member = new ProjectMember
+        {
+            ProjectId = id,
+            UserId = user.Id,
+            RoleInProject = role
+        };
+        _db.ProjectMembers.Add(member);
+        _db.AddAudit(CurrentUserId, CurrentUserName, "AddMember", "Project", id.ToString(),
+            $"{user.UserName} / {role}");
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new ProjectMemberDto(user.Id, user.UserName, user.DisplayName, role, user.IsActive));
+    }
+
+    /// <summary>修改非负责人成员的项目角色。</summary>
+    [HttpPut("{id:guid}/members/{userId:guid}")]
+    [Authorize(Roles = "Admin")]
+    [RequirePermission("projects.update")]
+    public async Task<ActionResult<ProjectMemberDto>> UpdateMemberRole(
+        Guid id,
+        Guid userId,
+        [FromBody] UpsertProjectMemberRequest request,
+        CancellationToken ct)
+    {
+        var project = await _db.Projects.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (project is null)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (!await CanAccessAsync(project.Id, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
+        }
+        if (userId == project.OwnerUserId)
+        {
+            return BadRequest(new ApiError("项目负责人的角色不能修改"));
+        }
+
+        var member = await _db.ProjectMembers
+            .Include(x => x.User)
+            .SingleOrDefaultAsync(x => x.ProjectId == id && x.UserId == userId, ct);
+        if (member is null)
+        {
+            return NotFound(new ApiError("该用户不是项目成员"));
+        }
+
+        var roleError = ValidateAssignableRole(request.RoleInProject, out var role);
+        if (roleError is not null)
+        {
+            return BadRequest(new ApiError(roleError));
+        }
+
+        member.RoleInProject = role;
+        _db.AddAudit(CurrentUserId, CurrentUserName, "UpdateMember", "Project", id.ToString(),
+            $"{member.User.UserName} / {role}");
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new ProjectMemberDto(
+            member.UserId,
+            member.User.UserName,
+            member.User.DisplayName,
+            member.RoleInProject,
+            member.User.IsActive));
+    }
+
+    /// <summary>移除项目成员。项目负责人不能被移除。</summary>
+    [HttpDelete("{id:guid}/members/{userId:guid}")]
+    [Authorize(Roles = "Admin")]
+    [RequirePermission("projects.update")]
+    public async Task<IActionResult> RemoveMember(Guid id, Guid userId, CancellationToken ct)
+    {
+        var project = await _db.Projects.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (project is null)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (!await CanAccessAsync(project.Id, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
+        }
+        if (userId == project.OwnerUserId)
+        {
+            return BadRequest(new ApiError("项目负责人不能被移出项目"));
+        }
+
+        var member = await _db.ProjectMembers
+            .SingleOrDefaultAsync(x => x.ProjectId == id && x.UserId == userId, ct);
+        if (member is null)
+        {
+            return NotFound(new ApiError("该用户不是项目成员"));
+        }
+
+        _db.ProjectMembers.Remove(member);
+        _db.AddAudit(CurrentUserId, CurrentUserName, "RemoveMember", "Project", id.ToString(),
+            member.UserId.ToString());
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// 批量授权：勾选一组用户，统一授予管理 / 设计 / 只读项目角色。
+    /// 已是成员的用户会被更新为所选角色；项目负责人必须保持“管理”。
+    /// </summary>
+    [HttpPost("{id:guid}/members/bulk")]
+    [Authorize(Roles = "Admin")]
+    [RequirePermission("projects.update")]
+    public async Task<ActionResult<IReadOnlyList<ProjectMemberDto>>> BulkGrantMembers(
+        Guid id,
+        [FromBody] BulkGrantProjectMembersRequest request,
+        CancellationToken ct)
+    {
+        var project = await _db.Projects.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (project is null)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (CurrentPlantId is Guid plantId && project.PlantId != plantId)
+        {
+            return NotFound(new ApiError("项目不存在"));
+        }
+        if (!await CanAccessAsync(project.Id, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiError("没有访问该项目的权限"));
+        }
+
+        var roleError = ValidateAssignableRole(request.RoleInProject, out var role);
+        if (roleError is not null)
+        {
+            return BadRequest(new ApiError(roleError));
+        }
+
+        var userIds = (request.UserIds ?? Array.Empty<Guid>()).Distinct().ToList();
+        if (userIds.Count == 0)
+        {
+            return BadRequest(new ApiError("请至少选择一个用户"));
+        }
+
+        var users = await _db.Users.Where(x => userIds.Contains(x.Id)).ToListAsync(ct);
+        if (users.Count != userIds.Count)
+        {
+            return BadRequest(new ApiError("包含不存在的用户"));
+        }
+        var inactive = users.Where(x => !x.IsActive).Select(x => x.UserName).ToList();
+        if (inactive.Count > 0)
+        {
+            return BadRequest(new ApiError("以下用户已停用，不能授权：" + string.Join("、", inactive)));
+        }
+
+        if (project.OwnerUserId is Guid ownerId &&
+            userIds.Contains(ownerId) &&
+            !string.Equals(role, ProjectRoleCatalog.Manager, StringComparison.Ordinal))
+        {
+            return BadRequest(new ApiError("项目负责人必须保持“管理”角色"));
+        }
+
+        var existing = await _db.ProjectMembers
+            .Where(x => x.ProjectId == id && userIds.Contains(x.UserId))
+            .ToListAsync(ct);
+
+        foreach (var user in users)
+        {
+            var member = existing.FirstOrDefault(x => x.UserId == user.Id);
+            if (member is null)
+            {
+                _db.ProjectMembers.Add(new ProjectMember
+                {
+                    ProjectId = id,
+                    UserId = user.Id,
+                    RoleInProject = role
+                });
+            }
+            else
+            {
+                member.RoleInProject = role;
+            }
+        }
+
+        _db.AddAudit(CurrentUserId, CurrentUserName, "BulkGrantMembers", "Project", id.ToString(),
+            $"{users.Count} 人 / {role}");
+        await _db.SaveChangesAsync(ct);
+
+        var members = await _db.ProjectMembers
+            .Include(x => x.User)
+            .AsNoTracking()
+            .Where(x => x.ProjectId == id)
+            .ToListAsync(ct);
+
+        var result = members
+            .OrderBy(x => x.UserId == project.OwnerUserId ? 0 : 1)
+            .ThenBy(x => x.User.UserName, StringComparer.OrdinalIgnoreCase)
+            .Select(ToMemberDto)
+            .ToList();
+        return Ok(result);
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("projects.create")]
     public async Task<ActionResult<ProjectDto>> Create([FromBody] CreateProjectRequest request, CancellationToken ct)
     {
         var isAdmin = User.IsInRole("Admin");
@@ -157,7 +444,7 @@ public sealed class ProjectsController : ApiControllerBase
         {
             ProjectId = project.Id,
             UserId = CurrentUserId,
-            RoleInProject = "Owner"
+            RoleInProject = ProjectRoleCatalog.Manager
         });
         _db.AddAudit(CurrentUserId, CurrentUserName, "Create", "Project", project.Id.ToString(), code);
         await _db.SaveChangesAsync(ct);
@@ -173,6 +460,7 @@ public sealed class ProjectsController : ApiControllerBase
 
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("projects.update")]
     public async Task<ActionResult<ProjectDto>> Update(Guid id, [FromBody] UpdateProjectRequest request, CancellationToken ct)
     {
         var project = await _db.Projects
@@ -231,6 +519,7 @@ public sealed class ProjectsController : ApiControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
+    [RequirePermission("projects.delete")]
     public async Task<IActionResult> Archive(Guid id, CancellationToken ct)
     {
         var project = await _db.Projects.SingleOrDefaultAsync(x => x.Id == id, ct);
@@ -285,6 +574,27 @@ public sealed class ProjectsController : ApiControllerBase
 
         return null;
     }
+
+    /// <summary>校验可分配的项目角色：管理 / 设计 / 只读；历史 Owner 归一为管理。</summary>
+    private static string? ValidateAssignableRole(string? role, out string normalized)
+    {
+        if (!ProjectRoleCatalog.IsValid(role) &&
+            !string.Equals(role?.Trim(), "Owner", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = string.Empty;
+            return "项目角色只能是 Manager（管理）、Designer（设计）或 Viewer（只读）";
+        }
+
+        normalized = ProjectRoleCatalog.Normalize(role);
+        return null;
+    }
+
+    private static ProjectMemberDto ToMemberDto(ProjectMember member) => new(
+        member.UserId,
+        member.User.UserName,
+        member.User.DisplayName,
+        ProjectRoleCatalog.Normalize(member.RoleInProject),
+        member.User.IsActive);
 
     private static ProjectDto ToDto(Project project) => new()
     {
