@@ -25,6 +25,9 @@ public sealed class ExplorerNode
     public bool IsEquipmentFolder => CategoryFolder == ExplorerCategoryFolder.Equipment;
     /// <summary>分类文件夹关联的装置 PBS 节点 Id。</summary>
     public Guid? RelatedPbsNodeId { get; init; }
+    /// <summary>真实 PBS 节点 Id 与类型；分类文件夹等虚拟节点为空。</summary>
+    public Guid? PbsNodeId { get; init; }
+    public string? PbsNodeType { get; init; }
     public bool IsExpanded { get; init; } = true;
     public Action? Open { get; init; }
     public ObservableCollection<ExplorerNode> Children { get; } = new();

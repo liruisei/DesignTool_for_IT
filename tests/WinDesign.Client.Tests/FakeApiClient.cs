@@ -452,6 +452,7 @@ public sealed class FakeApiClient : IApiClient
 
     /// <summary>设计端在装置下新增回路 / 建筑物的调用记录。</summary>
     public List<(Guid UnitId, CreateUnitChildRequest Request)> UnitChildren { get; } = new();
+    public List<(Guid UnitId, Guid Id, UpdateUnitChildRequest Request)> UnitChildUpdates { get; } = new();
 
     public Task<PbsNodeDto> CreateUnitChildAsync(
         Guid unitId,
@@ -464,6 +465,29 @@ public sealed class FakeApiClient : IApiClient
             request.NodeType, 99, request.Description, 0, 0);
         PbsNodes.Add(dto);
         UnitChildren.Add((unitId, request));
+        return Task.FromResult(dto);
+    }
+
+    public Task<PbsNodeDto> UpdateUnitChildAsync(
+        Guid unitId,
+        Guid id,
+        UpdateUnitChildRequest request,
+        CancellationToken ct = default)
+    {
+        var index = PbsNodes.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("PBS 节点不存在");
+        }
+
+        var dto = PbsNodes[index] with
+        {
+            Code = request.Code,
+            Name = request.Name,
+            Description = request.Description
+        };
+        PbsNodes[index] = dto;
+        UnitChildUpdates.Add((unitId, id, request));
         return Task.FromResult(dto);
     }
 

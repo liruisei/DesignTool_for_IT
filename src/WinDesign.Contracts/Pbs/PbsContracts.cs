@@ -37,3 +37,9 @@ public sealed record CreateUnitChildRequest(
     string Name,
     string NodeType,
     string? Description);
+
+/// <summary>设计端编辑装置下的回路 / 建筑物节点。</summary>
+public sealed record UpdateUnitChildRequest(
+    string Code,
+    string Name,
+    string? Description);

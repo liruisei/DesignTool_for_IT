@@ -72,6 +72,9 @@ public interface IApiClient
     /// <summary>设计端在装置下新增「回路」或「建筑物」分类节点。</summary>
     Task<PbsNodeDto> CreateUnitChildAsync(Guid unitId, CreateUnitChildRequest request, CancellationToken ct = default);
 
+    /// <summary>设计端编辑装置下的「回路」或「建筑物」节点。</summary>
+    Task<PbsNodeDto> UpdateUnitChildAsync(Guid unitId, Guid id, UpdateUnitChildRequest request, CancellationToken ct = default);
+
     Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(Guid projectId, string? search = null, string? discipline = null, Guid? pbsNodeId = null, int pageSize = 500, CancellationToken ct = default);
     Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, EquipmentUpsertRequest request, CancellationToken ct = default);
     Task<EquipmentDto> UpdateEquipmentAsync(Guid id, EquipmentUpsertRequest request, CancellationToken ct = default);

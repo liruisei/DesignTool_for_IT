@@ -25,6 +25,38 @@ public class PbsTests : ApiTestBase
     }
 
     [Fact]
+    public async Task DesignClient_CanEditUnitBuildingChild()
+    {
+        await LoginAsync();
+        var nodes = await Client.GetFromJsonAsync<List<PbsNodeDto>>($"/api/plants/{PlantId}/pbs");
+        var unit = nodes!.First(x => x.Code == "CDU");
+        var code = UniqueCode("B");
+
+        var create = await Client.PostAsJsonAsync($"/api/units/{unit.Id}/pbs-children", new
+        {
+            code,
+            name = "测试建筑",
+            nodeType = "Building",
+            description = "created"
+        });
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        var created = await create.Content.ReadFromJsonAsync<PbsNodeDto>();
+
+        var update = await Client.PutAsJsonAsync(
+            $"/api/units/{unit.Id}/pbs-children/{created!.Id}", new
+            {
+                code = code + "-E",
+                name = "测试建筑-已编辑",
+                description = "updated"
+            });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        var updated = await update.Content.ReadFromJsonAsync<PbsNodeDto>();
+        Assert.Equal(code + "-E", updated!.Code);
+        Assert.Equal("测试建筑-已编辑", updated.Name);
+        Assert.Equal("updated", updated.Description);
+    }
+
+    [Fact]
     public async Task Pbs_Crud_RoundTrip()
     {
         await LoginManagementAsync();

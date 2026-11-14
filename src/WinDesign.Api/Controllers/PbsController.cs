@@ -216,6 +216,122 @@ public sealed class PbsController : ApiControllerBase
         return Ok(ToDto(node, 0, 0));
     }
 
+    /// <summary>
+    /// 设计端编辑装置下的回路 / 建筑物节点（当前项目 PBS 范围内）。
+    /// </summary>
+    [HttpPut("units/{unitId:guid}/pbs-children/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.DesignClient)]
+    [Authorize(Roles = "Admin,Designer")]
+    [RequirePermission("pbs.update")]
+    public async Task<ActionResult<PbsNodeDto>> UpdateUnitChild(
+        Guid unitId,
+        Guid id,
+        [FromBody] UpdateUnitChildRequest request,
+        CancellationToken ct)
+    {
+        var unit = await _db.PbsNodes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == unitId, ct);
+        if (unit is null)
+        {
+            return NotFound(new ApiError("装置不存在"));
+        }
+        if (EnsureWorkspacePlant(unit.PlantId) is ActionResult denied)
+        {
+            return denied;
+        }
+        if (unit.NodeType != PbsNodeType.Unit)
+        {
+            return BadRequest(new ApiError("只能在装置下编辑回路或建筑物"));
+        }
+
+        var node = await _db.PbsNodes.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (node is null)
+        {
+            return NotFound(new ApiError("节点不存在"));
+        }
+        if (node.ParentId != unitId)
+        {
+            return BadRequest(new ApiError("节点不属于该装置"));
+        }
+        if (node.NodeType is not (PbsNodeType.Loop or PbsNodeType.Building))
+        {
+            return BadRequest(new ApiError("只能编辑回路或建筑物"));
+        }
+        if (!await IsInCurrentProjectScopeAsync(unit, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError("节点不在当前项目的 PBS 范围内"));
+        }
+
+        var code = request.Code.Trim();
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name))
+        {
+            return BadRequest(new ApiError("编码和名称不能为空"));
+        }
+        if (await _db.PbsNodes.AnyAsync(
+                x => x.PlantId == unit.PlantId && x.Code == code && x.Id != id, ct))
+        {
+            return Conflict(new ApiError("编码已存在"));
+        }
+
+        node.Code = code;
+        node.Name = request.Name.Trim();
+        node.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        node.UpdatedAt = DateTime.UtcNow;
+
+        _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "PbsNode", node.Id.ToString(),
+            $"{node.NodeType} {node.Code} {node.Name}");
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(ToDto(node, 0, 0));
+    }
+
+    private async Task<bool> IsInCurrentProjectScopeAsync(PbsNode node, CancellationToken ct)
+    {
+        if (CurrentProjectId is not Guid projectId)
+        {
+            return false;
+        }
+
+        var project = await _db.Projects.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == projectId, ct);
+        if (project is null)
+        {
+            return false;
+        }
+        if (project.PbsRootNodeId is not Guid rootId)
+        {
+            return true;
+        }
+
+        var nodes = await _db.PbsNodes
+            .Where(x => x.PlantId == node.PlantId)
+            .AsNoTracking()
+            .ToListAsync(ct);
+        var byId = nodes.ToDictionary(x => x.Id);
+
+        var current = byId[node.Id];
+        var visited = new HashSet<Guid>();
+        while (visited.Add(current.Id))
+        {
+            if (current.Id == rootId)
+            {
+                return true;
+            }
+            if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
+            {
+                current = parent;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     [HttpPut("pbs/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.AdminClient)]
     [Authorize(Roles = "Admin,Designer")]

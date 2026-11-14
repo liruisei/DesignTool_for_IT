@@ -185,7 +185,9 @@
                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                     <MenuItem Header="新增" Command="{Binding AddCategoryItemCommand}"
                                               Visibility="{Binding IsCategoryFolderSelected, Converter={StaticResource BoolToVis}}" />
-                                    <Separator Visibility="{Binding IsCategoryFolderSelected, Converter={StaticResource BoolToVis}}" />
+                                    <MenuItem Header="编辑" Command="{Binding EditPbsBuildingCommand}"
+                                              Visibility="{Binding IsBuildingNodeSelected, Converter={StaticResource BoolToVis}}" />
+                                    <Separator Visibility="{Binding ShowPbsContextActions, Converter={StaticResource BoolToVis}}" />
                                     <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
                                 </ContextMenu>
                             </TreeView.ContextMenu>

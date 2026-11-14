@@ -216,6 +216,8 @@ public partial class MainViewModel : ObservableObject
         {
             Key = "pbs:" + node.Id,
             Title = FormatPbsNodeTitle(node),
+            PbsNodeId = node.Id,
+            PbsNodeType = node.NodeType,
             Glyph = node.NodeType switch
             {
                 "Area" => "▦",
@@ -478,10 +480,20 @@ public partial class MainViewModel : ObservableObject
     /// <summary>当前右键是否位于装置下的分类文件夹（设备 / 回路 / 建筑物）。</summary>
     public bool IsCategoryFolderSelected => SelectedPbsNode?.IsCategoryFolder == true;
 
+    /// <summary>当前右键是否位于真实的建筑物 PBS 节点。</summary>
+    public bool IsBuildingNodeSelected =>
+        SelectedPbsNode is { PbsNodeType: "Building", PbsNodeId: not null };
+
+    public bool ShowPbsContextActions => IsCategoryFolderSelected || IsBuildingNodeSelected;
+
+    private bool CanWrite => _session.IsAdmin || _session.IsDesigner;
+
     partial void OnSelectedPbsNodeChanged(ExplorerNode? value)
     {
         OnPropertyChanged(nameof(IsEquipmentFolderSelected));
         OnPropertyChanged(nameof(IsCategoryFolderSelected));
+        OnPropertyChanged(nameof(IsBuildingNodeSelected));
+        OnPropertyChanged(nameof(ShowPbsContextActions));
     }
 
     /// <summary>
@@ -518,7 +530,7 @@ public partial class MainViewModel : ObservableObject
         var category = nodeType == "Loop" ? ExplorerCategoryFolder.Loop : ExplorerCategoryFolder.Building;
 
         var result = _categoryDialogs.EditCategory(
-            new CategoryEditorContext(category, unitTitle, null, null, null, IsReadOnly: false));
+            new CategoryEditorContext(category, unitTitle, null, null, null, IsReadOnly: !CanWrite));
         if (result is null)
         {
             return;
@@ -539,6 +551,67 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusText = "新增" + title + "失败：" + ex.Message;
+        }
+    }
+
+    /// <summary>右键建筑物节点编辑编号、名称与备注。</summary>
+    [RelayCommand]
+    private async Task EditPbsBuildingAsync()
+    {
+        if (SelectedPbsNode is not { PbsNodeId: Guid nodeId })
+        {
+            StatusText = "请选择建筑物节点";
+            return;
+        }
+
+        var node = _pbsNodes.FirstOrDefault(x => x.Id == nodeId);
+        if (node is null ||
+            !string.Equals(node.NodeType, "Building", StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText = "只能编辑建筑物节点";
+            return;
+        }
+
+        var unit = node.ParentId is Guid parentId
+            ? _pbsNodes.FirstOrDefault(x =>
+                x.Id == parentId &&
+                string.Equals(x.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
+            : null;
+        if (unit is null)
+        {
+            StatusText = "找不到建筑物所属的装置";
+            return;
+        }
+
+        var result = _categoryDialogs.EditCategory(new CategoryEditorContext(
+            ExplorerCategoryFolder.Building,
+            unit.Code + "  " + unit.Name,
+            node.Code,
+            node.Name,
+            node.Description,
+            IsReadOnly: !CanWrite,
+            IsEdit: true));
+        if (result is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _session.Api.UpdateUnitChildAsync(
+                unit.Id,
+                node.Id,
+                new UpdateUnitChildRequest(result.Code, result.Name, result.Description));
+            StatusText = "建筑物已更新";
+            await LoadPbsTreeAsync();
+        }
+        catch (ApiException ex)
+        {
+            StatusText = "编辑建筑物失败：" + ex.Message;
+        }
+        catch (Exception ex)
+        {
+            StatusText = "编辑建筑物失败：" + ex.Message;
         }
     }
 

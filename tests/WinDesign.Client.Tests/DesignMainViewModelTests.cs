@@ -354,6 +354,54 @@ public class DesignMainViewModelTests
         Assert.DoesNotContain(api.PbsNodes, x => x.ParentId == unit.Id);
     }
 
+    [Fact]
+    public async Task EditBuildingNode_UpdatesCodeAndName_AndRefreshesTree()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var unit = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "1885", "全厂信息管理系统", "Unit", 1, null, 0, 0);
+        var building = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, unit.Id, "FAR3-01", "煤制氢联合装置机柜间", "Building", 1, null, 0, 0);
+        api.PbsNodes.AddRange(new[] { unit, building });
+
+        var dialogs = new FakeCategoryDialogService
+        {
+            NextResult = new CategoryEditResult("FAR3-01-E", "机柜间-改", "已编辑")
+        };
+        var viewModel = new MainViewModel(
+            api.CreateSession(),
+            new FakeEquipmentDialogService(),
+            dialogs);
+        await viewModel.PbsTreeLoadTask;
+
+        var pbs = Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs");
+        var unitItem = Assert.Single(Assert.Single(pbs.Children).Children);
+        var buildingsFolder = Assert.Single(unitItem.Children,
+            x => x.CategoryFolder == ExplorerCategoryFolder.Building);
+        viewModel.SelectedPbsNode = Assert.Single(buildingsFolder.Children);
+
+        Assert.True(viewModel.IsBuildingNodeSelected);
+        Assert.True(viewModel.ShowPbsContextActions);
+
+        await viewModel.EditPbsBuildingCommand.ExecuteAsync(null);
+
+        Assert.NotNull(dialogs.LastContext);
+        Assert.True(dialogs.LastContext!.IsEdit);
+        Assert.Equal("FAR3-01", dialogs.LastContext.Code);
+
+        var update = Assert.Single(api.UnitChildUpdates);
+        Assert.Equal(unit.Id, update.UnitId);
+        Assert.Equal(building.Id, update.Id);
+        Assert.Equal("FAR3-01-E", update.Request.Code);
+
+        var refreshedUnit = Assert.Single(Assert.Single(
+            Assert.Single(viewModel.PbsExplorerNodes, x => x.Key == "pbs").Children).Children);
+        var refreshedFolder = Assert.Single(refreshedUnit.Children,
+            x => x.CategoryFolder == ExplorerCategoryFolder.Building);
+        Assert.Contains(refreshedFolder.Children, x => x.Title == "FAR3-01-E");
+    }
+
     private sealed class FakeCategoryDialogService : ICategoryDialogService
     {
         public CategoryEditorContext? LastContext { get; private set; }

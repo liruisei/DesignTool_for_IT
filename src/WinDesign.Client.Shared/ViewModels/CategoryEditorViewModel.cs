@@ -12,7 +12,8 @@ public sealed record CategoryEditorContext(
     string? Code,
     string? Name,
     string? Description,
-    bool IsReadOnly);
+    bool IsReadOnly,
+    bool IsEdit = false);
 
 public sealed record CategoryEditResult(string Code, string Name, string? Description);
 
@@ -25,11 +26,14 @@ public partial class CategoryEditorViewModel : ObservableObject
         _context = context;
         IsReadOnly = context.IsReadOnly;
         IsEditable = !context.IsReadOnly;
+        IsEdit = context.IsEdit;
         CategoryName = context.Category == ExplorerCategoryFolder.Loop ? "回路" : "建筑物";
-        Title = "新增" + CategoryName;
+        Title = (IsEdit ? "编辑" : "新增") + CategoryName;
         Intro = context.UnitTitle.Length == 0
-            ? $"在装置下新增{CategoryName}。"
-            : $"在装置「{context.UnitTitle}」下新增{CategoryName}。";
+            ? (IsEdit ? $"编辑{CategoryName}。" : $"在装置下新增{CategoryName}。")
+            : (IsEdit
+                ? $"编辑装置「{context.UnitTitle}」下的{CategoryName}。"
+                : $"在装置「{context.UnitTitle}」下新增{CategoryName}。");
 
         EditCode = context.Code ?? string.Empty;
         EditName = context.Name ?? string.Empty;
@@ -38,6 +42,7 @@ public partial class CategoryEditorViewModel : ObservableObject
 
     public bool IsReadOnly { get; }
     public bool IsEditable { get; }
+    public bool IsEdit { get; }
     public string CategoryName { get; }
     public string Title { get; }
     public string Intro { get; }
@@ -61,7 +66,7 @@ public partial class CategoryEditorViewModel : ObservableObject
 
         if (IsReadOnly)
         {
-            error = $"当前账号为只读，不能新增{CategoryName}";
+            error = $"当前账号为只读，不能{(IsEdit ? "编辑" : "新增")}{CategoryName}";
             return false;
         }
 

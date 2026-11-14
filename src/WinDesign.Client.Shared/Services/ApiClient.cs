@@ -378,6 +378,17 @@ public sealed class ApiClient : IApiClient
         return SendAsync<PbsNodeDto>(message, ct);
     }
 
+    public Task<PbsNodeDto> UpdateUnitChildAsync(
+        Guid unitId,
+        Guid id,
+        UpdateUnitChildRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/units/{unitId}/pbs-children/{id}");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<PbsNodeDto>(message, ct);
+    }
+
     // ---------- equipment ----------
     public Task<PagedResult<EquipmentDto>> GetEquipmentsAsync(
         Guid projectId,
