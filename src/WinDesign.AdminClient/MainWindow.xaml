@@ -27,6 +27,12 @@
         <DataTemplate DataType="{x:Type vm:UserClassViewModel}">
             <views:UserClassView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SwitchLibraryViewModel}">
+            <views:SwitchLibraryView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:NumberingRuleViewModel}">
+            <views:NumberingRuleView />
+        </DataTemplate>
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -51,7 +57,9 @@
             <MenuItem Header="视图(_V)">
                 <MenuItem Header="项目配置" Command="{Binding OpenProjectConfigCommand}" />
                 <MenuItem Header="PBS管理" Command="{Binding OpenPbsCommand}" />
-                <MenuItem Header="编码管理" Command="{Binding OpenDictionariesCommand}" />
+                <MenuItem Header="编码定义" Command="{Binding OpenDictionariesCommand}" />
+                <MenuItem Header="编号规定" Command="{Binding OpenNumberingRuleCommand}" />
+                <MenuItem Header="设备样本库" Command="{Binding OpenSwitchLibraryCommand}" />
                 <MenuItem Header="用户管理" Command="{Binding OpenUsersCommand}" />
                 <Separator />
                 <MenuItem Header="关闭当前标签" Command="{Binding CloseSelectedDocumentCommand}" />

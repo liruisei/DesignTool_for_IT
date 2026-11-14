@@ -41,6 +41,9 @@
         <DataTemplate DataType="{x:Type vm:MaterialIndexViewModel}">
             <views:MaterialIndexView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TelecomStatsViewModel}">
+            <views:TelecomStatsView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:ModulePlaceholderViewModel}">
             <views:ModulePlaceholderView />
         </DataTemplate>

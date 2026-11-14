@@ -25,3 +25,15 @@ public enum PbsNodeType
     Loop = 6,
     Building = 7
 }
+
+/// <summary>
+/// 设备样本类型。目前设计端电信统计只消费 Access / PoE，
+/// 机柜与其他设备作为样本库中的通用设备维护。
+/// </summary>
+public enum SwitchType
+{
+    Access = 0,
+    PoE = 1,
+    Cabinet = 2,
+    Other = 3
+}

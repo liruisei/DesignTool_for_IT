@@ -22,6 +22,11 @@ public sealed class SessionService
     public Guid? PlantId => Plant?.Id;
     public Guid? ProjectId => Project?.Id;
 
+    /// <summary>登录时选择的默认装置，用于新建设备的默认 PBS 与位号前缀。</summary>
+    public Guid? UnitId { get; private set; }
+    public string? UnitCode { get; private set; }
+    public string? UnitName { get; private set; }
+
     public bool IsAdmin => User?.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase) == true;
     public bool IsDesigner => User?.Roles.Contains("Designer", StringComparer.OrdinalIgnoreCase) == true;
     public bool HasWorkspace => Plant is not null && Project is not null;
@@ -35,8 +40,24 @@ public sealed class SessionService
         User = response.User;
         Plant = null;
         Project = null;
+        ClearUnit();
         IsManagementMode = false;
         Api.SetToken(response.AccessToken);
+    }
+
+    /// <summary>登录/切换工作区时选择的默认装置。</summary>
+    public void SetSelectedUnit(WorkspaceUnitDto? unit)
+    {
+        UnitId = unit?.Id;
+        UnitCode = unit?.Code;
+        UnitName = unit?.Name;
+    }
+
+    private void ClearUnit()
+    {
+        UnitId = null;
+        UnitCode = null;
+        UnitName = null;
     }
 
     /// <summary>选择工厂 + 项目后替换为带 plantId / projectId 声明的令牌。</summary>
@@ -55,6 +76,7 @@ public sealed class SessionService
         User = response.User;
         Plant = null;
         Project = null;
+        ClearUnit();
         IsManagementMode = true;
         Api.SetToken(response.AccessToken);
     }
@@ -64,6 +86,7 @@ public sealed class SessionService
         User = null;
         Plant = null;
         Project = null;
+        ClearUnit();
         IsManagementMode = false;
         Api.SetToken(null);
     }

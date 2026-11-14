@@ -4,10 +4,12 @@ using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Materials;
+using WinDesign.Contracts.Numbering;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Plants;
 using WinDesign.Contracts.Projects;
+using WinDesign.Contracts.Telecom;
 using WinDesign.Contracts.Users;
 using WinDesign.Contracts.Workspaces;
 
@@ -22,6 +24,7 @@ public sealed class FakeApiClient : IApiClient
     public ApiException? LoginError { get; set; }
 
     public List<PlantDto> PlantDtos { get; } = new();
+    public List<WorkspaceUnitDto> WorkspaceUnits { get; } = new();
 
     public WorkspacePlantDto Plant { get; set; } = new(
         Guid.NewGuid(),
@@ -111,6 +114,9 @@ public sealed class FakeApiClient : IApiClient
     public List<DictionaryItemDto> EquipmentTypes { get; } = new();
     public List<DictionaryTypeDto> DictionaryTypes { get; } = new();
     public List<ProjectMemberDto> ProjectMembers { get; } = new();
+    public List<SwitchModelDto> SwitchModels { get; } = new();
+    public List<TelecomRoomDto> TelecomRooms { get; } = new();
+    public Dictionary<Guid, NumberingRuleDto> NumberingRules { get; } = new();
     public List<UserDto> Users { get; } = new();
     public List<RoleDto> Roles { get; } = new();
     public Dictionary<Guid, List<string>> RolePermissionCodes { get; } = new();
@@ -141,7 +147,8 @@ public sealed class FakeApiClient : IApiClient
         var projectRef = new WorkspaceProjectDto(
             Project.Id, Project.Code, Project.Name, Project.Phase, Project.Status)
         {
-            PbsRootNodeId = Project.PbsRootNodeId
+            PbsRootNodeId = Project.PbsRootNodeId,
+            Units = WorkspaceUnits.ToList()
         };
         IReadOnlyList<WorkspacePlantDto> result = new[]
         {
@@ -749,5 +756,172 @@ public sealed class FakeApiClient : IApiClient
     {
         Materials.RemoveAll(x => x.Id == id);
         return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<SwitchModelDto>> GetSwitchModelsAsync(
+        bool activeOnly = false,
+        CancellationToken ct = default)
+    {
+        var items = SwitchModels
+            .Where(x => !activeOnly || x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Code)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<SwitchModelDto>>(items);
+    }
+
+    public Task<SwitchModelDto> CreateSwitchModelAsync(
+        SwitchModelUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var dto = new SwitchModelDto(
+            Guid.NewGuid(), request.Code, request.Name, request.SwitchType,
+            request.ElectricalPorts, request.UplinkPorts, request.IsActive,
+            request.SortOrder, request.Remark);
+        SwitchModels.Add(dto);
+        return Task.FromResult(dto);
+    }
+
+    public Task<SwitchModelDto> UpdateSwitchModelAsync(
+        Guid id,
+        SwitchModelUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var index = SwitchModels.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("交换机样本不存在");
+        }
+
+        var dto = SwitchModels[index] with
+        {
+            Code = request.Code,
+            Name = request.Name,
+            SwitchType = request.SwitchType,
+            ElectricalPorts = request.ElectricalPorts,
+            UplinkPorts = request.UplinkPorts,
+            IsActive = request.IsActive,
+            SortOrder = request.SortOrder,
+            Remark = request.Remark
+        };
+        SwitchModels[index] = dto;
+        return Task.FromResult(dto);
+    }
+
+    public Task<SwitchModelDto> ToggleSwitchModelActiveAsync(
+        Guid id,
+        CancellationToken ct = default)
+    {
+        var index = SwitchModels.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("设备样本不存在");
+        }
+
+        var dto = SwitchModels[index] with { IsActive = !SwitchModels[index].IsActive };
+        SwitchModels[index] = dto;
+        return Task.FromResult(dto);
+    }
+
+    public Task DeleteSwitchModelAsync(Guid id, CancellationToken ct = default)
+    {
+        SwitchModels.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<TelecomRoomDto>> GetTelecomRoomsAsync(
+        Guid projectId,
+        CancellationToken ct = default)
+    {
+        var items = TelecomRooms
+            .Where(x => x.ProjectId == projectId)
+            .OrderBy(x => x.BuildingCode)
+            .ThenBy(x => x.Floor)
+            .ThenBy(x => x.Code)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<TelecomRoomDto>>(items);
+    }
+
+    public Task<TelecomRoomDto> CreateTelecomRoomAsync(
+        Guid projectId,
+        TelecomRoomUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var dto = BuildTelecomRoomDto(Guid.NewGuid(), projectId, request);
+        TelecomRooms.Add(dto);
+        return Task.FromResult(dto);
+    }
+
+    public Task<TelecomRoomDto> UpdateTelecomRoomAsync(
+        Guid id,
+        TelecomRoomUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var index = TelecomRooms.FindIndex(x => x.Id == id);
+        if (index < 0)
+        {
+            throw new ApiException("电信房间记录不存在");
+        }
+
+        var dto = BuildTelecomRoomDto(id, TelecomRooms[index].ProjectId, request);
+        TelecomRooms[index] = dto;
+        return Task.FromResult(dto);
+    }
+
+    public Task DeleteTelecomRoomAsync(Guid id, CancellationToken ct = default)
+    {
+        TelecomRooms.RemoveAll(x => x.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task<NumberingRuleDto> GetNumberingRuleAsync(
+        Guid projectId,
+        CancellationToken ct = default) =>
+        Task.FromResult(NumberingRules.TryGetValue(projectId, out var rule)
+            ? rule
+            : new NumberingRuleDto(
+                Guid.Empty, projectId,
+                string.Empty, string.Empty, EquipmentTagFormat.DefaultPrefixLength,
+                string.Empty, string.Empty, EquipmentTagFormat.DefaultTypeLength,
+                EquipmentTagFormat.DefaultSequenceLength, string.Empty,
+                EquipmentTagFormat.DefaultSuffixLength));
+
+    public Task<NumberingRuleDto> SaveNumberingRuleAsync(
+        Guid projectId,
+        UpsertNumberingRuleRequest request,
+        CancellationToken ct = default)
+    {
+        var existingId = NumberingRules.TryGetValue(projectId, out var existing) && existing.Id != Guid.Empty
+            ? existing.Id
+            : Guid.NewGuid();
+        var rule = new NumberingRuleDto(
+            existingId,
+            projectId,
+            request.PrefixField,
+            request.PrefixSeparator,
+            request.PrefixLength,
+            request.EquipmentTypeField,
+            request.TypeSeparator,
+            request.TypeLength,
+            request.SequenceLength,
+            request.Suffix,
+            request.SuffixLength);
+        NumberingRules[projectId] = rule;
+        return Task.FromResult(rule);
+    }
+
+    private TelecomRoomDto BuildTelecomRoomDto(
+        Guid id,
+        Guid projectId,
+        TelecomRoomUpsertRequest request)
+    {
+        var building = PbsNodes.FirstOrDefault(x => x.Id == request.PbsNodeId);
+        return new TelecomRoomDto(
+            id, projectId, request.PbsNodeId,
+            building?.Code ?? string.Empty,
+            building?.Name ?? string.Empty,
+            request.Floor, request.Code, request.Name,
+            request.DataPointCount, request.PhonePointCount, request.ApCount,
+            request.Remark, request.SortOrder);
     }
 }

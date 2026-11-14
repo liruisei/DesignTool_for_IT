@@ -8,10 +8,12 @@ using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Materials;
+using WinDesign.Contracts.Numbering;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Plants;
+using WinDesign.Contracts.Telecom;
 using WinDesign.Contracts.Users;
 using WinDesign.Contracts.Workspaces;
 
@@ -509,4 +511,84 @@ public sealed class ApiClient : IApiClient
 
     public Task DeleteMaterialAsync(Guid id, CancellationToken ct = default) =>
         SendNoContentAsync(Request(HttpMethod.Delete, $"api/materials/{id}"), ct);
+
+    public Task<IReadOnlyList<SwitchModelDto>> GetSwitchModelsAsync(
+        bool activeOnly = false,
+        CancellationToken ct = default) =>
+        SendAsync<IReadOnlyList<SwitchModelDto>>(
+            Request(HttpMethod.Get, $"api/switch-models?activeOnly={activeOnly.ToString().ToLowerInvariant()}"),
+            ct);
+
+    public Task<SwitchModelDto> CreateSwitchModelAsync(
+        SwitchModelUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, "api/switch-models");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<SwitchModelDto>(message, ct);
+    }
+
+    public Task<SwitchModelDto> UpdateSwitchModelAsync(
+        Guid id,
+        SwitchModelUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/switch-models/{id}");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<SwitchModelDto>(message, ct);
+    }
+
+    public Task<SwitchModelDto> ToggleSwitchModelActiveAsync(
+        Guid id,
+        CancellationToken ct = default) =>
+        SendAsync<SwitchModelDto>(
+            Request(HttpMethod.Post, $"api/switch-models/{id}/toggle-active"), ct);
+
+    public Task DeleteSwitchModelAsync(Guid id, CancellationToken ct = default) =>
+        SendNoContentAsync(Request(HttpMethod.Delete, $"api/switch-models/{id}"), ct);
+
+    public Task<IReadOnlyList<TelecomRoomDto>> GetTelecomRoomsAsync(
+        Guid projectId,
+        CancellationToken ct = default) =>
+        SendAsync<IReadOnlyList<TelecomRoomDto>>(
+            Request(HttpMethod.Get, $"api/projects/{projectId}/telecom-rooms"), ct);
+
+    public Task<TelecomRoomDto> CreateTelecomRoomAsync(
+        Guid projectId,
+        TelecomRoomUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Post, $"api/projects/{projectId}/telecom-rooms");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<TelecomRoomDto>(message, ct);
+    }
+
+    public Task<TelecomRoomDto> UpdateTelecomRoomAsync(
+        Guid id,
+        TelecomRoomUpsertRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/telecom-rooms/{id}");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<TelecomRoomDto>(message, ct);
+    }
+
+    public Task DeleteTelecomRoomAsync(Guid id, CancellationToken ct = default) =>
+        SendNoContentAsync(Request(HttpMethod.Delete, $"api/telecom-rooms/{id}"), ct);
+
+    public Task<NumberingRuleDto> GetNumberingRuleAsync(
+        Guid projectId,
+        CancellationToken ct = default) =>
+        SendAsync<NumberingRuleDto>(
+            Request(HttpMethod.Get, $"api/projects/{projectId}/numbering-rule"), ct);
+
+    public Task<NumberingRuleDto> SaveNumberingRuleAsync(
+        Guid projectId,
+        UpsertNumberingRuleRequest request,
+        CancellationToken ct = default)
+    {
+        var message = Request(HttpMethod.Put, $"api/projects/{projectId}/numbering-rule");
+        message.Content = JsonContent.Create(request, options: JsonOptions);
+        return SendAsync<NumberingRuleDto>(message, ct);
+    }
 }

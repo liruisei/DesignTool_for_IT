@@ -44,9 +44,12 @@ public class PbsViewModelTests
         Assert.Single(viewModel.Roots);
         Assert.True(viewModel.Roots[0].IsPlant);
         Assert.Single(viewModel.Roots[0].Children);
-        Assert.Single(viewModel.Roots[0].Children[0].Children);
-        Assert.Single(viewModel.Roots[0].Children[0].Children[0].Children);
-        Assert.Contains(viewModel.ParentOptions, x => x.Id == system.Id);
+
+        // 装置在管理端树中是叶子，装置下的 System 等子节点不显示。
+        var areaItem = viewModel.Roots[0].Children[0];
+        var unitItem = Assert.Single(areaItem.Children);
+        Assert.Empty(unitItem.Children);
+        Assert.DoesNotContain(viewModel.ParentOptions, x => x.Id == system.Id);
         Assert.Contains(viewModel.ParentOptions, x => x.Id == unit.Id);
         Assert.Contains(viewModel.ParentOptions, x => x.Id == area.Id);
     }
@@ -143,13 +146,13 @@ public class PbsViewModelTests
     [Fact]
     public async Task Refresh_IncludesEquipmentUnderPbsNode()
     {
-        var (api, project, _, _, system) = CreateTree();
+        var (api, project, area, _, _) = CreateTree();
         api.Equipments.Add(new EquipmentDto
         {
             Id = Guid.NewGuid(),
             PlantId = api.Plant.Id,
             ProjectId = project.Id,
-            PbsNodeId = system.Id,
+            PbsNodeId = area.Id,
             TagNo = "PT-9001",
             Name = "设备",
             Discipline = "Instrument",
@@ -160,14 +163,39 @@ public class PbsViewModelTests
 
         await viewModel.RefreshAsync();
 
-        var systemItem = viewModel.Roots[0].Children[0].Children[0].Children[0];
-        Assert.Contains(systemItem.Children, x => x.Equipment?.TagNo == "PT-9001");
+        var areaItem = viewModel.Roots[0].Children[0];
+        Assert.Contains(areaItem.Children, x => x.Equipment?.TagNo == "PT-9001");
+    }
+
+    [Fact]
+    public async Task Refresh_HidesEquipmentUnderUnit()
+    {
+        var (api, project, _, unit, _) = CreateTree();
+        api.Equipments.Add(new EquipmentDto
+        {
+            Id = Guid.NewGuid(),
+            PlantId = api.Plant.Id,
+            ProjectId = project.Id,
+            PbsNodeId = unit.Id,
+            TagNo = "PT-9002",
+            Name = "设备",
+            Discipline = "Instrument",
+            Quantity = 1,
+            CreatedAt = DateTime.UtcNow
+        });
+        var viewModel = CreateViewModel(api, project);
+
+        await viewModel.RefreshAsync();
+
+        // 装置是叶子，直接挂在装置上的设备同样不显示。
+        var unitItem = viewModel.Roots[0].Children[0].Children[0];
+        Assert.Empty(unitItem.Children);
     }
 
     [Fact]
     public async Task Selection_DrivesContextMenuScope()
     {
-        var (api, project, area, _, _) = CreateTree();
+        var (api, project, area, unit, _) = CreateTree();
         var viewModel = CreateViewModel(api, project);
         await viewModel.RefreshAsync();
 
@@ -182,6 +210,12 @@ public class PbsViewModelTests
         Assert.True(viewModel.IsPbsNodeSelected);
         Assert.False(viewModel.CanManageFactoriesHere);
         Assert.Equal(area.Id, viewModel.SelectedNode.Node!.Id);
+        Assert.True(viewModel.CanCreateChild);
+
+        // 装置是叶子，不允许再新建子节点。
+        viewModel.SelectedNode = viewModel.Roots[0].Children[0].Children[0];
+        Assert.Equal(unit.Id, viewModel.SelectedNode.Node!.Id);
+        Assert.False(viewModel.CanCreateChild);
     }
 
     [Fact]

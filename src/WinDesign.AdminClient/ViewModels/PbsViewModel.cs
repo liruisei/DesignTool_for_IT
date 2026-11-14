@@ -115,8 +115,14 @@ public partial class PbsViewModel : ViewModelBase
     public bool CanManageFactoriesHere => CanManagePlants && IsFactoryNodeSelected;
     public string ProjectName => _session.Project?.Name ?? "未选择项目";
 
-    /// <summary>右键菜单：设备节点没有子节点；工厂与 PBS 节点可以新建。</summary>
-    public bool CanCreateChild => SelectedNode is not null && SelectedNode.Equipment is null;
+    /// <summary>
+    /// 右键菜单：设备节点没有子节点；工厂与 PBS 节点可以新建。
+    /// 装置在管理端树中是叶子，不能再新建子节点，否则新节点不会显示。
+    /// </summary>
+    public bool CanCreateChild =>
+        SelectedNode is not null &&
+        SelectedNode.Equipment is null &&
+        (SelectedNode.Node is not { } node || !IsUnitNode(node));
 
     /// <summary>右键菜单：工厂仅管理员可修改，节点/设备均可修改。</summary>
     public bool CanEditSelectedNode =>
@@ -580,6 +586,12 @@ public partial class PbsViewModel : ViewModelBase
             {
                 if (item.Node!.ParentId is Guid parentId && map.TryGetValue(parentId, out var parent))
                 {
+                    // 管理端 PBS 树只展示到装置层级：装置作为叶子，其下建筑物/回路等子节点不显示。
+                    if (IsUnitNode(parent.Node!))
+                    {
+                        continue;
+                    }
+
                     parent.Children.Add(item);
                 }
                 else
@@ -597,6 +609,13 @@ public partial class PbsViewModel : ViewModelBase
                 {
                     continue;
                 }
+
+                // 装置作为叶子节点，直接挂在装置上的设备也不显示；更深的子节点已随装置一并隐藏。
+                if (IsUnitNode(parent.Node!))
+                {
+                    continue;
+                }
+
                 foreach (var equipment in group.OrderBy(x => x.TagNo, StringComparer.OrdinalIgnoreCase))
                 {
                     parent.Children.Add(new PbsNodeItem(equipment));
@@ -606,6 +625,10 @@ public partial class PbsViewModel : ViewModelBase
             Roots.Add(plantRoot);
         }
     }
+
+    /// <summary>管理端树中装置作为叶子显示，装置之下的节点与设备都不再展开。</summary>
+    private static bool IsUnitNode(PbsNodeDto node) =>
+        string.Equals(node.NodeType, "Unit", StringComparison.OrdinalIgnoreCase);
 
     private void BuildParentOptions()
     {

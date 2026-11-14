@@ -253,7 +253,7 @@ public static class DatabaseSeeder
         var permissions = await db.Permissions.ToListAsync(ct);
         var byCode = permissions.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
 
-        var added = false;
+        var addedPermissions = new List<Permission>();
         foreach (var module in PermissionCatalog.Modules)
         {
             foreach (var action in PermissionCatalog.Actions)
@@ -272,10 +272,32 @@ public static class DatabaseSeeder
                 };
                 db.Permissions.Add(permission);
                 byCode[code] = permission;
-                added = true;
+                addedPermissions.Add(permission);
             }
         }
-        if (added)
+        if (addedPermissions.Count > 0)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+
+        // 模块显示名变更时同步已有权限名称；权限码保持不变，角色授权不受影响。
+        var deviceModule = PermissionCatalog.Modules.Single(x => x.Code == "switches");
+        var renamed = false;
+        foreach (var permission in permissions.Where(x =>
+                     x.Code.StartsWith("switches.", StringComparison.OrdinalIgnoreCase)))
+        {
+            var action = permission.Code["switches.".Length..];
+            var name = PermissionCatalog.DisplayName("switches", action);
+            if (permission.Name == name && permission.Module == deviceModule.Name)
+            {
+                continue;
+            }
+
+            permission.Name = name;
+            permission.Module = deviceModule.Name;
+            renamed = true;
+        }
+        if (renamed)
         {
             await db.SaveChangesAsync(ct);
         }
@@ -292,6 +314,28 @@ public static class DatabaseSeeder
             var codes = role.RolePermissions
                 .Select(x => x.Permission.Code)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // 新增模块权限时，按角色默认口径补授权，避免已建库升级后设计/只读用户直接 403。
+            foreach (var permission in addedPermissions)
+            {
+                var shouldGrant =
+                    string.Equals(role.Code, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                    (string.Equals(role.Code, "Designer", StringComparison.OrdinalIgnoreCase) &&
+                     IsDesignerDefault(permission.Code)) ||
+                    (string.Equals(role.Code, "Viewer", StringComparison.OrdinalIgnoreCase) &&
+                     permission.Code.EndsWith(".read", StringComparison.OrdinalIgnoreCase));
+                if (!shouldGrant || !codes.Add(permission.Code))
+                {
+                    continue;
+                }
+
+                db.RolePermissions.Add(new RolePermission
+                {
+                    RoleId = role.Id,
+                    PermissionId = permission.Id
+                });
+                changed = true;
+            }
 
             foreach (var module in PermissionCatalog.Modules)
             {
@@ -380,14 +424,65 @@ public static class DatabaseSeeder
         }
     }
 
+    /// <summary>
+    /// 设备样本库按编码幂等补齐常用规格（交换机 + 机柜），
+    /// 已有样本不会被覆盖，新增样本随版本升级自动补入。
+    /// </summary>
+    public static async Task EnsureSwitchModelsAsync(WinDesignDbContext db, CancellationToken ct = default)
+    {
+        var existingCodes = await db.SwitchModels
+            .Select(x => x.Code)
+            .ToListAsync(ct);
+        var known = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var defaults = new[]
+        {
+            new SwitchModel
+            {
+                Code = "SW-24A", Name = "24 口接入交换机", SwitchType = SwitchType.Access,
+                ElectricalPorts = 24, UplinkPorts = 4, SortOrder = 1
+            },
+            new SwitchModel
+            {
+                Code = "SW-48A", Name = "48 口接入交换机", SwitchType = SwitchType.Access,
+                ElectricalPorts = 48, UplinkPorts = 4, SortOrder = 2
+            },
+            new SwitchModel
+            {
+                Code = "SW-24P", Name = "24 口 PoE 交换机", SwitchType = SwitchType.PoE,
+                ElectricalPorts = 24, UplinkPorts = 4, SortOrder = 3
+            },
+            new SwitchModel
+            {
+                Code = "SW-48P", Name = "48 口 PoE 交换机", SwitchType = SwitchType.PoE,
+                ElectricalPorts = 48, UplinkPorts = 4, SortOrder = 4
+            },
+            new SwitchModel
+            {
+                Code = "CAB-42U", Name = "42U 标准机柜", SwitchType = SwitchType.Cabinet,
+                ElectricalPorts = 0, SortOrder = 5
+            }
+        };
+
+        var added = defaults.Where(x => !known.Contains(x.Code)).ToList();
+        if (added.Count == 0)
+        {
+            return;
+        }
+
+        db.SwitchModels.AddRange(added);
+        await db.SaveChangesAsync(ct);
+    }
+
     private static bool IsDesignerDefault(string code)
     {
-        if (code == "reports.read")
+        if (code == "reports.read" || code == "switches.read")
         {
             return true;
         }
 
         var module = code[..code.IndexOf('.')];
-        return module is "projects" or "dictionaries" or "pbs" or "equipment" or "specs" or "materials";
+        return module is "projects" or "dictionaries" or "pbs" or "equipment" or
+            "specs" or "materials" or "telecom";
     }
 }

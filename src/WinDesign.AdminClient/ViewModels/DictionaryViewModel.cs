@@ -75,7 +75,7 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
     public DictionaryViewModel(SessionService session)
     {
         _session = session;
-        Title = "编码管理";
+        Title = "编码定义";
         _ = RefreshAsync();
     }
 

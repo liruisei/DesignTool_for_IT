@@ -22,6 +22,9 @@ public static class PermissionCatalog
         new PermissionModuleDto("equipment", "设备索引"),
         new PermissionModuleDto("specs", "设备规格"),
         new PermissionModuleDto("materials", "材料附件"),
+        new PermissionModuleDto("telecom", "电信统计"),
+        new PermissionModuleDto("switches", "设备样本库"),
+        new PermissionModuleDto("numbering", "编号规定"),
         new PermissionModuleDto("reports", "报表输出")
     };
 

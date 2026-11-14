@@ -149,6 +149,19 @@ public class AuthTests : ApiTestBase
     }
 
     [Fact]
+    public async Task Workspaces_IncludeUnitsWithinProjectScope()
+    {
+        await LoginIdentityAsync();
+        var workspaces = await Client.GetFromJsonAsync<List<WorkspacePlantDto>>("/api/auth/workspaces");
+
+        var project = workspaces!.SelectMany(x => x.Projects).Single(x => x.Code == "DEMO-001");
+        Assert.Contains(project.Units, x => x.Code == "CDU");
+
+        var projectWithoutUnits = workspaces.SelectMany(x => x.Projects).Single(x => x.Code == "DEMO-003");
+        Assert.Empty(projectWithoutUnits.Units);
+    }
+
+    [Fact]
     public async Task Workspaces_ForViewer_OnlyContainsJoinedProjects()
     {
         var login = await Client.PostAsJsonAsync("/api/auth/login", new

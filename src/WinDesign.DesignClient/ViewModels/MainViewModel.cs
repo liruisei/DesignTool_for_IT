@@ -110,6 +110,13 @@ public partial class MainViewModel : ObservableObject
         });
         project.Children.Add(new ExplorerNode
         {
+            Key = "telecom",
+            Title = "电信统计",
+            Glyph = "◈",
+            Open = OpenTelecom
+        });
+        project.Children.Add(new ExplorerNode
+        {
             Key = "reports",
             Title = "报表输出",
             Glyph = "▥",
@@ -408,6 +415,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenMaterials() =>
         OpenDocument("materials", "材料表", () => new MaterialIndexViewModel(_session, _projectContext));
+
+    [RelayCommand]
+    private void OpenTelecom() =>
+        OpenDocument("telecom", "电信统计", () => new TelecomStatsViewModel(_session, _projectContext));
 
     [RelayCommand]
     private void OpenReports() =>

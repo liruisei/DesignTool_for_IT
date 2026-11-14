@@ -17,11 +17,12 @@ public class AdminMainViewModelTests
         var system = Assert.Single(viewModel.ExplorerNodes);
         Assert.Equal("system", system.Key);
 
-        // 导航顺序：PBS管理 → 项目配置 → 编码管理 → 用户管理 → 权限管理
+        // 导航顺序：PBS管理 → 项目配置 → 编码定义 → 编号规定 → 用户管理 → 设备样本库 → 权限管理
         Assert.Equal(
-            new[] { "pbs", "project-config", "dictionaries", "users", "user-classes" },
+            new[] { "pbs", "project-config", "dictionaries", "numbering", "users", "switches", "user-classes" },
             system.Children.Select(x => x.Key));
-        Assert.Equal("编码管理", system.Children.Single(x => x.Key == "dictionaries").Title);
+        Assert.Equal("编码定义", system.Children.Single(x => x.Key == "dictionaries").Title);
+        Assert.Equal("编号规定", system.Children.Single(x => x.Key == "numbering").Title);
 
         Assert.DoesNotContain(viewModel.ExplorerNodes, x => x.Key == "project");
         Assert.DoesNotContain(system.Children, x => x.Key == "index");

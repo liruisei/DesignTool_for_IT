@@ -7,6 +7,7 @@ using WinDesign.Api.Services;
 using WinDesign.Contracts.Auth;
 using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Workspaces;
+using WinDesign.Domain;
 using WinDesign.Domain.Entities;
 using WinDesign.Infrastructure;
 
@@ -73,6 +74,14 @@ public sealed class AuthController : ApiControllerBase
             .OrderBy(x => x.Code)
             .ToListAsync(ct);
 
+        var plantIds = plants.Select(x => x.Id).ToList();
+        var nodesByPlant = (await _db.PbsNodes
+                .Where(x => plantIds.Contains(x.PlantId))
+                .AsNoTracking()
+                .ToListAsync(ct))
+            .GroupBy(x => x.PlantId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         var result = plants
             .Select(plant => new WorkspacePlantDto(
                 plant.Id,
@@ -90,7 +99,9 @@ public sealed class AuthController : ApiControllerBase
                         project.Phase,
                         project.Status.ToString())
                     {
-                        PbsRootNodeId = project.PbsRootNodeId
+                        PbsRootNodeId = project.PbsRootNodeId,
+                        Units = BuildUnits(project,
+                            nodesByPlant.GetValueOrDefault(plant.Id) ?? new List<PbsNode>())
                     })
                     .ToList()))
             .Where(plant => isAdmin || plant.Projects.Count > 0)
@@ -145,6 +156,10 @@ public sealed class AuthController : ApiControllerBase
         var (token, expiresAt) = _jwt.Create(
             user, roles, permissions, plant.Id, project.Id, client: "design");
 
+        var pbsNodes = await _db.PbsNodes
+            .Where(x => x.PlantId == plant.Id)
+            .AsNoTracking()
+            .ToListAsync(ct);
         var projectDto = new WorkspaceProjectDto(
             project.Id,
             project.Code,
@@ -152,7 +167,8 @@ public sealed class AuthController : ApiControllerBase
             project.Phase,
             project.Status.ToString())
         {
-            PbsRootNodeId = project.PbsRootNodeId
+            PbsRootNodeId = project.PbsRootNodeId,
+            Units = BuildUnits(project, pbsNodes)
         };
         var plantDto = new WorkspacePlantDto(
             plant.Id,
@@ -242,4 +258,46 @@ public sealed class AuthController : ApiControllerBase
             .Select(x => x.Permission.Code)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList());
+
+    /// <summary>项目 PBS 范围内的装置清单；项目根为空时取工厂全部装置。</summary>
+    private static IReadOnlyList<WorkspaceUnitDto> BuildUnits(
+        Project project,
+        IReadOnlyList<PbsNode> nodes)
+    {
+        IEnumerable<PbsNode> units = nodes.Where(x => x.NodeType == PbsNodeType.Unit);
+
+        if (project.PbsRootNodeId is Guid rootId)
+        {
+            var byId = nodes.ToDictionary(x => x.Id);
+            bool InScope(PbsNode node)
+            {
+                var current = node;
+                var visited = new HashSet<Guid>();
+                while (visited.Add(current.Id))
+                {
+                    if (current.Id == rootId)
+                    {
+                        return true;
+                    }
+                    if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
+                    {
+                        current = parent;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                return false;
+            }
+
+            units = units.Where(InScope);
+        }
+
+        return units
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new WorkspaceUnitDto(x.Id, x.Code, x.Name))
+            .ToList();
+    }
 }

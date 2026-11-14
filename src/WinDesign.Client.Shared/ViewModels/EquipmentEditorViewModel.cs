@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Numbering;
 
 namespace WinDesign.Client.ViewModels;
 
@@ -13,20 +14,54 @@ public sealed record EquipmentEditorContext(
     IReadOnlyList<PbsNodeOption> PbsOptions,
     IReadOnlyList<DictionaryItemDto> EquipmentTypes,
     Guid? DefaultPbsNodeId = null,
-    string? DefaultLoopNo = null);
+    string? DefaultLoopNo = null,
+    NumberingRuleDto? NumberingRule = null,
+    IReadOnlyDictionary<Guid, string>? UnitCodeByPbsNodeId = null,
+    IReadOnlyList<string>? UnitCodeOptions = null,
+    string? DefaultUnitCode = null);
 
 public partial class EquipmentEditorViewModel : ObservableObject
 {
+    private readonly NumberingRuleDto? _rule;
+    private readonly IReadOnlyDictionary<Guid, string> _unitCodeByPbsNodeId;
+    private readonly bool _useComposedTag;
+
     public IReadOnlyList<CodeNameOption> DisciplineOptions => DisciplineCatalog.All;
 
     public ObservableCollection<PbsNodeOption> PbsOptions { get; } = new();
     public ObservableCollection<DictionaryItemDto> EquipmentTypes { get; } = new();
+    /// <summary>编号规定前缀为装置编号时，可选的装置编号清单。</summary>
+    public ObservableCollection<string> TagPrefixOptions { get; } = new();
 
     [ObservableProperty]
     private string title = "新建设备";
 
     [ObservableProperty]
     private string editTagNo = string.Empty;
+
+    /// <summary>新建/复制且项目存在编号规定时，位号按规则分段拼装。</summary>
+    public bool UseComposedTag => _useComposedTag;
+    public bool UsePlainTagInput => !_useComposedTag;
+    public bool IsPrefixAuto => _rule?.PrefixField == NumberingFields.UnitCode;
+    public bool IsPrefixManual => !IsPrefixAuto;
+    public bool IsTypeAuto => _rule?.EquipmentTypeField == NumberingFields.EquipmentTypeCode;
+    public bool IsTypeManual => !IsTypeAuto;
+    public string TagSeparator1 => _rule?.PrefixSeparator ?? string.Empty;
+    public string TagSeparator2 => _rule?.TypeSeparator ?? string.Empty;
+    public string TagComposeHint =>
+        "按项目编号规定拼装；字段不足定义长度时在右侧补空格。";
+
+    [ObservableProperty]
+    private string tagPrefix = string.Empty;
+
+    [ObservableProperty]
+    private string tagTypePart = string.Empty;
+
+    [ObservableProperty]
+    private string tagSequence = string.Empty;
+
+    [ObservableProperty]
+    private string tagSuffix = string.Empty;
 
     [ObservableProperty]
     private string editLoopNo = string.Empty;
@@ -119,6 +154,19 @@ public partial class EquipmentEditorViewModel : ObservableObject
 
     public EquipmentEditorViewModel(EquipmentEditorContext context)
     {
+        _rule = context.NumberingRule;
+        _unitCodeByPbsNodeId = context.UnitCodeByPbsNodeId ?? new Dictionary<Guid, string>();
+        _useComposedTag = _rule is not null && (context.Equipment is null || context.IsCopy);
+
+        foreach (var code in context.UnitCodeOptions ?? Array.Empty<string>())
+        {
+            TagPrefixOptions.Add(code);
+        }
+        if (!string.IsNullOrWhiteSpace(context.DefaultUnitCode))
+        {
+            TagPrefix = context.DefaultUnitCode;
+        }
+
         foreach (var option in context.PbsOptions)
         {
             PbsOptions.Add(option);
@@ -133,6 +181,7 @@ public partial class EquipmentEditorViewModel : ObservableObject
             EditPbsNodeId = context.DefaultPbsNodeId
                             ?? PbsOptions.FirstOrDefault(x => x.Id is null)?.Id;
             EditLoopNo = context.DefaultLoopNo ?? string.Empty;
+            RebuildTag();
             return;
         }
 
@@ -171,6 +220,7 @@ public partial class EquipmentEditorViewModel : ObservableObject
         EditDescription = equipment.Description ?? string.Empty;
         EditProcessCondition = equipment.ProcessCondition ?? string.Empty;
         EditSpecification = equipment.Specification ?? string.Empty;
+        RebuildTag();
     }
 
     /// <summary>
@@ -178,6 +228,11 @@ public partial class EquipmentEditorViewModel : ObservableObject
     /// </summary>
     partial void OnEditTypeCodeChanged(string? value)
     {
+        if (IsTypeAuto)
+        {
+            RebuildTag();
+        }
+
         var discipline = GetDisciplineFromType(value);
         if (discipline is null)
         {
@@ -208,11 +263,62 @@ public partial class EquipmentEditorViewModel : ObservableObject
         }
     }
 
+    partial void OnEditPbsNodeIdChanged(Guid? value)
+    {
+        if (!IsPrefixAuto)
+        {
+            return;
+        }
+
+        if (value is Guid id && _unitCodeByPbsNodeId.TryGetValue(id, out var code))
+        {
+            TagPrefix = code;
+        }
+    }
+
+    partial void OnTagPrefixChanged(string value) => RebuildTag();
+
+    partial void OnTagTypePartChanged(string value) => RebuildTag();
+
+    partial void OnTagSequenceChanged(string value) => RebuildTag();
+
+    partial void OnTagSuffixChanged(string value) => RebuildTag();
+
+    /// <summary>按项目编号规定拼装位号，字段不足定义长度时右侧补空格。</summary>
+    private void RebuildTag()
+    {
+        if (!_useComposedTag || _rule is null)
+        {
+            return;
+        }
+
+        var typePart = IsTypeAuto ? EditTypeCode ?? string.Empty : TagTypePart;
+        if (string.IsNullOrEmpty(TagPrefix) && string.IsNullOrEmpty(typePart) &&
+            string.IsNullOrEmpty(TagSequence) && string.IsNullOrEmpty(TagSuffix))
+        {
+            EditTagNo = string.Empty;
+            return;
+        }
+
+        EditTagNo =
+            EquipmentTagFormat.Fit(TagPrefix, _rule.PrefixLength) +
+            _rule.PrefixSeparator +
+            EquipmentTagFormat.Fit(typePart, _rule.TypeLength) +
+            _rule.TypeSeparator +
+            EquipmentTagFormat.Fit(TagSequence, _rule.SequenceLength) +
+            EquipmentTagFormat.Fit(TagSuffix, _rule.SuffixLength);
+    }
+
     public bool TryBuild(out EquipmentUpsertRequest? result, out string? error)
     {
         result = null;
         error = null;
 
+        if (_useComposedTag && string.IsNullOrWhiteSpace(TagSequence))
+        {
+            error = "请填写顺序号";
+            return false;
+        }
         if (string.IsNullOrWhiteSpace(EditTagNo) || string.IsNullOrWhiteSpace(EditName))
         {
             error = "设备位号和名称不能为空";

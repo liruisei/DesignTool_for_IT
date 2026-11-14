@@ -141,6 +141,72 @@ public class EquipmentSpec : EntityBase
     public int Version { get; set; } = 1;
 }
 
+/// <summary>
+/// 交换机样本库：设计端电信统计按这里的端口规格计算交换机台数。
+/// Access 用于信息点接入，PoE 用于无线 AP 接入。
+/// </summary>
+public class SwitchModel : EntityBase
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public SwitchType SwitchType { get; set; } = SwitchType.Access;
+    public int ElectricalPorts { get; set; } = 24;
+    public int? UplinkPorts { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
+    public string? Remark { get; set; }
+}
+
+/// <summary>
+/// 项目电信统计的房间记录：建筑物来自 PBS 建筑物节点，楼层/房间为设计数据。
+/// 电话点不占用交换机电口，只参与统计。
+/// </summary>
+public class TelecomRoom : EntityBase
+{
+    public Guid ProjectId { get; set; }
+    public Project Project { get; set; } = null!;
+
+    /// <summary>关联的 PBS 建筑物节点（NodeType = Building）。</summary>
+    public Guid PbsNodeId { get; set; }
+    public PbsNode PbsNode { get; set; } = null!;
+
+    public string Floor { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int DataPointCount { get; set; }
+    public int PhonePointCount { get; set; }
+    public int ApCount { get; set; }
+    public int SortOrder { get; set; }
+    public string? Remark { get; set; }
+}
+
+/// <summary>
+/// 项目级设备位号编号规定：
+/// 前缀字段 + 分隔符 + 设备类型字段 + 分隔符 + 4 位顺序号 + 可选后缀。
+/// 这里只定义“使用哪个字段”，具体值在生成位号时按项目数据填充。
+/// </summary>
+public class NumberingRule : EntityBase
+{
+    public Guid ProjectId { get; set; }
+    public Project Project { get; set; } = null!;
+
+    /// <summary>前缀字段：UnitCode（装置编号）或空（允许手动输入）。</summary>
+    public string PrefixField { get; set; } = string.Empty;
+    public string PrefixSeparator { get; set; } = string.Empty;
+    /// <summary>前缀字段长度。装置编号字段由数据长度决定，不可编辑。</summary>
+    public int PrefixLength { get; set; } = 4;
+    /// <summary>设备类型字段：EquipmentTypeCode（设备类型编码）或空（允许手动输入）。</summary>
+    public string EquipmentTypeField { get; set; } = string.Empty;
+    public string TypeSeparator { get; set; } = string.Empty;
+    public int TypeLength { get; set; } = 5;
+    /// <summary>顺序号长度，默认 4 位。</summary>
+    public int SequenceLength { get; set; } = 4;
+    /// <summary>顺序号后的可选后缀，通常为 A/B/C/D 等。</summary>
+    public string Suffix { get; set; } = string.Empty;
+    /// <summary>后缀字段长度。</summary>
+    public int SuffixLength { get; set; } = 1;
+}
+
 public class MaterialItem : EntityBase
 {
     public Guid ProjectId { get; set; }

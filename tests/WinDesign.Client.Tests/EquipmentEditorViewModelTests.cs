@@ -1,6 +1,7 @@
 using WinDesign.Client.ViewModels;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Numbering;
 
 namespace WinDesign.Client.Tests;
 
@@ -149,6 +150,76 @@ public class EquipmentEditorViewModelTests
 
         Assert.Equal("IT", viewModel.EditDiscipline);
         Assert.False(viewModel.IsDisciplineEditable);
+    }
+
+    [Fact]
+    public void NewEquipment_WithNumberingRule_ComposesTagWithPadding()
+    {
+        var pbsNodeId = Guid.NewGuid();
+        var rule = new NumberingRuleDto(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            NumberingFields.UnitCode,
+            "-",
+            4,
+            NumberingFields.EquipmentTypeCode,
+            "-",
+            5,
+            4,
+            "A",
+            1);
+        var context = new EquipmentEditorContext(
+            null,
+            false,
+            new[] { new PbsNodeOption(pbsNodeId, "PBS") },
+            new[]
+            {
+                new DictionaryItemDto(Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE",
+                    "PT", "压力变送器", 1, true, null)
+            },
+            DefaultPbsNodeId: pbsNodeId,
+            NumberingRule: rule,
+            UnitCodeByPbsNodeId: new Dictionary<Guid, string> { [pbsNodeId] = "1279" },
+            UnitCodeOptions: new[] { "1279", "CDU" },
+            DefaultUnitCode: "1279");
+
+        var viewModel = new EquipmentEditorViewModel(context);
+        viewModel.EditName = "压力变送器";
+        viewModel.EditTypeCode = "PT";
+        viewModel.TagSequence = "12";
+        viewModel.TagSuffix = "A";
+
+        Assert.True(viewModel.UseComposedTag);
+        Assert.True(viewModel.IsPrefixAuto);
+        Assert.True(viewModel.IsTypeAuto);
+        Assert.Equal(new[] { "1279", "CDU" }, viewModel.TagPrefixOptions);
+        Assert.Equal("1279", viewModel.TagPrefix);
+        Assert.Equal("1279-PT   -12  A", viewModel.EditTagNo);
+
+        var ok = viewModel.TryBuild(out var result, out _);
+        Assert.True(ok);
+        Assert.Equal("1279-PT   -12  A", result!.TagNo);
+    }
+
+    [Fact]
+    public void ExistingEquipment_WithNumberingRule_KeepsPlainTagInput()
+    {
+        var rule = new NumberingRuleDto(
+            Guid.NewGuid(), Guid.NewGuid(),
+            NumberingFields.UnitCode, "-", 4,
+            NumberingFields.EquipmentTypeCode, "-", 5, 4, string.Empty, 1);
+        var equipment = CreateEquipment();
+        var context = new EquipmentEditorContext(
+            equipment, false,
+            new[] { new PbsNodeOption(null, "（未分配）") },
+            Array.Empty<DictionaryItemDto>(),
+            NumberingRule: rule);
+
+        var viewModel = new EquipmentEditorViewModel(context);
+
+        Assert.False(viewModel.UseComposedTag);
+        Assert.True(viewModel.UsePlainTagInput);
+        Assert.Equal("PT-1001", viewModel.EditTagNo);
     }
 
     private static EquipmentEditorContext CreateContextWithTypeDiscipline(

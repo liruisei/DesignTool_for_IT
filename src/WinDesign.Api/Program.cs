@@ -115,8 +115,10 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<WinDesignDbContext>();
     await db.Database.EnsureCreatedAsync();
+    await DatabaseSchemaUpgrader.EnsureAsync(db);
     await DatabaseSeeder.SeedAsync(db);
     await DatabaseSeeder.EnsurePermissionCatalogAsync(db);
+    await DatabaseSeeder.EnsureSwitchModelsAsync(db);
     app.Logger.LogInformation("数据库已就绪：{Provider}", provider);
 }
 

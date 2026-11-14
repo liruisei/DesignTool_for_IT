@@ -22,6 +22,9 @@ public class WinDesignDbContext : DbContext
     public DbSet<Equipment> Equipments => Set<Equipment>();
     public DbSet<EquipmentSpec> EquipmentSpecs => Set<EquipmentSpec>();
     public DbSet<MaterialItem> MaterialItems => Set<MaterialItem>();
+    public DbSet<SwitchModel> SwitchModels => Set<SwitchModel>();
+    public DbSet<TelecomRoom> TelecomRooms => Set<TelecomRoom>();
+    public DbSet<NumberingRule> NumberingRules => Set<NumberingRule>();
     public DbSet<DictionaryType> DictionaryTypes => Set<DictionaryType>();
     public DbSet<DictionaryItem> DictionaryItems => Set<DictionaryItem>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -178,6 +181,43 @@ public class WinDesignDbContext : DbContext
             e.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
             e.HasOne(x => x.Equipment).WithMany(x => x.Materials).HasForeignKey(x => x.EquipmentId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SwitchModel>(e =>
+        {
+            e.ToTable("switch_models");
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.SwitchType).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Remark).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<TelecomRoom>(e =>
+        {
+            e.ToTable("telecom_rooms");
+            e.HasIndex(x => new { x.ProjectId, x.PbsNodeId, x.Floor, x.Code });
+            e.Property(x => x.Floor).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Code).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Remark).HasMaxLength(500);
+            e.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.PbsNode).WithMany().HasForeignKey(x => x.PbsNodeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<NumberingRule>(e =>
+        {
+            e.ToTable("numbering_rules");
+            e.HasIndex(x => x.ProjectId).IsUnique();
+            e.Property(x => x.PrefixField).HasMaxLength(64);
+            e.Property(x => x.PrefixSeparator).HasMaxLength(4);
+            e.Property(x => x.EquipmentTypeField).HasMaxLength(64);
+            e.Property(x => x.TypeSeparator).HasMaxLength(4);
+            e.Property(x => x.Suffix).HasMaxLength(16);
+            e.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DictionaryType>(e =>

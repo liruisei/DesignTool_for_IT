@@ -3,10 +3,12 @@ using WinDesign.Contracts.Common;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Materials;
+using WinDesign.Contracts.Numbering;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Permissions;
 using WinDesign.Contracts.Projects;
 using WinDesign.Contracts.Plants;
+using WinDesign.Contracts.Telecom;
 using WinDesign.Contracts.Users;
 using WinDesign.Contracts.Workspaces;
 
@@ -84,4 +86,18 @@ public interface IApiClient
     Task<MaterialItemDto> CreateMaterialAsync(Guid projectId, MaterialItemUpsertRequest request, CancellationToken ct = default);
     Task<MaterialItemDto> UpdateMaterialAsync(Guid id, MaterialItemUpsertRequest request, CancellationToken ct = default);
     Task DeleteMaterialAsync(Guid id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<SwitchModelDto>> GetSwitchModelsAsync(bool activeOnly = false, CancellationToken ct = default);
+    Task<SwitchModelDto> CreateSwitchModelAsync(SwitchModelUpsertRequest request, CancellationToken ct = default);
+    Task<SwitchModelDto> UpdateSwitchModelAsync(Guid id, SwitchModelUpsertRequest request, CancellationToken ct = default);
+    Task<SwitchModelDto> ToggleSwitchModelActiveAsync(Guid id, CancellationToken ct = default);
+    Task DeleteSwitchModelAsync(Guid id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<TelecomRoomDto>> GetTelecomRoomsAsync(Guid projectId, CancellationToken ct = default);
+    Task<TelecomRoomDto> CreateTelecomRoomAsync(Guid projectId, TelecomRoomUpsertRequest request, CancellationToken ct = default);
+    Task<TelecomRoomDto> UpdateTelecomRoomAsync(Guid id, TelecomRoomUpsertRequest request, CancellationToken ct = default);
+    Task DeleteTelecomRoomAsync(Guid id, CancellationToken ct = default);
+
+    Task<NumberingRuleDto> GetNumberingRuleAsync(Guid projectId, CancellationToken ct = default);
+    Task<NumberingRuleDto> SaveNumberingRuleAsync(Guid projectId, UpsertNumberingRuleRequest request, CancellationToken ct = default);
 }

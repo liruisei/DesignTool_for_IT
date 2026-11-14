@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using WinDesign.Client.Services;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Numbering;
 using WinDesign.Contracts.Pbs;
 
 namespace WinDesign.DesignClient.ViewModels;
@@ -14,6 +15,10 @@ public partial class EquipmentIndexViewModel : ViewModelBase
     private readonly SessionService _session;
     private readonly ProjectContext _context;
     private readonly IEquipmentDialogService _dialogs;
+    private NumberingRuleDto? _numberingRule;
+    private IReadOnlyDictionary<Guid, string> _unitCodeByPbsNodeId =
+        new Dictionary<Guid, string>();
+    private IReadOnlyList<string> _unitCodeOptions = Array.Empty<string>();
 
     public ObservableCollection<EquipmentDto> Equipments { get; } = new();
     public ObservableCollection<PbsNodeOption> PbsFilterOptions { get; } = new();
@@ -123,12 +128,17 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             PbsFilterOptions.Clear();
             PbsEditorOptions.Clear();
             EquipmentTypes.Clear();
+            _numberingRule = null;
+            _unitCodeByPbsNodeId = new Dictionary<Guid, string>();
+            _unitCodeOptions = Array.Empty<string>();
             SelectedEquipment = null;
             return;
         }
 
         var nodes = await _session.Api.GetPbsNodesAsync(plantId.Value);
         BuildPbsOptions(nodes);
+        _unitCodeOptions = BuildUnitCodeOptions(nodes, project.PbsRootNodeId);
+        await LoadNumberingRuleAsync(project.Id);
 
         var types = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
         EquipmentTypes.Clear();
@@ -256,11 +266,21 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         }
 
         EquipmentDto? saved = null;
+        // 登录时选择的装置作为新建设备的默认 PBS 与默认位号前缀。
+        var defaultPbsNodeId = _session.UnitId is Guid unitId &&
+                               PbsEditorOptions.Any(x => x.Id == unitId)
+            ? unitId
+            : (Guid?)null;
         var context = new EquipmentEditorContext(
             equipment,
             isCopy,
             PbsEditorOptions.ToList(),
-            EquipmentTypes.ToList());
+            EquipmentTypes.ToList(),
+            DefaultPbsNodeId: defaultPbsNodeId,
+            NumberingRule: _numberingRule,
+            UnitCodeByPbsNodeId: _unitCodeByPbsNodeId,
+            UnitCodeOptions: _unitCodeOptions,
+            DefaultUnitCode: _session.UnitCode);
 
         // 保存放在弹窗的「确定」流程里：服务端拒绝（如位号重复）时错误显示在弹窗内，弹窗不关闭。
         var request = _dialogs.EditEquipment(context, async saveRequest =>
@@ -330,6 +350,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
 
     private void BuildPbsOptions(IReadOnlyList<PbsNodeDto> nodes)
     {
+        BuildUnitCodeMap(nodes);
         PbsFilterOptions.Clear();
         PbsEditorOptions.Clear();
         PbsFilterOptions.Add(new PbsNodeOption(null, "全部 PBS"));
@@ -372,6 +393,101 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         }
 
         Walk(null, 0);
+    }
+
+    /// <summary>加载当前项目的编号规定，供新建/复制设备时按规则拼装位号。</summary>
+    private async Task LoadNumberingRuleAsync(Guid projectId)
+    {
+        try
+        {
+            _numberingRule = await _session.Api.GetNumberingRuleAsync(projectId);
+        }
+        catch
+        {
+            // 编号规定读取失败不应阻断索引表；回退为自由输入位号。
+            _numberingRule = null;
+        }
+    }
+
+    /// <summary>PBS 节点 → 最近上级装置编号，用于位号前缀自动带出。</summary>
+    private void BuildUnitCodeMap(IReadOnlyList<PbsNodeDto> nodes)
+    {
+        var byId = nodes.ToDictionary(x => x.Id);
+        string? FindUnitCode(Guid nodeId)
+        {
+            var current = byId[nodeId];
+            var visited = new HashSet<Guid>();
+            while (visited.Add(current.Id))
+            {
+                if (string.Equals(current.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
+                {
+                    return current.Code;
+                }
+                if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
+                {
+                    current = parent;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        var map = new Dictionary<Guid, string>();
+        foreach (var node in nodes)
+        {
+            var code = FindUnitCode(node.Id);
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                map[node.Id] = code;
+            }
+        }
+        _unitCodeByPbsNodeId = map;
+    }
+
+    /// <summary>当前项目 PBS 范围内的装置编号清单，供位号前缀下拉选择。</summary>
+    private static IReadOnlyList<string> BuildUnitCodeOptions(
+        IReadOnlyList<PbsNodeDto> nodes,
+        Guid? projectRootId)
+    {
+        var byId = nodes.ToDictionary(x => x.Id);
+        bool InScope(PbsNodeDto node)
+        {
+            if (projectRootId is not Guid rootId)
+            {
+                return true;
+            }
+
+            var current = node;
+            var visited = new HashSet<Guid>();
+            while (visited.Add(current.Id))
+            {
+                if (current.Id == rootId)
+                {
+                    return true;
+                }
+                if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
+                {
+                    current = parent;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        return nodes
+            .Where(x => string.Equals(x.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
+            .Where(InScope)
+            .Select(x => x.Code)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string? NullIfEmpty(string? value) =>

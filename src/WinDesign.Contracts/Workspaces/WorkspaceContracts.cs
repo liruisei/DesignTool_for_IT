@@ -20,7 +20,13 @@ public sealed record WorkspaceProjectDto(
 {
     /// <summary>项目所在的 PBS 根节点；为空表示工厂根节点（全厂），设计端 PBS 树据此显示。</summary>
     public Guid? PbsRootNodeId { get; init; }
+
+    /// <summary>项目 PBS 范围内的装置（Unit）清单，供登录时选择默认装置。</summary>
+    public IReadOnlyList<WorkspaceUnitDto> Units { get; init; } = Array.Empty<WorkspaceUnitDto>();
 }
+
+/// <summary>工作区选择用的装置节点。</summary>
+public sealed record WorkspaceUnitDto(Guid Id, string Code, string Name);
 
 public sealed record SelectWorkspaceRequest(Guid PlantId, Guid ProjectId);
 

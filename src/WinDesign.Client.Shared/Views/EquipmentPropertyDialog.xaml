@@ -24,10 +24,63 @@
                 <TabItem Header="基本信息">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <WrapPanel Margin="14,14,0,0">
-                            <StackPanel Width="345" Margin="0,0,14,10">
+                            <StackPanel Width="704" Margin="0,0,0,10">
                                 <TextBlock Text="位号" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
+
+                                <!-- 无编号规定，或编辑已有设备：直接输入完整位号 -->
                                 <TextBox Style="{StaticResource Input}"
-                                         Text="{Binding EditTagNo, UpdateSourceTrigger=PropertyChanged}" />
+                                         Text="{Binding EditTagNo, UpdateSourceTrigger=PropertyChanged}"
+                                         Visibility="{Binding UsePlainTagInput, Converter={StaticResource BoolToVis}}" />
+
+                                <!-- 新建/复制且项目有编号规定：按字段分段拼装 -->
+                                <StackPanel Visibility="{Binding UseComposedTag, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel>
+                                            <TextBlock Text="前缀" Style="{StaticResource MutedText}" />
+                                            <ComboBox Width="130" Margin="0,3,0,0"
+                                                      ItemsSource="{Binding TagPrefixOptions}"
+                                                      SelectedItem="{Binding TagPrefix}"
+                                                      Visibility="{Binding IsPrefixAuto, Converter={StaticResource BoolToVis}}"
+                                                      ToolTip="默认带出登录所选装置，也可改选其他装置编号" />
+                                            <TextBox Width="130" Style="{StaticResource Input}" Margin="0,3,0,0"
+                                                     Visibility="{Binding IsPrefixManual, Converter={StaticResource BoolToVis}}"
+                                                     Text="{Binding TagPrefix, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding TagSeparator1}" FontFamily="Consolas"
+                                                   VerticalAlignment="Bottom" Margin="6,0,6,8" />
+                                        <StackPanel>
+                                            <TextBlock Text="设备类型" Style="{StaticResource MutedText}" />
+                                            <TextBox Width="150" Style="{StaticResource Input}" Margin="0,3,0,0"
+                                                     IsReadOnly="True"
+                                                     Visibility="{Binding IsTypeAuto, Converter={StaticResource BoolToVis}}"
+                                                     Text="{Binding EditTypeCode, Mode=OneWay}" />
+                                            <TextBox Width="150" Style="{StaticResource Input}" Margin="0,3,0,0"
+                                                     Visibility="{Binding IsTypeManual, Converter={StaticResource BoolToVis}}"
+                                                     Text="{Binding TagTypePart, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding TagSeparator2}" FontFamily="Consolas"
+                                                   VerticalAlignment="Bottom" Margin="6,0,6,8" />
+                                        <StackPanel>
+                                            <TextBlock Text="顺序号" Style="{StaticResource MutedText}" />
+                                            <TextBox Width="90" Style="{StaticResource Input}" Margin="0,3,0,0"
+                                                     Text="{Binding TagSequence, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Margin="6,0,0,0">
+                                            <TextBlock Text="后缀" Style="{StaticResource MutedText}" />
+                                            <TextBox Width="90" Style="{StaticResource Input}" Margin="0,3,0,0"
+                                                     Text="{Binding TagSuffix, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <TextBlock Style="{StaticResource MutedText}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="{Binding TagComposeHint}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock Text="拼装结果：" Style="{StaticResource FieldLabel}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding EditTagNo}" FontFamily="Consolas" FontSize="14"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
                             <StackPanel Width="345" Margin="0,0,14,10">
                                 <TextBlock Text="回路号" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />

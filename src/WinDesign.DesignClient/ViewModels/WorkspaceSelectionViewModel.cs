@@ -19,12 +19,16 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
 
     public ObservableCollection<WorkspacePlantDto> Plants { get; } = new();
     public ObservableCollection<WorkspaceProjectDto> Projects { get; } = new();
+    public ObservableCollection<WorkspaceUnitDto> Units { get; } = new();
 
     [ObservableProperty]
     private WorkspacePlantDto? selectedPlant;
 
     [ObservableProperty]
     private WorkspaceProjectDto? selectedProject;
+
+    [ObservableProperty]
+    private WorkspaceUnitDto? selectedUnit;
 
     [ObservableProperty]
     private string? errorMessage;
@@ -42,8 +46,8 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
     public string WindowTitle => IsSwitching ? "切换工作区" : "选择工作区";
     public string HeadingText => IsSwitching ? "切换工作区" : "选择工作区";
     public string HintText => IsSwitching
-        ? "选择要切换到的工厂与项目，双击项目或点击「进入工作区」。切换后当前打开的设计文档会被关闭，并按新工作区重新加载。"
-        : "先选择工厂（PBS 根节点），再选择项目。双击项目或点击「进入工作区」继续。";
+        ? "选择要切换到的工厂、项目与默认装置，然后点击「进入工作区」。切换后当前打开的设计文档会被关闭，并按新工作区重新加载。"
+        : "依次选择工厂、项目和默认装置。默认装置用于新建设备时的 PBS 归属与位号前缀。";
 
     public event EventHandler? SelectionSucceeded;
 
@@ -113,6 +117,22 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
         SelectedProject = Projects.FirstOrDefault();
     }
 
+    partial void OnSelectedProjectChanged(WorkspaceProjectDto? value)
+    {
+        Units.Clear();
+        if (value is not null)
+        {
+            foreach (var unit in value.Units)
+            {
+                Units.Add(unit);
+            }
+        }
+
+        // 切换工作区时优先保留上次选择的装置；否则默认项目下第一个装置。
+        SelectedUnit = Units.FirstOrDefault(x => x.Id == _session.UnitId)
+                       ?? Units.FirstOrDefault();
+    }
+
     [RelayCommand]
     private async Task ConfirmAsync()
     {
@@ -125,6 +145,11 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
             ErrorMessage = "请选择工厂和项目";
             return;
         }
+        if (Units.Count > 0 && SelectedUnit is null)
+        {
+            ErrorMessage = "请选择装置";
+            return;
+        }
 
         IsBusy = true;
         ErrorMessage = null;
@@ -134,6 +159,7 @@ public partial class WorkspaceSelectionViewModel : ObservableObject
                 SelectedPlant.Id,
                 SelectedProject.Id);
             _session.SetWorkspace(response);
+            _session.SetSelectedUnit(SelectedUnit);
             SelectionSucceeded?.Invoke(this, EventArgs.Empty);
         }
         catch (ApiException ex)

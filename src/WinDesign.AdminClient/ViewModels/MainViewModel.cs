@@ -74,9 +74,16 @@ public partial class MainViewModel : ObservableObject
         system.Children.Add(new ExplorerNode
         {
             Key = "dictionaries",
-            Title = "编码管理",
+            Title = "编码定义",
             Glyph = "☰",
             Open = OpenDictionaries
+        });
+        system.Children.Add(new ExplorerNode
+        {
+            Key = "numbering",
+            Title = "编号规定",
+            Glyph = "№",
+            Open = OpenNumberingRule
         });
         system.Children.Add(new ExplorerNode
         {
@@ -84,6 +91,13 @@ public partial class MainViewModel : ObservableObject
             Title = "用户管理",
             Glyph = "●",
             Open = OpenUsers
+        });
+        system.Children.Add(new ExplorerNode
+        {
+            Key = "switches",
+            Title = "设备样本库",
+            Glyph = "▥",
+            Open = OpenSwitchLibrary
         });
         system.Children.Add(new ExplorerNode
         {
@@ -106,11 +120,19 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenDictionaries() =>
-        OpenDocument("dictionaries", "编码管理", () => new DictionaryViewModel(_session));
+        OpenDocument("dictionaries", "编码定义", () => new DictionaryViewModel(_session));
+
+    [RelayCommand]
+    private void OpenNumberingRule() =>
+        OpenDocument("numbering", "编号规定", () => new NumberingRuleViewModel(_session));
 
     [RelayCommand]
     private void OpenUsers() =>
         OpenDocument("users", "用户管理", () => new UserManagementViewModel(_session));
+
+    [RelayCommand]
+    private void OpenSwitchLibrary() =>
+        OpenDocument("switches", "设备样本库", () => new SwitchLibraryViewModel(_session));
 
     [RelayCommand]
     private void OpenUserClasses() =>
