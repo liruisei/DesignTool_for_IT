@@ -1,6 +1,7 @@
 using WinDesign.Client.Services;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Telecom;
+using WinDesign.Contracts.Workspaces;
 using WinDesign.DesignClient.ViewModels;
 
 namespace WinDesign.Client.Tests;
@@ -80,6 +81,152 @@ public class TelecomStatsViewModelTests
         // 下拉只显示建筑物编号，不拼接名称。
         Assert.Equal(inside.Code, insideOption.Display);
         Assert.DoesNotContain(viewModel.BuildingOptions, x => x.Id == outside.Id);
+    }
+
+    [Fact]
+    public async Task AddRoom_DefaultsToWorkspaceUnit_AndChangingUnitFiltersBuildings()
+    {
+        var api = new FakeApiClient();
+        var root = api.AddDefaultPbsRoot();
+        var unitA = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, root.Id, "1279", "装置 1279", "Unit", 1, null, 0, 0);
+        var unitB = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, root.Id, "1885", "装置 1885", "Unit", 2, null, 0, 0);
+        var a1 = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, unitA.Id, "FAR2-01", "建筑一", "Building", 1, null, 0, 0);
+        var a2 = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, unitA.Id, "FAR2-02", "建筑二", "Building", 2, null, 0, 0);
+        var b1 = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, unitB.Id, "FAR3-01", "建筑三", "Building", 1, null, 0, 0);
+        api.PbsNodes.AddRange(new[] { unitA, unitB, a1, a2, b1 });
+
+        var session = api.CreateSession();
+        // 登录工作区时选择的默认装置应带出到新增行。
+        session.SetSelectedUnit(new WorkspaceUnitDto(unitB.Id, unitB.Code, unitB.Name));
+        var viewModel = new TelecomStatsViewModel(
+            session, new ProjectContext { CurrentProject = api.Project });
+        await viewModel.RefreshAsync();
+
+        viewModel.AddRoomCommand.Execute(null);
+        var row = viewModel.SelectedRoom!;
+
+        Assert.Equal(unitB.Id, row.UnitId);
+        Assert.Equal(new[] { "FAR3-01" }, row.BuildingOptions.Select(x => x.Display));
+        Assert.Equal(b1.Id, row.PbsNodeId);
+        // 模板列的排序/筛选依据：装置与建筑物的编码字符串。
+        Assert.Equal("1885", row.UnitCode);
+        Assert.Equal("FAR3-01", row.BuildingCode);
+
+        // 切换到 1279 后只能选到该装置下的建筑物。
+        row.UnitId = unitA.Id;
+        Assert.Equal(new[] { "FAR2-01", "FAR2-02" }, row.BuildingOptions.Select(x => x.Display));
+        Assert.Equal(a1.Id, row.PbsNodeId);
+        Assert.Equal("1279", row.UnitCode);
+        Assert.Equal("FAR2-01", row.BuildingCode);
+        Assert.DoesNotContain(row.BuildingOptions, x => x.Display == "FAR3-01");
+    }
+
+    [Fact]
+    public async Task LoadedRows_ShowUnitDerivedFromBuilding()
+    {
+        var api = new FakeApiClient();
+        var root = api.AddDefaultPbsRoot();
+        var unit = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, root.Id, "U1", "装置一", "Unit", 1, null, 0, 0);
+        var building1 = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, unit.Id, "B1", "综合楼", "Building", 1, null, 0, 0);
+        var building2 = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, unit.Id, "B2", "机柜间", "Building", 2, null, 0, 0);
+        api.PbsNodes.AddRange(new[] { unit, building1, building2 });
+        AddSwitchModels(api);
+        AddRoom(api, building2, "1F", "R101", 10, 0, 0);
+
+        var viewModel = CreateViewModel(api);
+        await viewModel.RefreshAsync();
+
+        var row = Assert.Single(viewModel.Rooms);
+        Assert.Equal(unit.Id, row.UnitId);
+        Assert.Equal(building2.Id, row.PbsNodeId);
+        Assert.Equal(new[] { "B1", "B2" }, row.BuildingOptions.Select(x => x.Display));
+    }
+
+    [Fact]
+    public async Task DeleteRowCommand_OnMultiSelection_DeletesAllSelectedRows()
+    {
+        var api = new FakeApiClient();
+        var (building, _, _) = AddTelecomPbs(api);
+        AddSwitchModels(api);
+        AddRoom(api, building, "1F", "R101", 10, 0, 0);
+        AddRoom(api, building, "1F", "R102", 20, 0, 0);
+        AddRoom(api, building, "1F", "R103", 30, 0, 0);
+
+        var viewModel = CreateViewModel(api);
+        await viewModel.RefreshAsync();
+        Assert.Equal(3, viewModel.Rooms.Count);
+
+        // 右键落在已选中的行上：删除整组选中行。
+        viewModel.SetSelection(new[] { viewModel.Rooms[0], viewModel.Rooms[2] });
+        await viewModel.DeleteRowCommand.ExecuteAsync(viewModel.Rooms[0]);
+
+        var remaining = Assert.Single(viewModel.Rooms);
+        Assert.Equal("R102", remaining.Code);
+        Assert.Equal("R102", Assert.Single(api.TelecomRooms).Code);
+    }
+
+    [Fact]
+    public async Task DeleteRowCommand_RemovesOnlyThatRow()
+    {
+        var api = new FakeApiClient();
+        var (building, _, _) = AddTelecomPbs(api);
+        AddSwitchModels(api);
+        AddRoom(api, building, "1F", "R101", 10, 0, 0);
+        AddRoom(api, building, "1F", "R102", 20, 0, 0);
+
+        var viewModel = CreateViewModel(api);
+        await viewModel.RefreshAsync();
+
+        // 单选（或右键未选中的行）时只删被右键的那一行。
+        viewModel.SetSelection(new[] { viewModel.Rooms[0] });
+        await viewModel.DeleteRowCommand.ExecuteAsync(viewModel.Rooms[0]);
+
+        Assert.Equal("R102", Assert.Single(viewModel.Rooms).Code);
+        Assert.Equal("R102", Assert.Single(api.TelecomRooms).Code);
+    }
+
+    [Fact]
+    public async Task DeleteMenuHeader_ReflectsSelectionCount()
+    {
+        var api = new FakeApiClient();
+        var (building, _, _) = AddTelecomPbs(api);
+        AddSwitchModels(api);
+        AddRoom(api, building, "1F", "R101", 10, 0, 0);
+        AddRoom(api, building, "1F", "R102", 20, 0, 0);
+
+        var viewModel = CreateViewModel(api);
+        await viewModel.RefreshAsync();
+
+        viewModel.SetSelection(new[] { viewModel.Rooms[0] });
+        Assert.Equal("删除", viewModel.DeleteMenuHeader);
+
+        viewModel.SetSelection(new[] { viewModel.Rooms[0], viewModel.Rooms[1] });
+        Assert.Equal("删除选中的 2 行", viewModel.DeleteMenuHeader);
+    }
+
+    [Fact]
+    public async Task Delete_WithoutSelection_ShowsError()
+    {
+        var api = new FakeApiClient();
+        var (building, _, _) = AddTelecomPbs(api);
+        AddSwitchModels(api);
+        AddRoom(api, building, "1F", "R101", 10, 0, 0);
+
+        var viewModel = CreateViewModel(api);
+        await viewModel.RefreshAsync();
+
+        await viewModel.DeleteRowCommand.ExecuteAsync(null);
+
+        Assert.NotNull(viewModel.ErrorMessage);
+        Assert.Single(viewModel.Rooms);
     }
 
     [Fact]
