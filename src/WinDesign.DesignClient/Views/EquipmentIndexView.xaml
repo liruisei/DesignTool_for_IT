@@ -65,8 +65,31 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="16">
-        <Border Style="{StaticResource Card}">
+    <Grid>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Setter Property="Margin" Value="16" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsEmbedded, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                 Value="True">
+                        <Setter Property="Margin" Value="0" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
+        <Border>
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsEmbedded, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                     Value="True">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Padding" Value="12,10" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -79,8 +102,19 @@
                 <Grid Margin="0,0,0,8">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="索引表" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Style="{StaticResource MutedText}" Margin="14,0,0,0" VerticalAlignment="Center"
-                                   Text="{Binding Context.CurrentProject.Name, TargetNullValue=请先在顶部选择项目}" />
+                        <TextBlock Margin="14,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding Context.CurrentProject.Name, TargetNullValue=请先在顶部选择项目}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEmbedded, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                     Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" IsEnabled="{Binding Context.HasProject}">
                         <Button Content="新建" Command="{Binding NewEquipmentCommand}" Style="{StaticResource PrimaryButton}"

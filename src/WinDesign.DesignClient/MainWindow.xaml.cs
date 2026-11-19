@@ -228,7 +228,7 @@ public partial class MainWindow : FluentWindow
     private void OnAboutClick(object sender, RoutedEventArgs e)
     {
         MessageBox.Show(
-            "工厂二维设计平台 - 设计客户端\nPlant 2D Design Platform\n工艺 / 仪表 / 电信 / IT 二维设计\n\n工厂（PBS 根节点）→ 项目 → 索引表 / 规格书 / 材料表 / 报表",
+            "工厂二维设计平台 - 设计客户端\nPlant 2D Design Platform\n工艺 / 仪表 / 电信 / IT 二维设计\n\n工厂（PBS 根节点）→ 项目 → 信息设计 / 规格书 / 材料表 / 报表",
             "关于 工厂二维设计平台",
             MessageBoxButton.OK,
             MessageBoxImage.Information);

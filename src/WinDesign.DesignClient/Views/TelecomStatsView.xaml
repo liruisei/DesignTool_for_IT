@@ -1,6 +1,7 @@
 <UserControl x:Class="WinDesign.DesignClient.Views.TelecomStatsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:WinDesign.DesignClient.Views">
     <UserControl.Resources>
         <!-- 单元格文本：显式与下拉框使用同一字体、同一垂直居中方式。 -->
         <Style x:Key="TelecomCellText" TargetType="TextBlock">
@@ -78,7 +79,7 @@
                 <!-- 标题与工具栏：所有操作都在本页完成，不弹窗 -->
                 <Grid Margin="0,0,0,8">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="电信统计" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="信息设计" Style="{StaticResource SectionTitle}" />
                         <TextBlock Style="{StaticResource MutedText}" Margin="14,0,0,0" VerticalAlignment="Center"
                                    Text="{Binding Context.CurrentProject.Name, TargetNullValue=请先在顶部选择项目}" />
                     </StackPanel>
@@ -157,9 +158,17 @@
                         </GridSplitter.Template>
                     </GridSplitter>
 
-                    <!-- 房间明细：内联编辑 -->
-                    <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                            CornerRadius="4">
+                    <!-- 左列：上方为信息设计（房间明细），下方嵌入索引表核心功能 -->
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="2*" MinHeight="180" />
+                            <RowDefinition Height="8" />
+                            <RowDefinition Height="3*" MinHeight="240" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 房间明细：内联编辑 -->
+                        <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="4">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -261,7 +270,19 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>
-                    </Border>
+                        </Border>
+
+                        <GridSplitter Grid.Row="1" Height="8" HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch" Background="Transparent"
+                                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                                      Cursor="SizeNS" ToolTip="拖动调整信息设计与索引表的高度" />
+
+                        <!-- 索引表核心功能：新建/编辑/复制/删除、搜索筛选、逐列过滤与双击属性页 -->
+                        <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="4">
+                            <views:EquipmentIndexView DataContext="{Binding IndexTable}" IsEmbedded="True" />
+                        </Border>
+                    </Grid>
 
                     <Grid Grid.Column="2">
                         <Grid.RowDefinitions>
@@ -326,58 +347,68 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- 汇总 -->
+                        <!-- 计算结果：输入（型号 + 可用率）后直接给出所需台数 -->
                         <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                CornerRadius="4">
-                            <TabControl BorderThickness="0" Background="Transparent">
-                                <TabItem Header="按房间汇总">
-                                    <DataGrid ItemsSource="{Binding RoomSummaries}"
-                                              AutoGenerateColumns="False" IsReadOnly="True"
-                                              CanUserAddRows="False" HeadersVisibility="Column" BorderThickness="0">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="建筑物" Binding="{Binding Building}" Width="*" />
-                                            <DataGridTextColumn Header="楼层" Binding="{Binding Floor}" Width="60" />
-                                            <DataGridTextColumn Header="房间" Binding="{Binding Room}" Width="150" />
-                                            <DataGridTextColumn Header="信息点" Binding="{Binding DataPointCount}" Width="58" />
-                                            <DataGridTextColumn Header="电话点" Binding="{Binding PhonePointCount}" Width="58" />
-                                            <DataGridTextColumn Header="AP" Binding="{Binding ApCount}" Width="46" />
-                                            <DataGridTextColumn Header="接入" Binding="{Binding AccessSwitchCount}" Width="46" />
-                                            <DataGridTextColumn Header="PoE" Binding="{Binding PoeSwitchCount}" Width="46" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                </TabItem>
-                                <TabItem Header="按楼层汇总">
-                                    <DataGrid ItemsSource="{Binding FloorSummaries}"
-                                              AutoGenerateColumns="False" IsReadOnly="True"
-                                              CanUserAddRows="False" HeadersVisibility="Column" BorderThickness="0">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="建筑物" Binding="{Binding Building}" Width="*" />
-                                            <DataGridTextColumn Header="楼层" Binding="{Binding Floor}" Width="70" />
-                                            <DataGridTextColumn Header="房间" Binding="{Binding RoomCount}" Width="52" />
-                                            <DataGridTextColumn Header="信息点" Binding="{Binding DataPointCount}" Width="58" />
-                                            <DataGridTextColumn Header="电话点" Binding="{Binding PhonePointCount}" Width="58" />
-                                            <DataGridTextColumn Header="AP" Binding="{Binding ApCount}" Width="46" />
-                                            <DataGridTextColumn Header="接入" Binding="{Binding AccessSwitchCount}" Width="46" />
-                                            <DataGridTextColumn Header="PoE" Binding="{Binding PoeSwitchCount}" Width="46" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                </TabItem>
-                                <TabItem Header="按建筑物汇总">
-                                    <DataGrid ItemsSource="{Binding BuildingSummaries}"
-                                              AutoGenerateColumns="False" IsReadOnly="True"
-                                              CanUserAddRows="False" HeadersVisibility="Column" BorderThickness="0">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="建筑物" Binding="{Binding Building}" Width="*" />
-                                            <DataGridTextColumn Header="房间" Binding="{Binding RoomCount}" Width="52" />
-                                            <DataGridTextColumn Header="信息点" Binding="{Binding DataPointCount}" Width="58" />
-                                            <DataGridTextColumn Header="电话点" Binding="{Binding PhonePointCount}" Width="58" />
-                                            <DataGridTextColumn Header="AP" Binding="{Binding ApCount}" Width="46" />
-                                            <DataGridTextColumn Header="接入" Binding="{Binding AccessSwitchCount}" Width="46" />
-                                            <DataGridTextColumn Header="PoE" Binding="{Binding PoeSwitchCount}" Width="46" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                </TabItem>
-                            </TabControl>
+                                CornerRadius="4" Padding="14,12" VerticalAlignment="Top">
+                            <StackPanel>
+                                <TextBlock Text="计算结果" Style="{StaticResource SectionTitle}" />
+
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel>
+                                        <TextBlock Text="接入交换机合计" Style="{StaticResource MutedText}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                            <TextBlock Text="{Binding AccessSwitchTotal}" FontSize="34"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AccentBrush}" />
+                                            <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                                                   Text="{Binding AccessSwitchHint}" />
+                                    </StackPanel>
+
+                                    <Border Grid.Column="1" Width="1" Background="{StaticResource BorderBrush}"
+                                            Margin="14,4" />
+
+                                    <StackPanel Grid.Column="2" Margin="14,0,0,0">
+                                        <TextBlock Text="PoE 交换机合计" Style="{StaticResource MutedText}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                            <TextBlock Text="{Binding PoeSwitchTotal}" FontSize="34"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AccentBrush}" />
+                                            <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                                                   Text="{Binding PoeSwitchHint}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="按建筑物分别计算" Style="{StaticResource SubSection}"
+                                           Margin="0,16,0,4" />
+                                <DataGrid ItemsSource="{Binding BuildingSwitchTotals}"
+                                          AutoGenerateColumns="False" IsReadOnly="True"
+                                          CanUserAddRows="False" CanUserDeleteRows="False"
+                                          HeadersVisibility="Column" MaxHeight="180"
+                                          BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="建筑物" Binding="{Binding Building}" Width="*" />
+                                        <DataGridTextColumn Header="信息点" Binding="{Binding DataPointCount}" Width="70" />
+                                        <DataGridTextColumn Header="无线 AP" Binding="{Binding ApCount}" Width="80" />
+                                        <DataGridTextColumn Header="接入交换机" Binding="{Binding AccessSwitchCount}" Width="96" />
+                                        <DataGridTextColumn Header="PoE 交换机" Binding="{Binding PoeSwitchCount}" Width="96" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock Style="{StaticResource MutedText}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                           Text="每栋建筑物先在楼内按「信息点（PoE 为无线 AP）÷（端口数 × 可用率）」向上取整，再把各楼台数相加；电话点不占用交换机电口。" />
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </Grid>

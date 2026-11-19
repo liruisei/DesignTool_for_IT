@@ -11,7 +11,7 @@ using WinDesign.Contracts.Projects;
 namespace WinDesign.DesignClient.ViewModels;
 
 /// <summary>
-/// 设计客户端外壳：在选定「工厂 → 项目」后，承载索引表、规格书、材料表与报表。
+/// 设计客户端外壳：在选定「工厂 → 项目」后，承载信息设计（含索引表）、规格书、材料表与报表。
 /// 系统配置（项目配置 / PBS 管理 / 编码定义 / 用户管理）不在本客户端出现。
 /// </summary>
 public partial class MainViewModel : ObservableObject
@@ -26,7 +26,7 @@ public partial class MainViewModel : ObservableObject
     /// <summary>左侧 PBS 树的异步加载任务，便于测试等待首次加载完成。</summary>
     public Task PbsTreeLoadTask { get; private set; } = Task.CompletedTask;
 
-    /// <summary>上方项目面板：索引表 / 规格书 / 材料表 / 报表输出。</summary>
+    /// <summary>上方项目面板：信息设计 / 规格书 / 材料表 / 报表输出。</summary>
     public ObservableCollection<ExplorerNode> ProjectExplorerNodes { get; } = new();
 
     /// <summary>下方 PBS 面板：当前项目 PBS 根节点及其子树，只读。</summary>
@@ -70,7 +70,7 @@ public partial class MainViewModel : ObservableObject
         _projectContext.CurrentProject = ToProjectDto(session);
         BuildExplorer();
         PbsTreeLoadTask = LoadPbsTreeAsync();
-        OpenIndex();
+        OpenTelecom();
     }
 
     private void BuildExplorer()
@@ -87,12 +87,13 @@ public partial class MainViewModel : ObservableObject
             Glyph = "▣",
             IsFolder = true
         };
+        // 索引表已并入信息设计页（页面下方），不再单独列出。
         project.Children.Add(new ExplorerNode
         {
-            Key = "index",
-            Title = "索引表",
-            Glyph = "▦",
-            Open = OpenIndex
+            Key = "telecom",
+            Title = "信息设计",
+            Glyph = "◈",
+            Open = OpenTelecom
         });
         project.Children.Add(new ExplorerNode
         {
@@ -107,13 +108,6 @@ public partial class MainViewModel : ObservableObject
             Title = "材料表",
             Glyph = "▣",
             Open = OpenMaterials
-        });
-        project.Children.Add(new ExplorerNode
-        {
-            Key = "telecom",
-            Title = "电信统计",
-            Glyph = "◈",
-            Open = OpenTelecom
         });
         project.Children.Add(new ExplorerNode
         {
@@ -407,10 +401,6 @@ public partial class MainViewModel : ObservableObject
         });
 
     [RelayCommand]
-    private void OpenIndex() =>
-        OpenDocument("index", "索引表", () => new EquipmentIndexViewModel(_session, _projectContext));
-
-    [RelayCommand]
     private void OpenSpecs() =>
         OpenDocument("specs", "规格书", () => new EquipmentSpecIndexViewModel(_session, _projectContext));
 
@@ -420,7 +410,7 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenTelecom() =>
-        OpenDocument("telecom", "电信统计", () => new TelecomStatsViewModel(_session, _projectContext));
+        OpenDocument("telecom", "信息设计", () => new TelecomStatsViewModel(_session, _projectContext));
 
     [RelayCommand]
     private void OpenReports() =>
@@ -763,7 +753,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(WorkspaceText));
         BuildExplorer();
         PbsTreeLoadTask = LoadPbsTreeAsync();
-        OpenIndex();
+        OpenTelecom();
 
         StatusText = "已切换工作区：" + WorkspaceText;
     }
