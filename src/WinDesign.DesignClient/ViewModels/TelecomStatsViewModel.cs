@@ -255,21 +255,18 @@ public partial class TelecomRoomRowViewModel : ObservableObject
     partial void OnRemarkChanged(string? value) => IsDirty = true;
 }
 
-/// <summary>按建筑 / 楼层汇总的一行。</summary>
-public sealed record TelecomSummaryRow(
+/// <summary>按建筑物分别计算出的交换机台数。</summary>
+public sealed record BuildingSwitchRow(
     string Building,
-    string Floor,
-    string Room,
-    int RoomCount,
     int DataPointCount,
-    int PhonePointCount,
     int ApCount,
     int AccessSwitchCount,
     int PoeSwitchCount);
 
 /// <summary>
-/// 设计端电信统计：一页完成建筑/楼层/房间点位数录入、按建筑与楼层汇总，
+/// 设计端信息设计：一页完成建筑/楼层/房间点位数录入，下方内嵌索引表，
 /// 并按交换机样本库的端口规格和可用率实时计算接入 / PoE 交换机台数。
+/// 交换机按建筑物独立配置：先在每栋建筑物内取整，再把各楼台数相加。
 /// 电话点只统计、不占用交换机电口。
 /// </summary>
 public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
@@ -283,9 +280,7 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
     public ObservableCollection<PbsNodeOption> BuildingOptions { get; } = new();
     public ObservableCollection<SwitchModelDto> AccessSwitchModels { get; } = new();
     public ObservableCollection<SwitchModelDto> PoeSwitchModels { get; } = new();
-    public ObservableCollection<TelecomSummaryRow> RoomSummaries { get; } = new();
-    public ObservableCollection<TelecomSummaryRow> FloorSummaries { get; } = new();
-    public ObservableCollection<TelecomSummaryRow> BuildingSummaries { get; } = new();
+    public ObservableCollection<BuildingSwitchRow> BuildingSwitchTotals { get; } = new();
 
     [ObservableProperty]
     private TelecomRoomRowViewModel? selectedRoom;
@@ -330,20 +325,42 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
     [ObservableProperty]
     private int poeSwitchTotal;
 
+    /// <summary>接入交换机结果下方的型号说明；未选样本时给出提示。</summary>
+    public string AccessSwitchHint => DescribeSwitch(SelectedAccessSwitch);
+
+    /// <summary>PoE 交换机结果下方的型号说明；未选样本时给出提示。</summary>
+    public string PoeSwitchHint => DescribeSwitch(SelectedPoeSwitch);
+
+    private static string DescribeSwitch(SwitchModelDto? model) =>
+        model is null
+            ? "未选择交换机样本"
+            : $"{model.Code} · {model.ElectricalPorts} 口";
+
     public bool CanWrite => _session.IsAdmin || _session.IsDesigner;
     public bool IsReadOnly => !CanWrite;
     public ProjectContext Context => _context;
+
+    /// <summary>
+    /// 页面下方的索引表核心功能：与独立的「索引表」标签页共用同一个视图和命令集，
+    /// 但持有独立的 ViewModel 实例，互不影响各自的筛选与选中状态。
+    /// </summary>
+    public EquipmentIndexViewModel IndexTable { get; }
 
     public TelecomStatsViewModel(SessionService session, ProjectContext context)
     {
         _session = session;
         _context = context;
-        Title = "电信统计";
+        Title = "信息设计";
+        IndexTable = new EquipmentIndexViewModel(session, context);
         _context.ProjectChanged += OnProjectChanged;
         _ = RefreshAsync();
     }
 
-    public override void Dispose() => _context.ProjectChanged -= OnProjectChanged;
+    public override void Dispose()
+    {
+        _context.ProjectChanged -= OnProjectChanged;
+        IndexTable.Dispose();
+    }
 
     public override Task RefreshAsync() => RunAsync(async () =>
     {
@@ -388,7 +405,7 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
     {
         if (!CanWrite)
         {
-            ErrorMessage = "当前账号没有编辑电信统计的权限";
+            ErrorMessage = "当前账号没有编辑信息设计的权限";
             return;
         }
         if (_catalog is null || BuildingOptions.Count == 0)
@@ -429,7 +446,7 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
     {
         if (!CanWrite)
         {
-            throw new ApiException("当前账号没有编辑电信统计的权限");
+            throw new ApiException("当前账号没有编辑信息设计的权限");
         }
         if (row is null)
         {
@@ -474,7 +491,7 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
     {
         if (!CanWrite)
         {
-            throw new ApiException("当前账号没有编辑电信统计的权限");
+            throw new ApiException("当前账号没有编辑信息设计的权限");
         }
         var project = _context.CurrentProject
             ?? throw new ApiException("请先选择工作区项目");
@@ -494,7 +511,7 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
         }
 
         await LoadRoomsAsync(project.Id);
-        StatusMessage = "电信统计已保存";
+        StatusMessage = "信息设计已保存";
     });
 
     /// <summary>切换工作区前只提交已有房间的修改，新建未保存的行不自动创建。</summary>
@@ -692,84 +709,46 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
         var poePorts = SelectedPoeSwitch?.ElectricalPorts ?? 0;
         var utilization = Math.Clamp(UtilizationPercent, 1, 100);
 
-        var buildingCodeById = BuildingOptions
-            .Where(x => x.Id is not null)
-            .ToDictionary(x => x.Id!.Value, x => x.Display);
-
-        string BuildingCode(TelecomRoomRowViewModel row) =>
-            buildingCodeById.TryGetValue(row.PbsNodeId, out var display) ? display : "未指定建筑";
-
-        var roomGroups = Rooms
-            .Select(x => new TelecomSummaryRow(
-                BuildingCode(x),
-                string.IsNullOrWhiteSpace(x.Floor) ? "未填写" : x.Floor.Trim(),
-                (string.IsNullOrWhiteSpace(x.Code) ? string.Empty : x.Code + "  ") + x.Name,
-                1,
-                x.DataPointCount,
-                x.PhonePointCount,
-                x.ApCount,
-                SwitchCount(x.DataPointCount, accessPorts, utilization),
-                SwitchCount(x.ApCount, poePorts, utilization)))
-            .OrderBy(x => x.Building, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(x => x.Floor, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(x => x.Room, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var floorGroups = Rooms
-            .GroupBy(x => new { x.PbsNodeId, Floor = string.IsNullOrWhiteSpace(x.Floor) ? "未填写" : x.Floor.Trim() })
-            .Select(g => new TelecomSummaryRow(
-                BuildingCode(g.First()),
-                g.Key.Floor,
-                string.Empty,
-                g.Count(),
-                g.Sum(x => x.DataPointCount),
-                g.Sum(x => x.PhonePointCount),
-                g.Sum(x => x.ApCount),
-                SwitchCount(g.Sum(x => x.DataPointCount), accessPorts, utilization),
-                SwitchCount(g.Sum(x => x.ApCount), poePorts, utilization)))
-            .OrderBy(x => x.Building, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(x => x.Floor, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var buildingGroups = Rooms
-            .GroupBy(x => x.PbsNodeId)
-            .Select(g => new TelecomSummaryRow(
-                BuildingCode(g.First()),
-                "全部楼层",
-                string.Empty,
-                g.Count(),
-                g.Sum(x => x.DataPointCount),
-                g.Sum(x => x.PhonePointCount),
-                g.Sum(x => x.ApCount),
-                SwitchCount(g.Sum(x => x.DataPointCount), accessPorts, utilization),
-                SwitchCount(g.Sum(x => x.ApCount), poePorts, utilization)))
-            .OrderBy(x => x.Building, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        RoomSummaries.Clear();
-        foreach (var row in roomGroups)
-        {
-            RoomSummaries.Add(row);
-        }
-        FloorSummaries.Clear();
-        foreach (var row in floorGroups)
-        {
-            FloorSummaries.Add(row);
-        }
-        BuildingSummaries.Clear();
-        foreach (var row in buildingGroups)
-        {
-            BuildingSummaries.Add(row);
-        }
-
-        BuildingCount = buildingGroups.Count;
-        FloorCount = floorGroups.Count;
+        BuildingCount = Rooms.Select(x => x.PbsNodeId).Distinct().Count();
+        FloorCount = Rooms
+            .Select(x => (x.PbsNodeId, Floor: string.IsNullOrWhiteSpace(x.Floor) ? "未填写" : x.Floor.Trim()))
+            .Distinct()
+            .Count();
         RoomCount = Rooms.Count;
         DataPointTotal = Rooms.Sum(x => x.DataPointCount);
         PhonePointTotal = Rooms.Sum(x => x.PhonePointCount);
         ApTotal = Rooms.Sum(x => x.ApCount);
-        AccessSwitchTotal = SwitchCount(DataPointTotal, accessPorts, utilization);
-        PoeSwitchTotal = SwitchCount(ApTotal, poePorts, utilization);
+
+        var buildingCodes = BuildingOptions
+            .Where(x => x.Id is not null)
+            .ToDictionary(x => x.Id!.Value, x => x.Display);
+
+        string BuildingCode(TelecomRoomRowViewModel row) =>
+            buildingCodes.TryGetValue(row.PbsNodeId, out var display) ? display : "未指定建筑";
+
+        // 交换机按建筑物独立配置：每栋楼先各自向上取整，再把各楼台数相加。
+        var buildingRows = Rooms
+            .GroupBy(x => x.PbsNodeId)
+            .Select(g => new BuildingSwitchRow(
+                BuildingCode(g.First()),
+                g.Sum(x => x.DataPointCount),
+                g.Sum(x => x.ApCount),
+                SwitchCount(g.Sum(x => x.DataPointCount), accessPorts, utilization),
+                SwitchCount(g.Sum(x => x.ApCount), poePorts, utilization)))
+            .OrderBy(x => x.Building, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        BuildingSwitchTotals.Clear();
+        foreach (var row in buildingRows)
+        {
+            BuildingSwitchTotals.Add(row);
+        }
+
+        AccessSwitchTotal = buildingRows.Sum(x => x.AccessSwitchCount);
+        PoeSwitchTotal = buildingRows.Sum(x => x.PoeSwitchCount);
+
+        OnPropertyChanged(nameof(AccessSwitchHint));
+        OnPropertyChanged(nameof(PoeSwitchHint));
     }
 
     /// <summary>按可用端口数向上取整；电话点不参与计算。</summary>
@@ -797,9 +776,7 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
         _catalog = null;
         AccessSwitchModels.Clear();
         PoeSwitchModels.Clear();
-        RoomSummaries.Clear();
-        FloorSummaries.Clear();
-        BuildingSummaries.Clear();
+        BuildingSwitchTotals.Clear();
         SelectedRoom = null;
         SelectedAccessSwitch = null;
         SelectedPoeSwitch = null;

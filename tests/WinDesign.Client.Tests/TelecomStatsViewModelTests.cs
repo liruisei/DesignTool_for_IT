@@ -1,4 +1,5 @@
 using WinDesign.Client.Services;
+using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Telecom;
 using WinDesign.Contracts.Workspaces;
@@ -9,7 +10,7 @@ namespace WinDesign.Client.Tests;
 public class TelecomStatsViewModelTests
 {
     [Fact]
-    public async Task Stats_GroupByBuildingAndFloor_AndCalculateSwitchCounts()
+    public async Task Stats_AggregateCounts_AndCalculateSwitchCounts()
     {
         var api = new FakeApiClient();
         var (building1, building2, _) = AddTelecomPbs(api);
@@ -34,19 +35,41 @@ public class TelecomStatsViewModelTests
         // 10 个 AP / 19.2 -> 1 台 PoE
         Assert.Equal(1, viewModel.PoeSwitchTotal);
 
-        Assert.Equal(2, viewModel.BuildingSummaries.Count);
-        Assert.Equal(3, viewModel.FloorSummaries.Count);
+        // 计算结果区显示所选样本的型号与端口数。
+        Assert.Equal("SW-24A · 24 口", viewModel.AccessSwitchHint);
+        Assert.Equal("SW-24P · 24 口", viewModel.PoeSwitchHint);
 
-        // 汇总中的建筑物列只显示编号，不显示名称。
-        Assert.Contains(viewModel.BuildingSummaries, x => x.Building == "B1");
-        Assert.Contains(viewModel.BuildingSummaries, x => x.Building == "B2");
-        Assert.DoesNotContain(viewModel.BuildingSummaries, x => x.Building.Contains("综合楼"));
+        // 台数按建筑物分行，B2 只有电话点，不需要交换机。
+        Assert.Equal(2, viewModel.BuildingSwitchTotals.Count);
+        var b1 = viewModel.BuildingSwitchTotals.Single(x => x.Building == "B1");
+        Assert.Equal(120, b1.DataPointCount);
+        Assert.Equal(10, b1.ApCount);
+        Assert.Equal(7, b1.AccessSwitchCount);
+        Assert.Equal(1, b1.PoeSwitchCount);
+        var b2 = viewModel.BuildingSwitchTotals.Single(x => x.Building == "B2");
+        Assert.Equal(0, b2.AccessSwitchCount);
+        Assert.Equal(0, b2.PoeSwitchCount);
+    }
 
-        var floor1 = viewModel.FloorSummaries.Single(x => x.Building.Contains("B1") && x.Floor == "1F");
-        Assert.Equal(1, floor1.RoomCount);
-        Assert.Equal(100, floor1.DataPointCount);
-        Assert.Equal(50, floor1.PhonePointCount);
-        Assert.Equal(10, floor1.ApCount);
+    [Fact]
+    public async Task SwitchCounts_AreRoundedPerBuilding_NotAcrossBuildings()
+    {
+        var api = new FakeApiClient();
+        var (building1, building2, _) = AddTelecomPbs(api);
+        AddSwitchModels(api);
+        AddRoom(api, building1, "1F", "R101", 10, 0, 10);
+        AddRoom(api, building2, "1F", "R201", 5, 0, 5);
+
+        var viewModel = CreateViewModel(api);
+        await viewModel.RefreshAsync();
+
+        // 合计 15 个信息点若跨楼合并只需 1 台，但每栋楼各自取整后是 2 台。
+        Assert.Equal(2, viewModel.AccessSwitchTotal);
+        Assert.Equal(2, viewModel.PoeSwitchTotal);
+        Assert.All(viewModel.BuildingSwitchTotals,
+            x => Assert.Equal(1, x.AccessSwitchCount));
+        Assert.All(viewModel.BuildingSwitchTotals,
+            x => Assert.Equal(1, x.PoeSwitchCount));
     }
 
     [Fact]
@@ -66,6 +89,36 @@ public class TelecomStatsViewModelTests
         viewModel.SelectedAccessSwitch = viewModel.AccessSwitchModels
             .Single(x => x.ElectricalPorts == 48);
         Assert.Equal(2, viewModel.AccessSwitchTotal); // ceil(50 / 38.4)
+    }
+
+    [Fact]
+    public async Task EmbeddedIndexTable_LoadsProjectEquipments()
+    {
+        var api = new FakeApiClient();
+        var (building, _, _) = AddTelecomPbs(api);
+        AddSwitchModels(api);
+        AddRoom(api, building, "1F", "R101", 10, 0, 0);
+        api.Equipments.Add(new EquipmentDto
+        {
+            Id = Guid.NewGuid(),
+            PlantId = api.Plant.Id,
+            ProjectId = api.Project.Id,
+            PbsNodeId = building.Id,
+            TagNo = "PT-1001",
+            Name = "压力变送器",
+            Discipline = "Instrument",
+            Quantity = 1,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        var viewModel = CreateViewModel(api);
+        await viewModel.RefreshAsync();
+        // 内嵌索引表与电信统计共用工作区，但持有独立的加载与筛选状态。
+        await viewModel.IndexTable.RefreshAsync();
+
+        var equipment = Assert.Single(viewModel.IndexTable.Equipments);
+        Assert.Equal("PT-1001", equipment.TagNo);
+        Assert.Same(api.Project, viewModel.IndexTable.Context.CurrentProject);
     }
 
     [Fact]

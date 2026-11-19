@@ -2,34 +2,36 @@ using WinDesign.Client.Services;
 using WinDesign.Client.ViewModels;
 using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
+using WinDesign.Contracts.Telecom;
 using WinDesign.Contracts.Workspaces;
 using WinDesign.DesignClient.ViewModels;
 
 namespace WinDesign.Client.Tests;
 
 /// <summary>
-/// 设计客户端外壳：只包含索引表 / 规格书 / 材料表 / 报表，不出现系统配置。
+/// 设计客户端外壳：只包含信息设计（含索引表）/ 规格书 / 材料表 / 报表，不出现系统配置。
 /// </summary>
 public class DesignMainViewModelTests
 {
     [Fact]
-    public async Task ReactivatingIndexDocument_RefreshesEquipment()
+    public async Task ReactivatingInformationDesignDocument_RefreshesRooms()
     {
         var api = new FakeApiClient();
-        api.Equipments.Add(CreateEquipment(api, "PT-1001"));
         var viewModel = new MainViewModel(api.CreateSession());
 
-        var indexTab = viewModel.Documents.Single(x => x.Key == "index");
-        var indexViewModel = (EquipmentIndexViewModel)indexTab.ViewModel;
-        await indexViewModel.RefreshAsync();
-        Assert.Single(indexViewModel.Equipments);
+        var tab = viewModel.Documents.Single(x => x.Key == "telecom");
+        var designViewModel = (TelecomStatsViewModel)tab.ViewModel;
+        await designViewModel.RefreshAsync();
+        Assert.Empty(designViewModel.Rooms);
 
-        api.Equipments.Add(CreateEquipment(api, "PT-2002"));
+        api.TelecomRooms.Add(new TelecomRoomDto(
+            Guid.NewGuid(), api.Project.Id, Guid.NewGuid(), "B1", "综合楼",
+            "1F", "R101", "房间 R101", 1, 0, 0, null, 0));
         viewModel.OpenSpecsCommand.Execute(null);
-        viewModel.OpenIndexCommand.Execute(null);
+        viewModel.OpenTelecomCommand.Execute(null);
         await Task.Delay(50);
 
-        Assert.Contains(indexViewModel.Equipments, x => x.TagNo == "PT-2002");
+        Assert.Single(designViewModel.Rooms);
     }
 
     [Fact]
@@ -39,7 +41,10 @@ public class DesignMainViewModelTests
         var viewModel = new MainViewModel(api.CreateSession());
 
         var project = Assert.Single(viewModel.ProjectExplorerNodes, x => x.Key == "project");
-        Assert.Contains(project.Children, x => x.Key == "index");
+        // 索引表已并入信息设计，不再单独列入口；信息设计排在第一位。
+        Assert.DoesNotContain(project.Children, x => x.Key == "index");
+        Assert.Equal("telecom", project.Children[0].Key);
+        Assert.Equal("信息设计", project.Children[0].Title);
         Assert.Contains(project.Children, x => x.Key == "specs");
         Assert.Contains(project.Children, x => x.Key == "materials");
         Assert.Contains(project.Children, x => x.Key == "reports");
@@ -203,7 +208,7 @@ public class DesignMainViewModelTests
         var viewModel = new MainViewModel(session);
         viewModel.OpenSpecsCommand.Execute(null);
         Assert.Equal(2, viewModel.Documents.Count);
-        var oldIndexViewModel = viewModel.Documents.Single(x => x.Key == "index").ViewModel;
+        var oldDesignViewModel = viewModel.Documents.Single(x => x.Key == "telecom").ViewModel;
 
         var projectB = new WorkspaceProjectDto(
             Guid.NewGuid(), "DEMO-002", "常减压扩能项目", "基础设计", "Active");
@@ -219,10 +224,10 @@ public class DesignMainViewModelTests
         Assert.Equal("常减压扩能项目", viewModel.ProjectName);
         Assert.Contains("常减压扩能项目", viewModel.WorkspaceText);
         Assert.Single(viewModel.Documents);
-        var indexTab = viewModel.Documents.Single(x => x.Key == "index");
-        Assert.NotSame(oldIndexViewModel, indexTab.ViewModel);
+        var designTab = viewModel.Documents.Single(x => x.Key == "telecom");
+        Assert.NotSame(oldDesignViewModel, designTab.ViewModel);
         Assert.Equal(projectB.Id,
-            ((EquipmentIndexViewModel)indexTab.ViewModel).Context.CurrentProject!.Id);
+            ((TelecomStatsViewModel)designTab.ViewModel).Context.CurrentProject!.Id);
     }
 
     [Fact]
@@ -262,7 +267,7 @@ public class DesignMainViewModelTests
         viewModel.Documents.Add(new DocumentTab
         {
             Key = "failing-test",
-            Title = "索引表",
+            Title = "信息设计",
             ViewModel = failing
         });
         viewModel.Documents.Add(new DocumentTab
@@ -275,7 +280,7 @@ public class DesignMainViewModelTests
         var error = await viewModel.SavePendingDocumentsAsync();
 
         Assert.NotNull(error);
-        Assert.Contains("索引表", error);
+        Assert.Contains("信息设计", error);
         Assert.Contains("保存失败", error);
         Assert.Equal(0, later.SaveCount);
     }

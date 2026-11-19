@@ -12,6 +12,15 @@ namespace WinDesign.DesignClient.Views;
 
 public partial class EquipmentIndexView : UserControl
 {
+    /// <summary>
+    /// 嵌入模式：去掉页面外边距与卡片边框/底色，用于嵌在其他模块内（如信息设计下方）。
+    /// 独立标签页保持默认值 false。
+    /// </summary>
+    public static readonly DependencyProperty IsEmbeddedProperty =
+        DependencyProperty.Register(
+            nameof(IsEmbedded), typeof(bool), typeof(EquipmentIndexView),
+            new PropertyMetadata(false));
+
     private readonly Dictionary<DataGridColumn, string> _columnFilters = new();
     private readonly Dictionary<DataGridColumn, PropertyInfo?> _columnProperties = new();
     private ICollectionView? _equipmentView;
@@ -20,6 +29,12 @@ public partial class EquipmentIndexView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+    }
+
+    public bool IsEmbedded
+    {
+        get => (bool)GetValue(IsEmbeddedProperty);
+        set => SetValue(IsEmbeddedProperty, value);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

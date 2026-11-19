@@ -70,7 +70,7 @@
                 <MenuItem Header="退出" Command="{Binding LogoutCommand}" />
             </MenuItem>
             <MenuItem Header="视图(_V)">
-                <MenuItem Header="索引表" Command="{Binding OpenIndexCommand}" />
+                <MenuItem Header="信息设计" Command="{Binding OpenTelecomCommand}" />
                 <MenuItem Header="规格书" Command="{Binding OpenSpecsCommand}" />
                 <MenuItem Header="材料表" Command="{Binding OpenMaterialsCommand}" />
                 <MenuItem Header="报表输出" Command="{Binding OpenReportsCommand}" />
