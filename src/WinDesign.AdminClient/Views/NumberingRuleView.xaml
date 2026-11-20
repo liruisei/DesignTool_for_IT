@@ -81,7 +81,7 @@
                                    Margin="10,0,6,0" />
                         <TextBox Width="60" Style="{StaticResource Input}"
                                  Text="{Binding TypeLength, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="设备类型编码的显示长度（不足补空格）" />
+                                 ToolTip="设备类型编码的显示长度（不足不补空格，超出截断）" />
                     </StackPanel>
 
                     <TextBlock Grid.Row="4" Text="设备类型后分隔符" Style="{StaticResource FieldLabel}"

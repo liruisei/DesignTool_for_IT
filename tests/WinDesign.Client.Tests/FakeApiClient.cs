@@ -517,6 +517,10 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(new PagedResult<EquipmentDto>(items, items.Count, 1, 200));
     }
 
+    public Task<EquipmentDto> GetEquipmentAsync(Guid id, CancellationToken ct = default) =>
+        Task.FromResult(Equipments.FirstOrDefault(x => x.Id == id)
+                        ?? throw new ApiException("设备不存在"));
+
     public Task<EquipmentDto> CreateEquipmentAsync(Guid projectId, EquipmentUpsertRequest request, CancellationToken ct = default)
     {
         // 与服务端保持一致：位号在工厂内不区分大小写唯一。

@@ -212,6 +212,19 @@ public partial class TelecomStatsView : UserControl
         row.IsSelected = true;
     }
 
+    /// <summary>
+    /// DataGrid 的单元格选中逻辑会吞掉第一次单击，导致复选框点不动。
+    /// 在 Preview 阶段直接切换行选中并标记已处理，视觉状态由 IsChecked 绑定回显。
+    /// </summary>
+    private void OnRoomCheckBoxPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is CheckBox && FindAncestor<DataGridRow>(sender as DependencyObject) is { } row)
+        {
+            row.IsSelected = !row.IsSelected;
+            e.Handled = true;
+        }
+    }
+
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
     {
         while (current is not null)

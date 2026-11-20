@@ -18,12 +18,17 @@ public partial class EquipmentIndexViewModel : ViewModelBase
     private NumberingRuleDto? _numberingRule;
     private IReadOnlyDictionary<Guid, string> _unitCodeByPbsNodeId =
         new Dictionary<Guid, string>();
+    private IReadOnlyDictionary<Guid, Guid> _unitIdByPbsNodeId =
+        new Dictionary<Guid, Guid>();
     private IReadOnlyList<string> _unitCodeOptions = Array.Empty<string>();
 
     public ObservableCollection<EquipmentDto> Equipments { get; } = new();
     public ObservableCollection<PbsNodeOption> PbsFilterOptions { get; } = new();
     public ObservableCollection<PbsNodeOption> PbsEditorOptions { get; } = new();
     public ObservableCollection<DictionaryItemDto> EquipmentTypes { get; } = new();
+
+    /// <summary>设备列表重新加载后触发；索引设计页据此刷新「剩余台数」。</summary>
+    public event EventHandler? EquipmentsChanged;
 
     public IReadOnlyList<CodeNameOption> FilterDisciplineOptions { get; } = new[]
     {
@@ -130,6 +135,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             EquipmentTypes.Clear();
             _numberingRule = null;
             _unitCodeByPbsNodeId = new Dictionary<Guid, string>();
+            _unitIdByPbsNodeId = new Dictionary<Guid, Guid>();
             _unitCodeOptions = Array.Empty<string>();
             SelectedEquipment = null;
             return;
@@ -140,12 +146,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         _unitCodeOptions = BuildUnitCodeOptions(nodes, project.PbsRootNodeId);
         await LoadNumberingRuleAsync(project.Id);
 
-        var types = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
-        EquipmentTypes.Clear();
-        foreach (var type in types)
-        {
-            EquipmentTypes.Add(type);
-        }
+        await LoadEquipmentTypesAsync();
 
         FilterPbsNode ??= PbsFilterOptions.FirstOrDefault();
         await LoadEquipmentsAsync(project.Id);
@@ -265,14 +266,46 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             return;
         }
 
+        try
+        {
+            // 打开弹窗前刷新字典与编号规定：管理端刚改过的类型编码、各段长度要立即生效。
+            await LoadNumberingRuleAsync(project.Id);
+            await LoadEquipmentTypesAsync();
+
+            // 改编码时服务端会同步设备的类型引用，重新取一次当前设备，避免用旧编码打开下拉。
+            if (equipment is not null)
+            {
+                equipment = await _session.Api.GetEquipmentAsync(equipment.Id);
+            }
+        }
+        catch (ApiException ex)
+        {
+            ErrorMessage = ex.Message;
+            return;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "加载设备类型失败：" + ex.Message;
+            return;
+        }
+
         EquipmentDto? saved = null;
         // 登录时选择的装置作为新建设备的默认 PBS 与默认位号前缀。
         var defaultPbsNodeId = _session.UnitId is Guid unitId &&
                                PbsEditorOptions.Any(x => x.Id == unitId)
             ? unitId
             : (Guid?)null;
+
+        // 属性页只列出装置及以上层级；已有设备若挂在装置以下（回路/建筑物），
+        // 打开时按最近的上级装置展示，保存后设备即归属该装置。
+        var editorEquipment = equipment is not null &&
+                              equipment.PbsNodeId is Guid currentPbsNodeId &&
+                              _unitIdByPbsNodeId.TryGetValue(currentPbsNodeId, out var nearestUnitId)
+            ? equipment with { PbsNodeId = nearestUnitId }
+            : equipment;
+
         var context = new EquipmentEditorContext(
-            equipment,
+            editorEquipment,
             isCopy,
             PbsEditorOptions.ToList(),
             EquipmentTypes.ToList(),
@@ -328,6 +361,20 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         _ = RefreshAsync();
     }
 
+    /// <summary>
+    /// 重新拉取设备类型字典。管理端改过类型编码后，设计端必须重新取一次，
+    /// 不能一直用进入工作区时缓存的清单。
+    /// </summary>
+    private async Task LoadEquipmentTypesAsync()
+    {
+        var types = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
+        EquipmentTypes.Clear();
+        foreach (var type in types)
+        {
+            EquipmentTypes.Add(type);
+        }
+    }
+
     private async Task LoadEquipmentsAsync(Guid projectId)
     {
         var result = await _session.Api.GetEquipmentsAsync(
@@ -346,6 +393,8 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         {
             SelectedEquipment = Equipments.FirstOrDefault(x => x.Id == currentId);
         }
+
+        EquipmentsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void BuildPbsOptions(IReadOnlyList<PbsNodeDto> nodes)
@@ -387,13 +436,25 @@ public partial class EquipmentIndexViewModel : ViewModelBase
                 var indent = depth == 0 ? string.Empty : new string('·', depth * 2) + " ";
                 var display = indent + node.Code + "  " + node.Name;
                 PbsFilterOptions.Add(new PbsNodeOption(node.Id, display));
-                PbsEditorOptions.Add(new PbsNodeOption(node.Id, display));
+
+                // 设备属性页的「所属 PBS」只展示装置及以上层级；
+                // 装置以下的回路、建筑物等不在归属选择中出现。
+                if (IsUnitLevelOrAbove(node.NodeType))
+                {
+                    PbsEditorOptions.Add(new PbsNodeOption(node.Id, display));
+                }
+
                 Walk(node.Id, depth + 1);
             }
         }
 
         Walk(null, 0);
     }
+
+    /// <summary>PBS 层级是否在装置（Unit）及以上：区域与装置可选，装置以下不参与设备归属。</summary>
+    private static bool IsUnitLevelOrAbove(string? nodeType) =>
+        string.Equals(nodeType, "Area", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(nodeType, "Unit", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>加载当前项目的编号规定，供新建/复制设备时按规则拼装位号。</summary>
     private async Task LoadNumberingRuleAsync(Guid projectId)
@@ -409,11 +470,14 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         }
     }
 
-    /// <summary>PBS 节点 → 最近上级装置编号，用于位号前缀自动带出。</summary>
+    /// <summary>
+    /// PBS 节点 → 最近上级装置（编号与 Id），分别用于位号前缀自动带出，
+    /// 以及把挂在装置以下的既有设备归到所属装置。
+    /// </summary>
     private void BuildUnitCodeMap(IReadOnlyList<PbsNodeDto> nodes)
     {
         var byId = nodes.ToDictionary(x => x.Id);
-        string? FindUnitCode(Guid nodeId)
+        PbsNodeDto? FindUnit(Guid nodeId)
         {
             var current = byId[nodeId];
             var visited = new HashSet<Guid>();
@@ -421,7 +485,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             {
                 if (string.Equals(current.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
                 {
-                    return current.Code;
+                    return current;
                 }
                 if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
                 {
@@ -435,16 +499,23 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             return null;
         }
 
-        var map = new Dictionary<Guid, string>();
+        var codeMap = new Dictionary<Guid, string>();
+        var unitIdMap = new Dictionary<Guid, Guid>();
         foreach (var node in nodes)
         {
-            var code = FindUnitCode(node.Id);
-            if (!string.IsNullOrWhiteSpace(code))
+            if (FindUnit(node.Id) is not { } unit)
             {
-                map[node.Id] = code;
+                continue;
             }
+
+            if (!string.IsNullOrWhiteSpace(unit.Code))
+            {
+                codeMap[node.Id] = unit.Code;
+            }
+            unitIdMap[node.Id] = unit.Id;
         }
-        _unitCodeByPbsNodeId = map;
+        _unitCodeByPbsNodeId = codeMap;
+        _unitIdByPbsNodeId = unitIdMap;
     }
 
     /// <summary>当前项目 PBS 范围内的装置编号清单，供位号前缀下拉选择。</summary>

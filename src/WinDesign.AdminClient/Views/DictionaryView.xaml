@@ -177,8 +177,10 @@
                             </StackPanel.Style>
 
                             <TextBlock Text="编码" Style="{StaticResource FieldLabel}" />
-                            <TextBox Style="{StaticResource Input}" IsEnabled="{Binding IsCreatingItem}"
+                            <TextBox Style="{StaticResource Input}"
                                      Text="{Binding EditItemCode, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Text="编码可修改；修改后只更新设备的类型引用，已实例化设备的位号保持不变。已被设备使用的类型不能删除。" />
 
                             <TextBlock Text="名称" Style="{StaticResource FieldLabel}" />
                             <TextBox Style="{StaticResource Input}"

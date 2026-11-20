@@ -3,6 +3,7 @@ using WinDesign.DesignClient.ViewModels;
 using WinDesign.Client.ViewModels;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
+using WinDesign.Contracts.Numbering;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Projects;
 
@@ -57,6 +58,93 @@ public class EquipmentIndexViewModelTests
         Assert.Single(viewModel.Equipments);
         Assert.Single(viewModel.EquipmentTypes);
         Assert.Equal(2, viewModel.PbsEditorOptions.Count);
+    }
+
+    [Fact]
+    public async Task PbsOptions_ExcludeNodesBelowUnit_AndSnapEquipmentToUnit()
+    {
+        var api = new FakeApiClient();
+        var project = api.Project;
+        var area = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, null, "AREA-A", "A 区", "Area", 1, null, 0, 1);
+        var unit = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, area.Id, "U1", "常减压装置", "Unit", 1, null, 0, 2);
+        var building = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, unit.Id, "B1", "机柜室", "Building", 1, null, 0, 3);
+        var loop = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, unit.Id, "L1", "回路一", "Loop", 2, null, 0, 3);
+        api.PbsNodes.AddRange(new[] { area, unit, building, loop });
+        api.EquipmentTypes.Add(new DictionaryItemDto(
+            Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE", "PT", "压力变送器", 1, true, null));
+        api.Equipments.Add(new EquipmentDto
+        {
+            Id = Guid.NewGuid(),
+            PlantId = api.Plant.Id,
+            ProjectId = project.Id,
+            PbsNodeId = building.Id,
+            TagNo = "PT-1001",
+            Name = "压力变送器",
+            TypeCode = "PT",
+            Discipline = "Instrument",
+            Quantity = 1,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        var dialogs = new FakeEquipmentDialogService();
+        var viewModel = CreateViewModel(api, project, dialogs);
+        await viewModel.RefreshAsync();
+
+        // 下拉只保留未分配、区域和装置；装置以下的建筑物与回路不出现。
+        Assert.Equal(
+            new Guid?[] { null, area.Id, unit.Id },
+            viewModel.PbsEditorOptions.Select(x => x.Id).ToArray());
+        Assert.DoesNotContain(viewModel.PbsEditorOptions, x => x.Id == building.Id);
+        Assert.DoesNotContain(viewModel.PbsEditorOptions, x => x.Id == loop.Id);
+
+        // 设备原本挂在建筑物下，打开属性页时归到最近的上级装置。
+        viewModel.SelectedEquipment = viewModel.Equipments.Single();
+        await viewModel.EditEquipmentCommand.ExecuteAsync(null);
+
+        Assert.NotNull(dialogs.LastContext);
+        Assert.Equal(unit.Id, dialogs.LastContext!.Equipment!.PbsNodeId);
+    }
+
+    [Fact]
+    public async Task OpenEditor_ReloadsEquipmentTypes_AfterAdminRenamesCode()
+    {
+        var (api, project, _) = CreateData();
+        var dialogs = new FakeEquipmentDialogService();
+        var viewModel = CreateViewModel(api, project, dialogs);
+        await viewModel.RefreshAsync();
+
+        // 模拟管理员把类型编码改名：刷新后假 API 的字典项已换成新编码。
+        var item = api.EquipmentTypes.Single();
+        var index = api.EquipmentTypes.IndexOf(item);
+        api.EquipmentTypes[index] = item with { Code = "IT-ACC" };
+
+        await viewModel.NewEquipmentCommand.ExecuteAsync(null);
+
+        Assert.NotNull(dialogs.LastContext);
+        Assert.Contains(dialogs.LastContext!.EquipmentTypes, x => x.Code == "IT-ACC");
+        Assert.DoesNotContain(dialogs.LastContext!.EquipmentTypes, x => x.Code == "IT");
+    }
+
+    [Fact]
+    public async Task OpenEditor_ReloadsNumberingRule_AfterAdminChangesLengths()
+    {
+        var (api, project, _) = CreateData();
+        var dialogs = new FakeEquipmentDialogService();
+        var viewModel = CreateViewModel(api, project, dialogs);
+        await viewModel.RefreshAsync();
+
+        // 模拟管理员修改编号规定（顺序号 4 → 5、类型长度 5 → 10）后直接打开新建对话框。
+        api.NumberingRules[project.Id] = new NumberingRuleDto(
+            Guid.NewGuid(), project.Id,
+            NumberingFields.UnitCode, "-", 4,
+            NumberingFields.EquipmentTypeCode, "-", 10, 5, string.Empty, 2);
+
+        await viewModel.NewEquipmentCommand.ExecuteAsync(null);
+
+        Assert.NotNull(dialogs.LastContext);
+        Assert.NotNull(dialogs.LastContext!.NumberingRule);
+        Assert.Equal(5, dialogs.LastContext.NumberingRule!.SequenceLength);
+        Assert.Equal(10, dialogs.LastContext.NumberingRule.TypeLength);
     }
 
     [Fact]

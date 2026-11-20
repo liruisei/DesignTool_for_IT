@@ -11,7 +11,7 @@ using WinDesign.Contracts.Projects;
 namespace WinDesign.DesignClient.ViewModels;
 
 /// <summary>
-/// 设计客户端外壳：在选定「工厂 → 项目」后，承载信息设计（含索引表）、规格书、材料表与报表。
+/// 设计客户端外壳：在选定「工厂 → 项目」后，承载信息设计、索引设计、规格书、材料表与报表。
 /// 系统配置（项目配置 / PBS 管理 / 编码定义 / 用户管理）不在本客户端出现。
 /// </summary>
 public partial class MainViewModel : ObservableObject
@@ -20,6 +20,8 @@ public partial class MainViewModel : ObservableObject
     private readonly IEquipmentDialogService _equipmentDialogs;
     private readonly ICategoryDialogService _categoryDialogs;
     private readonly ProjectContext _projectContext = new();
+    /// <summary>交换机选型与可用率：信息设计页可调整，索引设计页只读展示。</summary>
+    private readonly TelecomSwitchSettings _switchSettings = new();
     private ExplorerNode? _pbsExplorerNode;
     private IReadOnlyList<PbsNodeDto> _pbsNodes = Array.Empty<PbsNodeDto>();
 
@@ -87,13 +89,19 @@ public partial class MainViewModel : ObservableObject
             Glyph = "▣",
             IsFolder = true
         };
-        // 索引表已并入信息设计页（页面下方），不再单独列出。
         project.Children.Add(new ExplorerNode
         {
             Key = "telecom",
             Title = "信息设计",
             Glyph = "◈",
             Open = OpenTelecom
+        });
+        project.Children.Add(new ExplorerNode
+        {
+            Key = "index-design",
+            Title = "索引设计",
+            Glyph = "▦",
+            Open = OpenIndexDesign
         });
         project.Children.Add(new ExplorerNode
         {
@@ -410,7 +418,13 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenTelecom() =>
-        OpenDocument("telecom", "信息设计", () => new TelecomStatsViewModel(_session, _projectContext));
+        OpenDocument("telecom", "信息设计",
+            () => new TelecomStatsViewModel(_session, _projectContext, _switchSettings));
+
+    [RelayCommand]
+    private void OpenIndexDesign() =>
+        OpenDocument("index-design", "索引设计",
+            () => new IndexDesignViewModel(_session, _projectContext, _switchSettings));
 
     [RelayCommand]
     private void OpenReports() =>
@@ -679,7 +693,12 @@ public partial class MainViewModel : ObservableObject
         void Walk(PbsNodeDto node, int depth)
         {
             var indent = depth == 0 ? string.Empty : new string('·', depth * 2) + " ";
-            options.Add(new PbsNodeOption(node.Id, indent + node.Code + "  " + node.Name));
+            // 设备归属只到装置层级：区域与装置可选，装置以下（回路/建筑物）不列出。
+            if (IsUnitLevelOrAbove(node.NodeType))
+            {
+                options.Add(new PbsNodeOption(node.Id, indent + node.Code + "  " + node.Name));
+            }
+
             if (!children.TryGetValue(node.Id, out var list))
             {
                 return;
@@ -699,6 +718,10 @@ public partial class MainViewModel : ObservableObject
         }
 
         return options;
+
+        static bool IsUnitLevelOrAbove(string? nodeType) =>
+            string.Equals(nodeType, "Area", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(nodeType, "Unit", StringComparison.OrdinalIgnoreCase);
     }
 
     [RelayCommand]

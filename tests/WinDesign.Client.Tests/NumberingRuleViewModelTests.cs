@@ -18,7 +18,8 @@ public class NumberingRuleViewModelTests
             EquipmentTagFormat.Preview(
                 NumberingFields.UnitCode, "", NumberingFields.EquipmentTypeCode, "", 6, "ABCD", 3));
         Assert.Equal("XXXX", EquipmentTagFormat.Preview(null, null, null, null, 4, null, 1));
-        Assert.Equal("PT   ", EquipmentTagFormat.Fit("PT", 5));
+        // 不足定义长度时不再补空格，超出时仍按长度截断。
+        Assert.Equal("PT", EquipmentTagFormat.Fit("PT", 5));
         Assert.Equal("ABCDE", EquipmentTagFormat.Fit("ABCDEF", 5));
     }
 

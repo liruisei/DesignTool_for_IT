@@ -27,12 +27,12 @@
                             <StackPanel Width="704" Margin="0,0,0,10">
                                 <TextBlock Text="位号" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
 
-                                <!-- 无编号规定，或编辑已有设备：直接输入完整位号 -->
+                                <!-- 项目无编号规定时：直接输入完整位号 -->
                                 <TextBox Style="{StaticResource Input}"
                                          Text="{Binding EditTagNo, UpdateSourceTrigger=PropertyChanged}"
                                          Visibility="{Binding UsePlainTagInput, Converter={StaticResource BoolToVis}}" />
 
-                                <!-- 新建/复制且项目有编号规定：按字段分段拼装 -->
+                                <!-- 项目有编号规定时：新建、复制、编辑都按字段分段拼装，不允许自由输入 -->
                                 <StackPanel Visibility="{Binding UseComposedTag, Converter={StaticResource BoolToVis}}">
                                     <StackPanel Orientation="Horizontal">
                                         <StackPanel>
@@ -50,13 +50,23 @@
                                                    VerticalAlignment="Bottom" Margin="6,0,6,8" />
                                         <StackPanel>
                                             <TextBlock Text="设备类型" Style="{StaticResource MutedText}" />
-                                            <TextBox Width="150" Style="{StaticResource Input}" Margin="0,3,0,0"
-                                                     IsReadOnly="True"
-                                                     Visibility="{Binding IsTypeAuto, Converter={StaticResource BoolToVis}}"
-                                                     Text="{Binding EditTypeCode, Mode=OneWay}" />
-                                            <TextBox Width="150" Style="{StaticResource Input}" Margin="0,3,0,0"
-                                                     Visibility="{Binding IsTypeManual, Converter={StaticResource BoolToVis}}"
-                                                     Text="{Binding TagTypePart, UpdateSourceTrigger=PropertyChanged}" />
+                                            <!-- 下拉列表显示「类型编码 + 描述」，选中后框内只显示编码。 -->
+                                            <ComboBox Width="180" Margin="0,3,0,0"
+                                                      ItemsSource="{Binding EquipmentTypes}"
+                                                      SelectedValuePath="Code"
+                                                      SelectedValue="{Binding EditTypeCode}"
+                                                      IsEditable="True" IsReadOnly="True"
+                                                      TextSearch.TextPath="Code"
+                                                      ToolTip="选择设备类型后自动带出专业，并参与位号拼装">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Code}" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding Name}" Margin="8,0,0,0" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
                                         </StackPanel>
                                         <TextBlock Text="{Binding TagSeparator2}" FontFamily="Consolas"
                                                    VerticalAlignment="Bottom" Margin="6,0,6,8" />
@@ -93,11 +103,6 @@
                                 <TextBlock Text="名称" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
                                 <TextBox Style="{StaticResource Input}"
                                          Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" />
-                            </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
-                                <TextBlock Text="设备类型" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
-                                <ComboBox ItemsSource="{Binding EquipmentTypes}" DisplayMemberPath="Name"
-                                          SelectedValuePath="Code" SelectedValue="{Binding EditTypeCode}" />
                             </StackPanel>
                             <StackPanel Width="345" Margin="0,0,14,10">
                                 <TextBlock Text="专业" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />

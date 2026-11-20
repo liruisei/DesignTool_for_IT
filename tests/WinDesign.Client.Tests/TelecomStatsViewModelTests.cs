@@ -1,5 +1,4 @@
 using WinDesign.Client.Services;
-using WinDesign.Contracts.Equipment;
 using WinDesign.Contracts.Pbs;
 using WinDesign.Contracts.Telecom;
 using WinDesign.Contracts.Workspaces;
@@ -92,33 +91,26 @@ public class TelecomStatsViewModelTests
     }
 
     [Fact]
-    public async Task EmbeddedIndexTable_LoadsProjectEquipments()
+    public async Task SwitchSelectionAndUtilization_AreSharedThroughSettings()
     {
         var api = new FakeApiClient();
         var (building, _, _) = AddTelecomPbs(api);
         AddSwitchModels(api);
         AddRoom(api, building, "1F", "R101", 10, 0, 0);
-        api.Equipments.Add(new EquipmentDto
-        {
-            Id = Guid.NewGuid(),
-            PlantId = api.Plant.Id,
-            ProjectId = api.Project.Id,
-            PbsNodeId = building.Id,
-            TagNo = "PT-1001",
-            Name = "压力变送器",
-            Discipline = "Instrument",
-            Quantity = 1,
-            CreatedAt = DateTime.UtcNow
-        });
 
-        var viewModel = CreateViewModel(api);
+        var settings = new TelecomSwitchSettings();
+        var viewModel = new TelecomStatsViewModel(
+            api.CreateSession(),
+            new ProjectContext { CurrentProject = api.Project },
+            settings);
         await viewModel.RefreshAsync();
-        // 内嵌索引表与电信统计共用工作区，但持有独立的加载与筛选状态。
-        await viewModel.IndexTable.RefreshAsync();
 
-        var equipment = Assert.Single(viewModel.IndexTable.Equipments);
-        Assert.Equal("PT-1001", equipment.TagNo);
-        Assert.Same(api.Project, viewModel.IndexTable.Context.CurrentProject);
+        // 信息设计页选中的样本与可用率写回共享设置，索引设计页据此只读展示。
+        Assert.Equal(viewModel.SelectedAccessSwitch!.Id, settings.AccessSwitchId);
+        Assert.Equal(viewModel.SelectedPoeSwitch!.Id, settings.PoeSwitchId);
+
+        viewModel.UtilizationPercent = 50;
+        Assert.Equal(50, settings.UtilizationPercent);
     }
 
     [Fact]

@@ -44,6 +44,9 @@
         <DataTemplate DataType="{x:Type vm:TelecomStatsViewModel}">
             <views:TelecomStatsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:IndexDesignViewModel}">
+            <views:IndexDesignView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:ModulePlaceholderViewModel}">
             <views:ModulePlaceholderView />
         </DataTemplate>
@@ -71,6 +74,7 @@
             </MenuItem>
             <MenuItem Header="视图(_V)">
                 <MenuItem Header="信息设计" Command="{Binding OpenTelecomCommand}" />
+                <MenuItem Header="索引设计" Command="{Binding OpenIndexDesignCommand}" />
                 <MenuItem Header="规格书" Command="{Binding OpenSpecsCommand}" />
                 <MenuItem Header="材料表" Command="{Binding OpenMaterialsCommand}" />
                 <MenuItem Header="报表输出" Command="{Binding OpenReportsCommand}" />

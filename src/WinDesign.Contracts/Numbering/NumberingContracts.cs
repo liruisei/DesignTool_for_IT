@@ -61,7 +61,7 @@ public static class EquipmentTagFormat
     public static int ClampLength(int length, int minimum = 1) =>
         Math.Clamp(length, minimum, MaxLength);
 
-    /// <summary>按指定长度截断/右侧补空格。</summary>
+    /// <summary>按指定长度截断；不足长度时原样返回，不补空格。</summary>
     public static string Fit(string? value, int length)
     {
         if (string.IsNullOrWhiteSpace(value) || length <= 0)
@@ -70,11 +70,7 @@ public static class EquipmentTagFormat
         }
 
         var trimmed = value.Trim();
-        if (trimmed.Length > length)
-        {
-            trimmed = trimmed[..length];
-        }
-        return trimmed.PadRight(length);
+        return trimmed.Length > length ? trimmed[..length] : trimmed;
     }
 
     public static string SequencePlaceholder(int sequenceLength) =>
