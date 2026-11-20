@@ -52,4 +52,7 @@ public sealed record UpdateDictionaryItemRequest(
 {
     /// <summary>设备类型（EQUIPMENT_TYPE）的所属专业，如 Instrument / Telecom / IT。</summary>
     public string? Discipline { get; init; }
+
+    /// <summary>新的编码项编码；为空表示不修改。修改后已实例化设备的位号保持不变。</summary>
+    public string? Code { get; init; }
 }

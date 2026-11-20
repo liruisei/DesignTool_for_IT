@@ -1,0 +1,163 @@
+<UserControl x:Class="WinDesign.DesignClient.Views.IndexDesignView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:WinDesign.DesignClient.Views">
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*" MinWidth="420" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="2*" MinWidth="320" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 左：设备索引表 -->
+        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                CornerRadius="4">
+            <views:EquipmentIndexView DataContext="{Binding IndexTable}" IsEmbedded="True" />
+        </Border>
+
+        <!-- 左右分隔条 -->
+        <GridSplitter Grid.Column="1" Width="12" HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch" Background="Transparent"
+                      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                      Cursor="SizeWE" ToolTip="拖动调整索引表与计算结果的宽度">
+            <GridSplitter.Template>
+                <ControlTemplate TargetType="GridSplitter">
+                    <Border Background="Transparent">
+                        <Border Width="1" HorizontalAlignment="Center"
+                                Background="{StaticResource BorderBrush}" />
+                    </Border>
+                </ControlTemplate>
+            </GridSplitter.Template>
+        </GridSplitter>
+
+        <!-- 右：只读的交换机计算与结果，选型/可用率在信息设计页调整 -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock Text="交换机计算" Style="{StaticResource SectionTitle}" />
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="86" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="接入交换机" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding AccessSwitchText}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center"
+                                   TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="1" Text="PoE 交换机" VerticalAlignment="Center" Margin="0,6,0,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PoeSwitchText}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0"
+                                   TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="2" Text="可用率 %" VerticalAlignment="Center" Margin="0,6,0,0" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding UtilizationText}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,6,0,0" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Text="选型与可用率在「信息设计」页调整，本页只读展示。规格来自「设备样本库」中的交换机样本；接入交换机按信息点计算，PoE 交换机按无线 AP 计算，电话点不占用交换机电口。" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="4" Padding="14,12" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Text="计算结果" Style="{StaticResource SectionTitle}" />
+
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="接入交换机合计" Style="{StaticResource MutedText}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                <TextBlock Text="{Binding AccessSwitchTotal}" FontSize="34"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}" />
+                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                <TextBlock Text="剩余" VerticalAlignment="Bottom" Margin="18,0,6,7"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的接入交换机；负数为人为增加的冗余台数" />
+                                <TextBlock Text="{Binding AccessSwitchRemaining}" FontSize="34"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的接入交换机；负数为人为增加的冗余台数" />
+                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                                       Text="{Binding AccessSwitchText}" />
+                        </StackPanel>
+
+                        <Border Grid.Column="1" Width="1" Background="{StaticResource BorderBrush}"
+                                Margin="14,4" />
+
+                        <StackPanel Grid.Column="2" Margin="14,0,0,0">
+                            <TextBlock Text="PoE 交换机合计" Style="{StaticResource MutedText}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                <TextBlock Text="{Binding PoeSwitchTotal}" FontSize="34"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}" />
+                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                <TextBlock Text="剩余" VerticalAlignment="Bottom" Margin="18,0,6,7"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的 PoE 交换机；负数为人为增加的冗余台数" />
+                                <TextBlock Text="{Binding PoeSwitchRemaining}" FontSize="34"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的 PoE 交换机；负数为人为增加的冗余台数" />
+                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                                       Text="{Binding PoeSwitchText}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="按建筑物分别计算" Style="{StaticResource SubSection}"
+                               Margin="0,16,0,4" />
+                    <DataGrid ItemsSource="{Binding BuildingSwitchTotals}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              HeadersVisibility="Column" MaxHeight="180"
+                              BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="建筑物" Binding="{Binding Building}"
+                                                Width="110" MinWidth="100" />
+                            <DataGridTextColumn Header="信息点" Binding="{Binding DataPointCount}"
+                                                Width="85" MinWidth="85" />
+                            <DataGridTextColumn Header="无线 AP" Binding="{Binding ApCount}"
+                                                Width="105" MinWidth="105" />
+                            <DataGridTextColumn Header="接入交换机" Binding="{Binding AccessSwitchCount}"
+                                                Width="115" MinWidth="115" />
+                            <DataGridTextColumn Header="PoE 交换机" Binding="{Binding PoeSwitchCount}"
+                                                Width="115" MinWidth="115" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,10,0,0" TextWrapping="Wrap"
+                               Text="每栋建筑物先在楼内按「信息点（PoE 为无线 AP）÷（端口数 × 可用率）」向上取整，再把各楼台数相加；电话点不占用交换机电口。" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="「剩余」= 计算结果 − 索引表中已建的同类交换机。设备类型名称含 PoE 的算 PoE 交换机，其余名称含「交换机」的算接入交换机；负数表示人为增加的冗余台数。" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -414,6 +414,9 @@ public sealed class ApiClient : IApiClient
         return SendAsync<PagedResult<EquipmentDto>>(Request(HttpMethod.Get, query), ct);
     }
 
+    public Task<EquipmentDto> GetEquipmentAsync(Guid id, CancellationToken ct = default) =>
+        SendAsync<EquipmentDto>(Request(HttpMethod.Get, $"api/equipments/{id}"), ct);
+
     public Task<EquipmentDto> CreateEquipmentAsync(
         Guid projectId,
         EquipmentUpsertRequest request,

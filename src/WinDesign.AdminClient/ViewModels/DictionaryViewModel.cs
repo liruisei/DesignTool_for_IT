@@ -259,13 +259,20 @@ public partial class DictionaryViewModel : ViewModelBase, IPendingChanges
                 throw new ApiException("请选择编码项");
             }
 
+            if (string.IsNullOrWhiteSpace(EditItemCode) || string.IsNullOrWhiteSpace(EditItemName))
+            {
+                throw new ApiException("编码和名称不能为空");
+            }
+
             saved = await _session.Api.UpdateDictionaryItemAsync(SelectedItem.Id, new UpdateDictionaryItemRequest(
                 EditItemName.Trim(),
                 EditItemSort,
                 EditItemActive,
                 SelectedItem.ExtraJson)
             {
-                Discipline = IsEquipmentTypeSelected ? NullIfEmpty(EditItemDiscipline) : null
+                Discipline = IsEquipmentTypeSelected ? NullIfEmpty(EditItemDiscipline) : null,
+                // 编码可修改；服务端只同步设备的类型引用，不改已生成位号。
+                Code = EditItemCode.Trim()
             });
             StatusMessage = "编码项已保存";
         }

@@ -255,14 +255,6 @@ public partial class TelecomRoomRowViewModel : ObservableObject
     partial void OnRemarkChanged(string? value) => IsDirty = true;
 }
 
-/// <summary>按建筑物分别计算出的交换机台数。</summary>
-public sealed record BuildingSwitchRow(
-    string Building,
-    int DataPointCount,
-    int ApCount,
-    int AccessSwitchCount,
-    int PoeSwitchCount);
-
 /// <summary>
 /// 设计端信息设计：一页完成建筑/楼层/房间点位数录入，下方内嵌索引表，
 /// 并按交换机样本库的端口规格和可用率实时计算接入 / PoE 交换机台数。
@@ -273,6 +265,7 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
 {
     private readonly SessionService _session;
     private readonly ProjectContext _context;
+    private readonly TelecomSwitchSettings _switchSettings;
     private readonly List<TelecomRoomRowViewModel> _selectedRooms = new();
     private TelecomPbsCatalog? _catalog;
 
@@ -326,41 +319,33 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
     private int poeSwitchTotal;
 
     /// <summary>接入交换机结果下方的型号说明；未选样本时给出提示。</summary>
-    public string AccessSwitchHint => DescribeSwitch(SelectedAccessSwitch);
+    public string AccessSwitchHint => TelecomSwitchCalculator.DescribeSwitch(SelectedAccessSwitch);
 
     /// <summary>PoE 交换机结果下方的型号说明；未选样本时给出提示。</summary>
-    public string PoeSwitchHint => DescribeSwitch(SelectedPoeSwitch);
-
-    private static string DescribeSwitch(SwitchModelDto? model) =>
-        model is null
-            ? "未选择交换机样本"
-            : $"{model.Code} · {model.ElectricalPorts} 口";
+    public string PoeSwitchHint => TelecomSwitchCalculator.DescribeSwitch(SelectedPoeSwitch);
 
     public bool CanWrite => _session.IsAdmin || _session.IsDesigner;
     public bool IsReadOnly => !CanWrite;
     public ProjectContext Context => _context;
 
-    /// <summary>
-    /// 页面下方的索引表核心功能：与独立的「索引表」标签页共用同一个视图和命令集，
-    /// 但持有独立的 ViewModel 实例，互不影响各自的筛选与选中状态。
-    /// </summary>
-    public EquipmentIndexViewModel IndexTable { get; }
+    /// <summary>交换机选型与可用率；与索引设计页共享，本页是唯一可调整入口。</summary>
+    public TelecomSwitchSettings SwitchSettings => _switchSettings;
 
-    public TelecomStatsViewModel(SessionService session, ProjectContext context)
+    public TelecomStatsViewModel(
+        SessionService session,
+        ProjectContext context,
+        TelecomSwitchSettings? switchSettings = null)
     {
         _session = session;
         _context = context;
+        _switchSettings = switchSettings ?? new TelecomSwitchSettings();
+        UtilizationPercent = _switchSettings.UtilizationPercent;
         Title = "信息设计";
-        IndexTable = new EquipmentIndexViewModel(session, context);
         _context.ProjectChanged += OnProjectChanged;
         _ = RefreshAsync();
     }
 
-    public override void Dispose()
-    {
-        _context.ProjectChanged -= OnProjectChanged;
-        IndexTable.Dispose();
-    }
+    public override void Dispose() => _context.ProjectChanged -= OnProjectChanged;
 
     public override Task RefreshAsync() => RunAsync(async () =>
     {
@@ -376,8 +361,9 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
         BuildBuildingOptions(nodes, project.PbsRootNodeId);
 
         var models = await _session.Api.GetSwitchModelsAsync(activeOnly: true);
-        var accessId = SelectedAccessSwitch?.Id;
-        var poeId = SelectedPoeSwitch?.Id;
+        // 优先沿用当前页选择，其次使用共享设置（索引设计页展示的即这份取值）。
+        var accessId = SelectedAccessSwitch?.Id ?? _switchSettings.AccessSwitchId;
+        var poeId = SelectedPoeSwitch?.Id ?? _switchSettings.PoeSwitchId;
         AccessSwitchModels.Clear();
         PoeSwitchModels.Clear();
         foreach (var model in models)
@@ -530,11 +516,23 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
         }
     }
 
-    partial void OnUtilizationPercentChanged(double value) => Recompute();
+    partial void OnUtilizationPercentChanged(double value)
+    {
+        _switchSettings.UtilizationPercent = value;
+        Recompute();
+    }
 
-    partial void OnSelectedAccessSwitchChanged(SwitchModelDto? value) => Recompute();
+    partial void OnSelectedAccessSwitchChanged(SwitchModelDto? value)
+    {
+        _switchSettings.AccessSwitchId = value?.Id;
+        Recompute();
+    }
 
-    partial void OnSelectedPoeSwitchChanged(SwitchModelDto? value) => Recompute();
+    partial void OnSelectedPoeSwitchChanged(SwitchModelDto? value)
+    {
+        _switchSettings.PoeSwitchId = value?.Id;
+        Recompute();
+    }
 
     private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e) => Recompute();
 
@@ -727,16 +725,11 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
             buildingCodes.TryGetValue(row.PbsNodeId, out var display) ? display : "未指定建筑";
 
         // 交换机按建筑物独立配置：每栋楼先各自向上取整，再把各楼台数相加。
-        var buildingRows = Rooms
-            .GroupBy(x => x.PbsNodeId)
-            .Select(g => new BuildingSwitchRow(
-                BuildingCode(g.First()),
-                g.Sum(x => x.DataPointCount),
-                g.Sum(x => x.ApCount),
-                SwitchCount(g.Sum(x => x.DataPointCount), accessPorts, utilization),
-                SwitchCount(g.Sum(x => x.ApCount), poePorts, utilization)))
-            .OrderBy(x => x.Building, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var buildingRows = TelecomSwitchCalculator.ByBuilding(
+            Rooms.Select(x => (x.PbsNodeId, BuildingCode(x), x.DataPointCount, x.ApCount)),
+            accessPorts,
+            poePorts,
+            utilization);
 
         BuildingSwitchTotals.Clear();
         foreach (var row in buildingRows)
@@ -744,23 +737,11 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
             BuildingSwitchTotals.Add(row);
         }
 
-        AccessSwitchTotal = buildingRows.Sum(x => x.AccessSwitchCount);
-        PoeSwitchTotal = buildingRows.Sum(x => x.PoeSwitchCount);
+        AccessSwitchTotal = TelecomSwitchCalculator.TotalAccess(buildingRows);
+        PoeSwitchTotal = TelecomSwitchCalculator.TotalPoe(buildingRows);
 
         OnPropertyChanged(nameof(AccessSwitchHint));
         OnPropertyChanged(nameof(PoeSwitchHint));
-    }
-
-    /// <summary>按可用端口数向上取整；电话点不参与计算。</summary>
-    private static int SwitchCount(int pointCount, int ports, double utilizationPercent)
-    {
-        if (pointCount <= 0 || ports <= 0 || utilizationPercent <= 0)
-        {
-            return 0;
-        }
-
-        var usablePorts = ports * utilizationPercent / 100.0;
-        return (int)Math.Ceiling(pointCount / usablePorts);
     }
 
     private void ClearAll()

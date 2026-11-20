@@ -194,15 +194,50 @@ public class EquipmentEditorViewModelTests
         Assert.True(viewModel.IsTypeAuto);
         Assert.Equal(new[] { "1279", "CDU" }, viewModel.TagPrefixOptions);
         Assert.Equal("1279", viewModel.TagPrefix);
-        Assert.Equal("1279-PT   -12  A", viewModel.EditTagNo);
+        Assert.Equal("1279-PT-12A", viewModel.EditTagNo);
 
         var ok = viewModel.TryBuild(out var result, out _);
         Assert.True(ok);
-        Assert.Equal("1279-PT   -12  A", result!.TagNo);
+        Assert.Equal("1279-PT-12A", result!.TagNo);
     }
 
     [Fact]
-    public void ExistingEquipment_WithNumberingRule_KeepsPlainTagInput()
+    public void NewEquipment_WithManualTypeField_UsesSelectedTypeInTag()
+    {
+        var pbsNodeId = Guid.NewGuid();
+        var rule = new NumberingRuleDto(
+            Guid.NewGuid(), Guid.NewGuid(),
+            NumberingFields.UnitCode, "-", 4,
+            string.Empty, "-", 5, 4, "A", 1);
+        var context = new EquipmentEditorContext(
+            null,
+            false,
+            new[] { new PbsNodeOption(pbsNodeId, "PBS") },
+            new[]
+            {
+                new DictionaryItemDto(Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE",
+                    "PT", "压力变送器", 1, true, null)
+            },
+            DefaultPbsNodeId: pbsNodeId,
+            NumberingRule: rule,
+            UnitCodeByPbsNodeId: new Dictionary<Guid, string> { [pbsNodeId] = "1279" },
+            UnitCodeOptions: new[] { "1279" },
+            DefaultUnitCode: "1279");
+
+        var viewModel = new EquipmentEditorViewModel(context);
+        Assert.True(viewModel.IsTypeManual);
+
+        // 设备类型改为下拉后，即使编号规定未启用类型字段，选择类型也应写入位号类型段。
+        viewModel.EditTypeCode = "PT";
+        viewModel.TagSequence = "12";
+        viewModel.TagSuffix = "A";
+
+        Assert.Equal("PT", viewModel.TagTypePart);
+        Assert.Equal("1279-PT-12A", viewModel.EditTagNo);
+    }
+
+    [Fact]
+    public void ExistingEquipment_WithNumberingRule_UsesComposedTag()
     {
         var rule = new NumberingRuleDto(
             Guid.NewGuid(), Guid.NewGuid(),
@@ -217,9 +252,68 @@ public class EquipmentEditorViewModelTests
 
         var viewModel = new EquipmentEditorViewModel(context);
 
-        Assert.False(viewModel.UseComposedTag);
-        Assert.True(viewModel.UsePlainTagInput);
+        // 编辑已有设备也走编号规定，不再允许直接输入整段位号。
+        Assert.True(viewModel.UseComposedTag);
+        Assert.False(viewModel.UsePlainTagInput);
+        // 历史位号 "PT-1001" 不符合当前规定，先保留原值，待用户调整分段后再重拼。
         Assert.Equal("PT-1001", viewModel.EditTagNo);
+    }
+
+    [Fact]
+    public void ExistingEquipment_WithConformingTag_ParsesIntoFields()
+    {
+        var rule = new NumberingRuleDto(
+            Guid.NewGuid(), Guid.NewGuid(),
+            NumberingFields.UnitCode, "-", 4,
+            NumberingFields.EquipmentTypeCode, "-", 5, 4, string.Empty, 1);
+        var equipment = CreateEquipment() with { TagNo = "1279-PT   -0001A" };
+        var context = new EquipmentEditorContext(
+            equipment, false,
+            new[] { new PbsNodeOption(null, "（未分配）") },
+            Array.Empty<DictionaryItemDto>(),
+            NumberingRule: rule);
+
+        var viewModel = new EquipmentEditorViewModel(context);
+
+        Assert.True(viewModel.UseComposedTag);
+        Assert.Equal("1279", viewModel.TagPrefix);
+        Assert.Equal("PT", viewModel.EditTypeCode);
+        Assert.Equal("0001", viewModel.TagSequence);
+        Assert.Equal("A", viewModel.TagSuffix);
+        Assert.Equal("1279-PT-0001A", viewModel.EditTagNo);
+    }
+
+    [Fact]
+    public void ExistingEquipment_RenamedTypeCode_KeepsTagSnapshot()
+    {
+        var rule = new NumberingRuleDto(
+            Guid.NewGuid(), Guid.NewGuid(),
+            NumberingFields.UnitCode, "-", 4,
+            NumberingFields.EquipmentTypeCode, "-", 5, 4, string.Empty, 1);
+        var equipment = CreateEquipment() with { TagNo = "1279-PT-0001", TypeCode = "PTA" };
+        var context = new EquipmentEditorContext(
+            equipment,
+            false,
+            new[] { new PbsNodeOption(null, "（未分配）") },
+            new[]
+            {
+                new DictionaryItemDto(Guid.NewGuid(), Guid.NewGuid(),
+                    "EQUIPMENT_TYPE", "PTA", "压力变送器", 1, true, null)
+            },
+            NumberingRule: rule);
+
+        var viewModel = new EquipmentEditorViewModel(context);
+
+        // 类型编码已在管理端由 PT 改成 PTA，但已实例化设备的位号仍沿用旧类型段。
+        Assert.Equal("1279-PT-0001", viewModel.EditTagNo);
+
+        // 只改顺序号：仍保留位号里的旧类型段。
+        viewModel.TagSequence = "0002";
+        Assert.Equal("1279-PT-0002", viewModel.EditTagNo);
+
+        // 用户主动改选类型时才使用新编码重拼。
+        viewModel.EditTypeCode = "PTB";
+        Assert.Equal("1279-PTB-0002", viewModel.EditTagNo);
     }
 
     private static EquipmentEditorContext CreateContextWithTypeDiscipline(

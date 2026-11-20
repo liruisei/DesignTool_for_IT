@@ -41,10 +41,12 @@ public class DesignMainViewModelTests
         var viewModel = new MainViewModel(api.CreateSession());
 
         var project = Assert.Single(viewModel.ProjectExplorerNodes, x => x.Key == "project");
-        // 索引表已并入信息设计，不再单独列入口；信息设计排在第一位。
+        // 信息设计第一，索引设计第二；不再有旧的「索引表」入口。
         Assert.DoesNotContain(project.Children, x => x.Key == "index");
         Assert.Equal("telecom", project.Children[0].Key);
         Assert.Equal("信息设计", project.Children[0].Title);
+        Assert.Equal("index-design", project.Children[1].Key);
+        Assert.Equal("索引设计", project.Children[1].Title);
         Assert.Contains(project.Children, x => x.Key == "specs");
         Assert.Contains(project.Children, x => x.Key == "materials");
         Assert.Contains(project.Children, x => x.Key == "reports");

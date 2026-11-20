@@ -13,6 +13,9 @@ namespace WinDesign.Api.Controllers;
 [Route("api/dictionaries")]
 public sealed class DictionariesController : ApiControllerBase
 {
+    /// <summary>设备类型使用的编码类型；设备实例以类型编码字符串引用其中的编码项。</summary>
+    private const string EquipmentTypeDictionaryCode = "EQUIPMENT_TYPE";
+
     private readonly WinDesignDbContext _db;
 
     public DictionariesController(WinDesignDbContext db)
@@ -199,14 +202,62 @@ public sealed class DictionariesController : ApiControllerBase
             return NotFound(new ApiError("编码项不存在"));
         }
 
+        var oldCode = item.Code;
+        var newCode = string.IsNullOrWhiteSpace(request.Code) ? oldCode : request.Code.Trim();
+        if (!string.Equals(newCode, oldCode, StringComparison.Ordinal))
+        {
+            if (string.IsNullOrWhiteSpace(newCode))
+            {
+                return BadRequest(new ApiError("编码不能为空"));
+            }
+            if (await _db.DictionaryItems.AnyAsync(
+                    x => x.TypeId == item.TypeId && x.Id != id && x.Code == newCode, ct))
+            {
+                return Conflict(new ApiError("该类型下编码已存在"));
+            }
+
+            // 设备类型改编码时同步设备的类型引用，但位号是实例化时的快照，不能改。
+            if (string.Equals(item.Type.Code, EquipmentTypeDictionaryCode, StringComparison.OrdinalIgnoreCase))
+            {
+                await SyncEquipmentTypeCodeAsync(oldCode, newCode, ct);
+            }
+
+            item.Code = newCode;
+        }
+
         item.Name = request.Name.Trim();
         item.SortOrder = request.SortOrder;
         item.IsActive = request.IsActive;
         item.ExtraJson = DictionaryItemExtras.SetDiscipline(EmptyToNull(request.ExtraJson), request.Discipline);
         item.UpdatedAt = DateTime.UtcNow;
-        _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "DictionaryItem", item.Id.ToString(), $"{item.Type.Code}/{item.Code}");
+        _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "DictionaryItem", item.Id.ToString(),
+            $"{item.Type.Code}/{oldCode} -> {newCode}");
         await _db.SaveChangesAsync(ct);
         return Ok(ToDto(item, item.Type.Code));
+    }
+
+    /// <summary>统计引用了指定设备类型编码的设备数量（编码区分大小写存储，比较时忽略大小写）。</summary>
+    private Task<int> CountEquipmentsUsingTypeAsync(string typeCode, CancellationToken ct)
+    {
+        var normalized = typeCode.ToUpperInvariant();
+        return _db.Equipments.CountAsync(
+            x => x.TypeCode != null && x.TypeCode.ToUpper() == normalized, ct);
+    }
+
+    /// <summary>
+    /// 设备类型改编码后，把已实例化设备的类型引用同步到新编码。
+    /// 只更新 TypeCode，不动 TagNo：位号包含旧编码，但它是实例化时的快照，必须保持不变。
+    /// </summary>
+    private async Task SyncEquipmentTypeCodeAsync(string oldCode, string newCode, CancellationToken ct)
+    {
+        var normalized = oldCode.ToUpperInvariant();
+        var equipments = await _db.Equipments
+            .Where(x => x.TypeCode != null && x.TypeCode.ToUpper() == normalized)
+            .ToListAsync(ct);
+        foreach (var equipment in equipments)
+        {
+            equipment.TypeCode = newCode;
+        }
     }
 
     private static DictionaryItemDto ToDto(DictionaryItem item, string typeCode) => new(
@@ -229,6 +280,17 @@ public sealed class DictionariesController : ApiControllerBase
         if (item is null)
         {
             return NotFound(new ApiError("编码项不存在"));
+        }
+
+        // 设备实例化后按编码字符串引用设备类型，删除会留下悬空类型，必须阻止。
+        if (string.Equals(item.Type.Code, EquipmentTypeDictionaryCode, StringComparison.OrdinalIgnoreCase))
+        {
+            var equipmentCount = await CountEquipmentsUsingTypeAsync(item.Code, ct);
+            if (equipmentCount > 0)
+            {
+                return BadRequest(new ApiError(
+                    $"设备类型「{item.Code}」已被 {equipmentCount} 台设备使用，不能删除。"));
+            }
         }
 
         _db.DictionaryItems.Remove(item);
