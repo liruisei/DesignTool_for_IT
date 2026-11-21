@@ -7,6 +7,8 @@ namespace WinDesign.Client.Tests;
 
 public class EquipmentEditorViewModelTests
 {
+    private static readonly Guid BuildingId = Guid.NewGuid();
+
     [Fact]
     public void NewEquipment_Defaults()
     {
@@ -64,6 +66,21 @@ public class EquipmentEditorViewModelTests
     }
 
     [Fact]
+    public void TryBuild_NewEquipmentWithoutBuilding_ReturnsError()
+    {
+        var viewModel = new EquipmentEditorViewModel(CreateContext(null, false))
+        {
+            EditTagNo = "PT-3001",
+            EditName = "压力变送器"
+        };
+
+        var ok = viewModel.TryBuild(out _, out var error);
+
+        Assert.False(ok);
+        Assert.Contains("所属建筑物", error);
+    }
+
+    [Fact]
     public void TryBuild_MapsAllFields()
     {
         var viewModel = new EquipmentEditorViewModel(CreateContext(null, false))
@@ -72,6 +89,7 @@ public class EquipmentEditorViewModelTests
             EditLoopNo = "LIC-3001",
             EditName = "压力变送器",
             EditDiscipline = "Instrument",
+            EditPbsNodeId = BuildingId,
             EditQuantity = 3,
             EditPidDrawingNo = "PID-3001",
             EditSpecNo = "SPEC-3001",
@@ -111,6 +129,7 @@ public class EquipmentEditorViewModelTests
             EditTagNo = "SW-3001",
             EditName = "接入交换机",
             EditDiscipline = "IT",
+            EditPbsNodeId = BuildingId,
             EditLoopNo = "LIC-3001"
         };
 
@@ -316,6 +335,36 @@ public class EquipmentEditorViewModelTests
         Assert.Equal("1279-PTB-0002", viewModel.EditTagNo);
     }
 
+    [Fact]
+    public void ExistingEquipment_TypeCodeWithSeparator_ParsesTagSegments()
+    {
+        // 顺序号定义长度 5，但实际位号里的顺序号只有 4 位（拼装时不补零）。
+        var rule = new NumberingRuleDto(
+            Guid.NewGuid(), Guid.NewGuid(),
+            NumberingFields.UnitCode, "-", 4,
+            NumberingFields.EquipmentTypeCode, "-", 6, 5, string.Empty, 3);
+        var equipment = CreateEquipment() with { TagNo = "1279-SW-ACC-0001", TypeCode = "SW-ACC" };
+        var context = new EquipmentEditorContext(
+            equipment,
+            false,
+            new[] { new PbsNodeOption(BuildingId, "B1  机柜室") },
+            new[]
+            {
+                new DictionaryItemDto(Guid.NewGuid(), Guid.NewGuid(),
+                    "EQUIPMENT_TYPE", "SW-ACC", "接入交换机", 1, true, null)
+            },
+            NumberingRule: rule,
+            UnitCodeByPbsNodeId: new Dictionary<Guid, string> { [BuildingId] = "1279" },
+            DefaultUnitCode: "1279");
+
+        var viewModel = new EquipmentEditorViewModel(context);
+
+        // 类型编码 SW-ACC 自带连字符，不能被拆成 SW + ACC-0。
+        Assert.Equal("1279", viewModel.TagPrefix);
+        Assert.Equal("0001", viewModel.TagSequence);
+        Assert.Equal("1279-SW-ACC-0001", viewModel.EditTagNo);
+    }
+
     private static EquipmentEditorContext CreateContextWithTypeDiscipline(
         string discipline, EquipmentDto? equipment = null) => new(
         equipment,
@@ -332,7 +381,7 @@ public class EquipmentEditorViewModelTests
     private static EquipmentEditorContext CreateContext(EquipmentDto? equipment, bool isCopy) => new(
         equipment,
         isCopy,
-        new[] { new PbsNodeOption(null, "（未分配）") },
+        new[] { new PbsNodeOption(BuildingId, "B1  机柜室") },
         new[]
         {
             new DictionaryItemDto(Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE", "PT", "压力变送器", 1, true, null)

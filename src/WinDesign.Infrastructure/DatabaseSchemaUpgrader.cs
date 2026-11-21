@@ -36,6 +36,28 @@ public static class DatabaseSchemaUpgrader
         await EnsureColumnAsync(db, "TypeLength", 5, ct);
         await EnsureColumnAsync(db, "SequenceLength", 4, ct);
         await EnsureColumnAsync(db, "SuffixLength", 1, ct);
+
+        // 设备样本改为「专业 + 设备类型」后新增的两列；旧库补空列，数据由 Seeder 回填。
+        await EnsureSwitchModelColumnAsync(db, "Discipline", ct);
+        await EnsureSwitchModelColumnAsync(db, "TypeCode", ct);
+    }
+
+    private static async Task EnsureSwitchModelColumnAsync(
+        WinDesignDbContext db,
+        string column,
+        CancellationToken ct)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                $"SELECT \"{column}\" FROM \"switch_models\" LIMIT 1", ct);
+        }
+        catch (DbException)
+        {
+            // SQLite 与 PostgreSQL 都接受 TEXT NULL。
+            await db.Database.ExecuteSqlRawAsync(
+                $"ALTER TABLE \"switch_models\" ADD COLUMN \"{column}\" TEXT NULL", ct);
+        }
     }
 
     private static async Task EnsureColumnAsync(
@@ -62,6 +84,8 @@ public static class DatabaseSchemaUpgrader
             "Code" TEXT NOT NULL,
             "Name" TEXT NOT NULL,
             "SwitchType" TEXT NOT NULL,
+            "Discipline" TEXT NULL,
+            "TypeCode" TEXT NULL,
             "ElectricalPorts" INTEGER NOT NULL,
             "UplinkPorts" INTEGER NULL,
             "IsActive" INTEGER NOT NULL,
@@ -125,6 +149,8 @@ public static class DatabaseSchemaUpgrader
             "Code" text NOT NULL,
             "Name" text NOT NULL,
             "SwitchType" text NOT NULL,
+            "Discipline" text NULL,
+            "TypeCode" text NULL,
             "ElectricalPorts" integer NOT NULL,
             "UplinkPorts" integer NULL,
             "IsActive" boolean NOT NULL,

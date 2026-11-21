@@ -193,7 +193,10 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>按 PBS 节点分组当前项目的设备，用于填充装置下的“设备”文件夹。</summary>
+    /// <summary>
+    /// 按最近的上级装置分组当前项目的设备，用于填充装置下的“设备”文件夹。
+    /// 设备现在归属到建筑物，但仍统一显示在所属装置的「设备」文件夹中。
+    /// </summary>
     private async Task<IReadOnlyDictionary<Guid, List<EquipmentDto>>> LoadEquipmentsByPbsNodeAsync()
     {
         if (_session.Project is not { } project)
@@ -202,10 +205,46 @@ public partial class MainViewModel : ObservableObject
         }
 
         var result = await _session.Api.GetEquipmentsAsync(project.Id, pageSize: 500);
-        return result.Items
-            .Where(x => x.PbsNodeId is not null)
-            .GroupBy(x => x.PbsNodeId!.Value)
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var byId = _pbsNodes.ToDictionary(x => x.Id);
+
+        Guid? NearestUnitId(Guid nodeId)
+        {
+            if (!byId.TryGetValue(nodeId, out var current))
+            {
+                return null;
+            }
+
+            var visited = new HashSet<Guid>();
+            while (visited.Add(current.Id))
+            {
+                if (string.Equals(current.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
+                {
+                    return current.Id;
+                }
+
+                if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
+                {
+                    current = parent;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        var rows = result.Items
+            .Select(x => (
+                Equipment: x,
+                UnitId: x.PbsNodeId is Guid nodeId ? NearestUnitId(nodeId) : null))
+            .Where(x => x.UnitId is not null)
+            .ToList();
+
+        return rows
+            .GroupBy(x => x.UnitId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Equipment).ToList());
     }
 
     private static ExplorerNode BuildPbsExplorerItem(
@@ -633,13 +672,21 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
+            var buildings = BuildBuildingOptions(_pbsNodes, unitId.Value);
+            if (buildings.Count == 0)
+            {
+                StatusText = "当前装置下没有建筑物，请先在 PBS 中添加建筑物";
+                return;
+            }
+
             var types = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
             var editorContext = new EquipmentEditorContext(
                 null,
                 false,
-                BuildPbsOptions(_pbsNodes),
+                buildings,
                 types.ToList(),
-                DefaultPbsNodeId: unitId);
+                // 该装置下只有一栋建筑时直接带出；多栋时必须由用户明确选择。
+                DefaultPbsNodeId: buildings.Count == 1 ? buildings[0].Id : null);
 
             var saved = false;
             _equipmentDialogs.EditEquipment(editorContext, async request =>
@@ -674,54 +721,37 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private static List<PbsNodeOption> BuildPbsOptions(IReadOnlyList<PbsNodeDto> nodes)
+    /// <summary>所选装置下的全部建筑物；新建设备必须明确归属到其中一栋。</summary>
+    private static List<PbsNodeOption> BuildBuildingOptions(
+        IReadOnlyList<PbsNodeDto> nodes,
+        Guid unitId)
     {
-        var options = new List<PbsNodeOption>
+        var unit = nodes.FirstOrDefault(x => x.Id == unitId);
+        if (unit is null)
         {
-            new PbsNodeOption(null, "（未分配）")
-        };
-        var children = nodes
-            .Where(x => x.ParentId is not null)
-            .GroupBy(x => x.ParentId!.Value)
-            .ToDictionary(g => g.Key, g => g.ToList());
-        var roots = nodes
-            .Where(x => x.ParentId is null)
-            .OrderBy(x => x.SortOrder)
-            .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            return new List<PbsNodeOption>();
+        }
 
-        void Walk(PbsNodeDto node, int depth)
+        var options = new List<PbsNodeOption>();
+
+        void Walk(PbsNodeDto parent)
         {
-            var indent = depth == 0 ? string.Empty : new string('·', depth * 2) + " ";
-            // 设备归属只到装置层级：区域与装置可选，装置以下（回路/建筑物）不列出。
-            if (IsUnitLevelOrAbove(node.NodeType))
-            {
-                options.Add(new PbsNodeOption(node.Id, indent + node.Code + "  " + node.Name));
-            }
-
-            if (!children.TryGetValue(node.Id, out var list))
-            {
-                return;
-            }
-
-            foreach (var child in list
+            foreach (var child in nodes
+                         .Where(x => x.ParentId == parent.Id)
                          .OrderBy(x => x.SortOrder)
                          .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
             {
-                Walk(child, depth + 1);
+                if (string.Equals(child.NodeType, "Building", StringComparison.OrdinalIgnoreCase))
+                {
+                    options.Add(new PbsNodeOption(child.Id, child.Code + "  " + child.Name));
+                }
+
+                Walk(child);
             }
         }
 
-        foreach (var root in roots)
-        {
-            Walk(root, 0);
-        }
-
+        Walk(unit);
         return options;
-
-        static bool IsUnitLevelOrAbove(string? nodeType) =>
-            string.Equals(nodeType, "Area", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(nodeType, "Unit", StringComparison.OrdinalIgnoreCase);
     }
 
     [RelayCommand]

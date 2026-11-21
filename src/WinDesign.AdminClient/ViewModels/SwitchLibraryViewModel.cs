@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WinDesign.Client.Services;
 using WinDesign.Client.ViewModels;
+using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Telecom;
 
 namespace WinDesign.AdminClient.ViewModels;
@@ -24,7 +25,10 @@ public partial class DeviceRowItem : ObservableObject
     public Guid Id => Model.Id;
     public string Code => Model.Code;
     public string Name => Model.Name;
-    public string SwitchTypeText => TypeName(Model.SwitchType);
+    public string DisciplineText => DisciplineCatalog.Display(Model.Discipline);
+    public string TypeText => string.IsNullOrWhiteSpace(Model.TypeName)
+        ? Model.TypeCode ?? "—"
+        : $"{Model.TypeCode}  {Model.TypeName}";
     public int ElectricalPorts => Model.ElectricalPorts;
     public int? UplinkPorts => Model.UplinkPorts;
     public int SortOrder => Model.SortOrder;
@@ -36,19 +40,11 @@ public partial class DeviceRowItem : ObservableObject
     public bool IsActiveDirty => IsActive != Model.IsActive;
 
     partial void OnIsActiveChanged(bool value) => OnPropertyChanged(nameof(IsActiveDirty));
-
-    public static string TypeName(string? code) => code?.ToLowerInvariant() switch
-    {
-        "access" => "接入交换机",
-        "poe" => "PoE 交换机",
-        "cabinet" => "机柜",
-        _ => "其他设备"
-    };
 }
 
 /// <summary>
-/// 设备样本库：维护接入交换机、PoE 交换机、机柜等设备的编码、名称与端口规格。
-/// 设计端电信统计按 Access / PoE 两类样本计算交换机台数。
+/// 设备样本库：维护设备的编码、名称、专业、设备类型与端口规格。
+/// 专业与类型取自「编码定义 → 设备类型」，设计端电信统计按所选样本计算台数。
 /// </summary>
 public partial class SwitchLibraryViewModel : ViewModelBase
 {
@@ -56,13 +52,12 @@ public partial class SwitchLibraryViewModel : ViewModelBase
 
     public ObservableCollection<DeviceRowItem> ModelRows { get; } = new();
 
-    public IReadOnlyList<CodeNameOption> DeviceTypeOptions { get; } = new[]
-    {
-        new CodeNameOption("Access", "接入交换机"),
-        new CodeNameOption("PoE", "PoE 交换机"),
-        new CodeNameOption("Cabinet", "机柜"),
-        new CodeNameOption("Other", "其他设备")
-    };
+    /// <summary>类型下拉按所选专业过滤，显示「编码 名称」。</summary>
+    public ObservableCollection<CodeNameOption> TypeOptions { get; } = new();
+
+    public IReadOnlyList<CodeNameOption> DisciplineOptions => DisciplineCatalog.All;
+
+    private IReadOnlyList<DictionaryItemDto> _equipmentTypes = Array.Empty<DictionaryItemDto>();
 
     [ObservableProperty]
     private DeviceRowItem? selectedRow;
@@ -74,7 +69,10 @@ public partial class SwitchLibraryViewModel : ViewModelBase
     private string editorName = string.Empty;
 
     [ObservableProperty]
-    private string editorSwitchType = "Access";
+    private string editorDiscipline = "Telecom";
+
+    [ObservableProperty]
+    private string? editorTypeCode;
 
     [ObservableProperty]
     private int editorElectricalPorts = 24;
@@ -112,7 +110,9 @@ public partial class SwitchLibraryViewModel : ViewModelBase
     public override Task RefreshAsync() => RunAsync(async () =>
     {
         var models = await _session.Api.GetSwitchModelsAsync();
+        _equipmentTypes = await _session.Api.GetDictionaryItemsAsync("EQUIPMENT_TYPE");
         SetRows(models, SelectedRow?.Id);
+        RefreshTypeOptions();
     });
 
     partial void OnSelectedRowChanged(DeviceRowItem? value)
@@ -141,13 +141,20 @@ public partial class SwitchLibraryViewModel : ViewModelBase
         {
             throw new ApiException("设备编码和名称不能为空");
         }
+        if (string.IsNullOrWhiteSpace(EditorDiscipline) || string.IsNullOrWhiteSpace(EditorTypeCode))
+        {
+            throw new ApiException("请选择专业和设备类型");
+        }
 
-        var isSwitchType = EditorSwitchType is "Access" or "PoE";
         if (EditorElectricalPorts < 0)
         {
             throw new ApiException("端口数量不能为负数");
         }
-        if (isSwitchType && EditorElectricalPorts <= 0)
+
+        var selectedType = _equipmentTypes.FirstOrDefault(x =>
+            string.Equals(x.Code, EditorTypeCode, StringComparison.OrdinalIgnoreCase));
+        if (selectedType?.Name.Contains("交换机", StringComparison.Ordinal) == true &&
+            EditorElectricalPorts <= 0)
         {
             throw new ApiException("交换机类型的端口数量必须大于 0");
         }
@@ -165,7 +172,8 @@ public partial class SwitchLibraryViewModel : ViewModelBase
         var request = new SwitchModelUpsertRequest(
             EditorCode.Trim(),
             EditorName.Trim(),
-            EditorSwitchType,
+            EditorDiscipline,
+            EditorTypeCode,
             EditorElectricalPorts,
             uplinkPorts,
             EditorIsActive,
@@ -261,12 +269,37 @@ public partial class SwitchLibraryViewModel : ViewModelBase
         }
     }
 
+    /// <summary>按当前专业重建类型下拉；已选类型不在新专业下时清空，避免保存出跨专业的组合。</summary>
+    private void RefreshTypeOptions()
+    {
+        TypeOptions.Clear();
+        foreach (var item in _equipmentTypes
+                     .Where(x => string.Equals(x.Discipline, EditorDiscipline, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(x => x.SortOrder)
+                     .ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
+        {
+            TypeOptions.Add(new CodeNameOption(item.Code, $"{item.Code}  {item.Name}"));
+        }
+
+        if (EditorTypeCode is { Length: > 0 } code &&
+            !TypeOptions.Any(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)))
+        {
+            EditorTypeCode = null;
+        }
+    }
+
+    partial void OnEditorDisciplineChanged(string value) => RefreshTypeOptions();
+
     private void StartNew()
     {
         IsNew = true;
         EditorCode = string.Empty;
         EditorName = string.Empty;
-        EditorSwitchType = "Access";
+        // 新建时沿用当前样本的专业，避免落到一个没有可选类型的专业。
+        EditorDiscipline = SelectedRow?.Model.Discipline
+                           ?? ModelRows.FirstOrDefault()?.Model.Discipline
+                           ?? "Telecom";
+        EditorTypeCode = null;
         EditorElectricalPorts = 24;
         EditorUplinkPorts = "4";
         EditorIsActive = true;
@@ -281,7 +314,9 @@ public partial class SwitchLibraryViewModel : ViewModelBase
         IsNew = false;
         EditorCode = model.Code;
         EditorName = model.Name;
-        EditorSwitchType = model.SwitchType;
+        EditorDiscipline = model.Discipline ?? "Telecom";
+        RefreshTypeOptions();
+        EditorTypeCode = model.TypeCode;
         EditorElectricalPorts = model.ElectricalPorts;
         EditorUplinkPorts = model.UplinkPorts?.ToString() ?? string.Empty;
         EditorIsActive = model.IsActive;

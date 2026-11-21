@@ -27,8 +27,8 @@ public enum PbsNodeType
 }
 
 /// <summary>
-/// 设备样本类型。目前设计端电信统计只消费 Access / PoE，
-/// 机柜与其他设备作为样本库中的通用设备维护。
+/// 旧版设备样本类别，仅用于兼容既有数据库列。
+/// 新逻辑改用「专业 + 设备类型编码」，设计端不再按该枚举过滤样本。
 /// </summary>
 public enum SwitchType
 {

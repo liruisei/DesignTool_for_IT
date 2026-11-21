@@ -147,9 +147,11 @@ public partial class TelecomRoomRowViewModel : ObservableObject
     [ObservableProperty]
     private string floor = string.Empty;
 
+    /// <summary>房间号：进入界面后作为房间的唯一标识，对应接口的 Code。</summary>
     [ObservableProperty]
     private string code = string.Empty;
 
+    /// <summary>房间名称：接口兼容字段，当前页面不再单独展示。</summary>
     [ObservableProperty]
     private string name = string.Empty;
 
@@ -368,18 +370,16 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
         PoeSwitchModels.Clear();
         foreach (var model in models)
         {
-            if (string.Equals(model.SwitchType, "Access", StringComparison.OrdinalIgnoreCase))
-            {
-                AccessSwitchModels.Add(model);
-            }
-            else if (string.Equals(model.SwitchType, "PoE", StringComparison.OrdinalIgnoreCase))
-            {
-                PoeSwitchModels.Add(model);
-            }
+            // 类型不再区分 Access / PoE：两个下拉都列出全部启用样本，由用户各自选型。
+            AccessSwitchModels.Add(model);
+            PoeSwitchModels.Add(model);
         }
+
         SelectedAccessSwitch = AccessSwitchModels.FirstOrDefault(x => x.Id == accessId)
+                               ?? AccessSwitchModels.FirstOrDefault(x => !x.IsPoe)
                                ?? AccessSwitchModels.FirstOrDefault();
         SelectedPoeSwitch = PoeSwitchModels.FirstOrDefault(x => x.Id == poeId)
+                            ?? PoeSwitchModels.FirstOrDefault(x => x.IsPoe)
                             ?? PoeSwitchModels.FirstOrDefault();
 
         await LoadRoomsAsync(project.Id);
@@ -565,9 +565,9 @@ public partial class TelecomStatsViewModel : ViewModelBase, IPendingChanges
             }
             if (requireAll && string.IsNullOrWhiteSpace(row.Code))
             {
-                throw new ApiException($"第 {index} 行：房间编码不能为空");
+                throw new ApiException($"第 {index} 行：房间号不能为空");
             }
-            // 房间名称允许为空，只保留编码作为必填标识。
+            // 房间名称是接口兼容字段，界面统一以房间号（Code）作为标识。
             if (row.DataPointCount < 0 || row.PhonePointCount < 0 || row.ApCount < 0)
             {
                 throw new ApiException($"第 {index} 行：点位数量不能为负数");

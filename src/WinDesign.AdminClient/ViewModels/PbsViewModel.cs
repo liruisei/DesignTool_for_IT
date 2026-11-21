@@ -473,11 +473,23 @@ public partial class PbsViewModel : ViewModelBase
             return;
         }
 
+        // 管理端树不展开装置以下节点；设备若挂在建筑物下，补一个回显项避免保存时丢失归属。
+        var pbsOptions = PbsEditorOptions.ToList();
+        if (equipment.PbsNodeId is Guid pbsNodeId &&
+            pbsOptions.All(x => x.Id != pbsNodeId))
+        {
+            var display = string.IsNullOrWhiteSpace(equipment.PbsNodeName)
+                ? "PBS 节点"
+                : equipment.PbsNodeName;
+            pbsOptions.Insert(0, new PbsNodeOption(pbsNodeId, $"（当前：{display}）"));
+        }
+
         var context = new EquipmentEditorContext(
             equipment,
             false,
-            PbsEditorOptions.ToList(),
-            EquipmentTypes.ToList());
+            pbsOptions,
+            EquipmentTypes.ToList(),
+            PbsFieldLabel: "所属 PBS");
         var request = _equipmentDialogs.EditEquipment(context);
         if (request is null)
         {

@@ -24,7 +24,7 @@
                 <TabItem Header="基本信息">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <WrapPanel Margin="14,14,0,0">
-                            <StackPanel Width="704" Margin="0,0,0,10">
+                            <StackPanel Width="680" Margin="0,0,0,10">
                                 <TextBlock Text="位号" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
 
                                 <!-- 项目无编号规定时：直接输入完整位号 -->
@@ -92,44 +92,33 @@
                                     </StackPanel>
                                 </StackPanel>
                             </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
-                                <TextBlock Text="回路号" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
-                                <TextBox Style="{StaticResource Input}"
-                                         IsEnabled="{Binding IsLoopNoEditable}"
-                                         ToolTip="专业为 IT 时回路号不可填写"
-                                         Text="{Binding EditLoopNo, UpdateSourceTrigger=PropertyChanged}" />
-                            </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
+                            <StackPanel Width="330" Margin="0,0,10,10">
                                 <TextBlock Text="名称" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
                                 <TextBox Style="{StaticResource Input}"
                                          Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
+                            <StackPanel Width="330" Margin="0,0,10,10">
                                 <TextBlock Text="专业" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
                                 <ComboBox ItemsSource="{Binding DisciplineOptions}" DisplayMemberPath="Name"
                                           IsEnabled="{Binding IsDisciplineEditable}"
                                           ToolTip="由所选设备类型自动带出；设备类型未配置专业时可手工选择"
                                           SelectedValuePath="Code" SelectedValue="{Binding EditDiscipline}" />
                             </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
-                                <TextBlock Text="数量" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
-                                <TextBox Style="{StaticResource Input}"
-                                         Text="{Binding EditQuantity, UpdateSourceTrigger=PropertyChanged}" />
-                            </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
+                            <StackPanel Width="330" Margin="0,0,10,10">
                                 <TextBlock Text="用途" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
                                 <TextBox Style="{StaticResource Input}"
                                          Text="{Binding EditPurpose, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
+                            <StackPanel Width="330" Margin="0,0,10,10">
                                 <TextBlock Text="安装位置" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
                                 <TextBox Style="{StaticResource Input}"
                                          Text="{Binding EditLocation, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <StackPanel Width="345" Margin="0,0,14,10">
-                                <TextBlock Text="所属 PBS" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
-                                <ComboBox ItemsSource="{Binding PbsOptions}" DisplayMemberPath="Display"
-                                          SelectedValuePath="Id" SelectedValue="{Binding EditPbsNodeId}" />
+                            <StackPanel Width="330" Margin="0,0,10,10">
+                                <TextBlock Text="{Binding PbsFieldLabel}" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
+                                <ComboBox ItemsSource="{Binding PbsOptionsView}" DisplayMemberPath="Display"
+                                          SelectedValuePath="Id" SelectedValue="{Binding EditPbsNodeId}"
+                                          ToolTip="新建设备必须选择所属建筑物；交换机按建筑物分别统计" />
                             </StackPanel>
                         </WrapPanel>
                     </ScrollViewer>

@@ -5,16 +5,23 @@
         <!-- 表头：标题 + 排序标记 + 本列筛选框。Tag 绑定所在列，供 code-behind 定位筛选目标 -->
         <DataTemplate x:Key="IndexFilterHeaderTemplate">
             <StackPanel>
-                <StackPanel Orientation="Horizontal">
+                <!-- 标题行是列拖拽区域：按住左右拖动可调整列顺序；筛选框仍可正常输入 -->
+                <StackPanel Orientation="Horizontal" Cursor="SizeWE"
+                            ToolTip="按住表头左右拖动可调整列顺序">
+                    <TextBlock Text="≡" FontSize="10" Margin="0,0,4,0"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" />
                     <TextBlock Text="{Binding}" />
                     <TextBlock x:Name="SortGlyph" Margin="4,0,0,0" FontSize="9"
                                Foreground="{StaticResource TextSecondaryBrush}"
                                VerticalAlignment="Center" />
                 </StackPanel>
-                <TextBox Style="{StaticResource HeaderFilterBox}"
-                         Tag="{Binding Column, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}"
-                         TextChanged="OnColumnFilterTextChanged"
-                         ToolTip="输入内容按本列筛选" />
+                <ComboBox Style="{StaticResource HeaderFilterCombo}"
+                          Tag="{Binding Column, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}"
+                          Loaded="OnColumnFilterComboLoaded"
+                          DropDownOpened="OnColumnFilterDropDownOpened"
+                          DropDownClosed="OnColumnFilterDropDownClosed"
+                          ToolTip="可从下拉选择已有值，也可输入内容按本列筛选" />
             </StackPanel>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding SortDirection, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}"
@@ -27,6 +34,18 @@
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+
+        <!-- 冻结区与滚动区共用同一个右键菜单，x:Shared=False 保证两边各自实例化。 -->
+        <ContextMenu x:Key="IndexGridContextMenu" x:Shared="False"
+                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="编辑" Command="{Binding EditEquipmentCommand}"
+                      IsEnabled="{Binding IsSingleSelection}" />
+            <MenuItem Header="删除" Command="{Binding DeleteEquipmentCommand}"
+                      IsEnabled="{Binding HasSelection}" />
+            <Separator />
+            <MenuItem Header="创建规格书" Command="{Binding CreateSpecCommand}"
+                      IsEnabled="{Binding CanCreateSpec}" />
+        </ContextMenu>
     </UserControl.Resources>
 
     <Grid>
@@ -95,7 +114,7 @@
                 </Grid>
 
                 <TextBlock Grid.Row="1" Style="{StaticResource MutedText}" Margin="0,0,0,10"
-                           Text="双击行打开属性页；勾选多行可批量删除；右键行可编辑、删除或创建规格书；表头可按列筛选、点击排序。" />
+                           Text="双击行打开属性页；勾选多行可批量删除，单击行不会取消已勾选的行；右键行可编辑、删除或创建规格书；表头可按列筛选、点击排序；底部可设置冻结列。" />
 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
                     <TextBox Width="230" Style="{StaticResource Input}"
@@ -109,51 +128,123 @@
                             Margin="8,0,0,0" />
                 </StackPanel>
 
-                <DataGrid Grid.Row="3" ItemsSource="{Binding Equipments}" SelectedItem="{Binding SelectedEquipment}"
-                          SelectionMode="Extended" SelectionUnit="FullRow"
-                          SelectionChanged="OnGridSelectionChanged"
-                          PreviewMouseRightButtonDown="OnGridPreviewMouseRightButtonDown"
-                          MouseDoubleClick="OnGridMouseDoubleClick"
-                          ColumnHeaderHeight="52" CanUserSortColumns="True">
-                    <DataGrid.ContextMenu>
-                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="编辑" Command="{Binding EditEquipmentCommand}"
-                                      IsEnabled="{Binding IsSingleSelection}" />
-                            <MenuItem Header="删除" Command="{Binding DeleteEquipmentCommand}"
-                                      IsEnabled="{Binding HasSelection}" />
-                            <Separator />
-                            <MenuItem Header="创建规格书" Command="{Binding CreateSpecCommand}"
-                                      IsEnabled="{Binding CanCreateSpec}" />
-                        </ContextMenu>
-                    </DataGrid.ContextMenu>
-                    <DataGrid.Columns>
-                        <DataGridTemplateColumn Width="30" CanUserSort="False">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox Style="{StaticResource CompactRowCheckBox}"
-                                              Focusable="False"
-                                              PreviewMouseLeftButtonDown="OnRowCheckBoxPreviewMouseLeftButtonDown"
-                                              IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Mode=TwoWay}" />
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="位号" Binding="{Binding TagNo}"
-                                            Width="130" MinWidth="130"
-                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
-                        <DataGridTextColumn Header="名称" Binding="{Binding Name}"
-                                            Width="240" MinWidth="180"
-                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
-                        <DataGridTextColumn Header="类型" Binding="{Binding TypeCode}"
-                                            Width="90" MinWidth="90"
-                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
-                        <DataGridTextColumn Header="数量" Binding="{Binding Quantity}"
-                                            Width="85" MinWidth="85"
-                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
-                        <DataGridTextColumn Header="安装位置" Binding="{Binding Location}"
-                                            Width="170" MinWidth="170"
-                                            HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid Grid.Row="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Loaded="OnEquipmentGridsLoaded">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 冻结区：勾选列 + 前 N 个数据列 -->
+                        <DataGrid x:Name="FrozenEquipmentGrid" Grid.Column="0"
+                                  ItemsSource="{Binding Equipments}"
+                                  AutoGenerateColumns="False"
+                                  CanUserReorderColumns="True"
+                                  SelectionMode="Extended" SelectionUnit="FullRow"
+                                  SelectionChanged="OnFrozenGridSelectionChanged"
+                                  PreviewMouseLeftButtonDown="OnGridPreviewMouseLeftButtonDown"
+                                  PreviewMouseRightButtonDown="OnGridPreviewMouseRightButtonDown"
+                                  MouseDoubleClick="OnGridMouseDoubleClick"
+                                  ColumnReordered="OnEquipmentColumnReordered"
+                                  ColumnReordering="OnEquipmentColumnReordering"
+                                  ContextMenu="{StaticResource IndexGridContextMenu}"
+                                  ColumnHeaderHeight="52" CanUserSortColumns="True"
+                                  CanUserResizeColumns="True"
+                                  HeadersVisibility="Column"
+                                  HorizontalAlignment="Left"
+                                  BorderBrush="{StaticResource BorderBrush}"
+                                  BorderThickness="0,0,1,0"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Width="30" CanUserSort="False">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Style="{StaticResource CompactRowCheckBox}"
+                                                      Focusable="False"
+                                                      IsThreeState="True"
+                                                      ToolTip="全选 / 取消全选当前列表"
+                                                      Loaded="OnSelectAllCheckBoxLoaded"
+                                                      PreviewMouseLeftButtonDown="OnSelectAllCheckBoxPreviewMouseLeftButtonDown" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Style="{StaticResource CompactRowCheckBox}"
+                                                      Focusable="False"
+                                                      PreviewMouseLeftButtonDown="OnRowCheckBoxPreviewMouseLeftButtonDown"
+                                                      IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Mode=TwoWay}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <!-- 滚动区：其余数据列 -->
+                        <DataGrid x:Name="EquipmentGrid" Grid.Column="1"
+                                  ItemsSource="{Binding Equipments}" SelectedItem="{Binding SelectedEquipment}"
+                                  AutoGenerateColumns="False"
+                                  CanUserReorderColumns="True"
+                                  SelectionMode="Extended" SelectionUnit="FullRow"
+                                  SelectionChanged="OnGridSelectionChanged"
+                                  PreviewMouseLeftButtonDown="OnGridPreviewMouseLeftButtonDown"
+                                  PreviewMouseRightButtonDown="OnGridPreviewMouseRightButtonDown"
+                                  MouseDoubleClick="OnGridMouseDoubleClick"
+                                  ColumnReordered="OnEquipmentColumnReordered"
+                                  ColumnReordering="OnEquipmentColumnReordering"
+                                  ContextMenu="{StaticResource IndexGridContextMenu}"
+                                  ColumnHeaderHeight="52" CanUserSortColumns="True"
+                                  CanUserResizeColumns="True"
+                                  HeadersVisibility="Column">
+                            <DataGrid.Columns>
+                                <!-- 位号按内容自适应，确保 1279-SW-ACC-0001 这类长位号完整显示 -->
+                                <DataGridTextColumn Header="位号" Binding="{Binding TagNo}"
+                                                    Width="Auto" MinWidth="130"
+                                                    HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                                <!-- 名称按内容自适应，避免固定宽度留下大片空白 -->
+                                <DataGridTextColumn Header="名称" Binding="{Binding Name}"
+                                                    Width="Auto" MinWidth="120"
+                                                    HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                                <DataGridTextColumn Header="所属建筑物" Binding="{Binding PbsNodeCode}"
+                                                    Width="Auto" MinWidth="90"
+                                                    HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                                <!-- 最后一列占满剩余宽度，右侧不留空白 -->
+                                <DataGridTextColumn Header="安装位置" Binding="{Binding Location}"
+                                                    Width="*" MinWidth="170"
+                                                    HeaderTemplate="{StaticResource IndexFilterHeaderTemplate}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+
+                    <!-- 冻结列配置：默认收起，点按钮呼出 -->
+                    <Grid Grid.Row="1" Margin="0,6,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="FreezeSettingsButton" Content="冻结列设置"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="10,3" Click="OnFreezeSettingsClick" />
+                            <StackPanel x:Name="FreezeSettingsPanel" Orientation="Horizontal"
+                                        Visibility="Collapsed" Margin="12,0,0,0"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="冻结前" Style="{StaticResource MutedText}"
+                                           VerticalAlignment="Center" />
+                                <ComboBox x:Name="FrozenColumnCountBox" Width="64" Margin="6,0"
+                                          SelectedIndex="0" SelectionChanged="OnFrozenColumnCountChanged">
+                                    <ComboBoxItem Content="0" />
+                                    <ComboBoxItem Content="1" />
+                                    <ComboBoxItem Content="2" />
+                                    <ComboBoxItem Content="3" />
+                                </ComboBox>
+                                <TextBlock Text="列（勾选列始终固定）" Style="{StaticResource MutedText}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
 
                 <StackPanel Grid.Row="4" Margin="0,10,0,0">
                     <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource SuccessBrush}"

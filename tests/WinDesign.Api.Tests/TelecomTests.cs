@@ -118,8 +118,8 @@ public class TelecomTests : ApiTestBase
         var models = await Client.GetFromJsonAsync<List<SwitchModelDto>>(
             "/api/switch-models?activeOnly=true");
         Assert.NotNull(models);
-        Assert.Contains(models!, x => x.SwitchType == "Access");
-        Assert.Contains(models!, x => x.SwitchType == "PoE");
+        Assert.Contains(models!, x => x.TypeCode == "SW" && x.Discipline == "Telecom");
+        Assert.Contains(models!, x => x.TypeCode == "POE" && x.Discipline == "Telecom");
 
         await LoginManagementAsync();
         var code = "SW-T-" + Guid.NewGuid().ToString("N")[..6];
@@ -127,7 +127,8 @@ public class TelecomTests : ApiTestBase
         {
             code,
             name = "测试接入交换机",
-            switchType = "Access",
+            discipline = "Telecom",
+            typeCode = "SW",
             electricalPorts = 48,
             uplinkPorts = 4,
             isActive = true,
@@ -143,7 +144,8 @@ public class TelecomTests : ApiTestBase
         {
             code,
             name = "测试接入交换机-改",
-            switchType = "Access",
+            discipline = "Telecom",
+            typeCode = "SW",
             electricalPorts = 24,
             uplinkPorts = 2,
             isActive = true,
@@ -163,9 +165,9 @@ public class TelecomTests : ApiTestBase
     {
         await LoginManagementAsync();
         var models = await Client.GetFromJsonAsync<List<SwitchModelDto>>("/api/switch-models");
-        Assert.Contains(models!, x => x.SwitchType == "Cabinet");
+        Assert.Contains(models!, x => x.TypeCode == "CAB");
 
-        var access = models!.First(x => x.SwitchType == "Access");
+        var access = models!.First(x => x.TypeCode == "SW");
         var toggle = await Client.PostAsync($"/api/switch-models/{access.Id}/toggle-active", null);
         Assert.Equal(HttpStatusCode.OK, toggle.StatusCode);
         var toggled = await toggle.Content.ReadFromJsonAsync<SwitchModelDto>();
@@ -185,7 +187,8 @@ public class TelecomTests : ApiTestBase
         {
             code = cabinetCode,
             name = "测试机柜",
-            switchType = "Cabinet",
+            discipline = "Telecom",
+            typeCode = "CAB",
             electricalPorts = 0,
             uplinkPorts = (int?)null,
             isActive = true,
@@ -199,7 +202,8 @@ public class TelecomTests : ApiTestBase
         {
             code = "SW-T-" + Guid.NewGuid().ToString("N")[..6],
             name = "无端口交换机",
-            switchType = "Access",
+            discipline = "Telecom",
+            typeCode = "SW",
             electricalPorts = 0,
             uplinkPorts = 4,
             isActive = true,
@@ -223,7 +227,8 @@ public class TelecomTests : ApiTestBase
         {
             code = "SW-DENY-" + Guid.NewGuid().ToString("N")[..6],
             name = "不应创建",
-            switchType = "Access",
+            discipline = "Telecom",
+            typeCode = "SW",
             electricalPorts = 24,
             uplinkPorts = 4,
             isActive = true,

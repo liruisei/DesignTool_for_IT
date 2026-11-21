@@ -1,21 +1,28 @@
 namespace WinDesign.Contracts.Telecom;
 
-/// <summary>交换机样本：设计端按端口数与可用率计算所需台数。</summary>
+/// <summary>设备样本：专业 + 设备类型决定归类，设计端按端口数与可用率计算所需台数。</summary>
 public sealed record SwitchModelDto(
     Guid Id,
     string Code,
     string Name,
-    string SwitchType,
+    string? Discipline,
+    string? TypeCode,
+    string? TypeName,
     int ElectricalPorts,
     int? UplinkPorts,
     bool IsActive,
     int SortOrder,
-    string? Remark);
+    string? Remark)
+{
+    /// <summary>按设备类型名称判断是否为 PoE 交换机；仅用于设计端默认选型。</summary>
+    public bool IsPoe => TypeName?.Contains("PoE", StringComparison.OrdinalIgnoreCase) == true;
+}
 
 public sealed record SwitchModelUpsertRequest(
     string Code,
     string Name,
-    string SwitchType,
+    string? Discipline,
+    string? TypeCode,
     int ElectricalPorts,
     int? UplinkPorts,
     bool IsActive,

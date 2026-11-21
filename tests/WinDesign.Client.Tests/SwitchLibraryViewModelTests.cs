@@ -1,4 +1,5 @@
 using WinDesign.AdminClient.ViewModels;
+using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Telecom;
 
 namespace WinDesign.Client.Tests;
@@ -36,16 +37,17 @@ public class SwitchLibraryViewModelTests
 
         viewModel.EditorCode = "CAB-TEST";
         viewModel.EditorName = "测试机柜";
-        viewModel.EditorSwitchType = "Cabinet";
+        viewModel.EditorDiscipline = "Telecom";
+        viewModel.EditorTypeCode = "CAB";
         viewModel.EditorElectricalPorts = 0;
         viewModel.EditorUplinkPorts = string.Empty;
 
         await viewModel.SaveCommand.ExecuteAsync(null);
 
         var saved = api.SwitchModels.Single(x => x.Code == "CAB-TEST");
-        Assert.Equal("Cabinet", saved.SwitchType);
+        Assert.Equal("CAB", saved.TypeCode);
         Assert.Equal(0, saved.ElectricalPorts);
-        Assert.Contains(viewModel.ModelRows, x => x.Code == "CAB-TEST" && x.SwitchTypeText == "机柜");
+        Assert.Contains(viewModel.ModelRows, x => x.Code == "CAB-TEST" && x.TypeText.Contains("机柜"));
     }
 
     [Fact]
@@ -58,7 +60,8 @@ public class SwitchLibraryViewModelTests
 
         viewModel.EditorCode = "SW-BAD";
         viewModel.EditorName = "错误交换机";
-        viewModel.EditorSwitchType = "Access";
+        viewModel.EditorDiscipline = "Telecom";
+        viewModel.EditorTypeCode = "SW";
         viewModel.EditorElectricalPorts = 0;
 
         await viewModel.SaveCommand.ExecuteAsync(null);
@@ -69,9 +72,20 @@ public class SwitchLibraryViewModelTests
 
     private static void AddSeedModels(FakeApiClient api)
     {
+        api.EquipmentTypes.Add(new DictionaryItemDto(
+            Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE", "SW", "交换机", 1, true, null)
+        {
+            Discipline = "Telecom"
+        });
+        api.EquipmentTypes.Add(new DictionaryItemDto(
+            Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE", "CAB", "机柜", 2, true, null)
+        {
+            Discipline = "Telecom"
+        });
+
         api.SwitchModels.Add(new SwitchModelDto(
-            Guid.NewGuid(), "SW-24A", "24 口接入", "Access", 24, 4, true, 1, null));
+            Guid.NewGuid(), "SW-24A", "24 口接入", "Telecom", "SW", "交换机", 24, 4, true, 1, null));
         api.SwitchModels.Add(new SwitchModelDto(
-            Guid.NewGuid(), "CAB-42U", "42U 机柜", "Cabinet", 0, null, true, 2, null));
+            Guid.NewGuid(), "CAB-42U", "42U 机柜", "Telecom", "CAB", "机柜", 0, null, true, 2, null));
     }
 }

@@ -414,6 +414,7 @@ public sealed class EquipmentsController : ApiControllerBase
         PlantId = equipment.PlantId,
         ProjectId = currentProjectId ?? Guid.Empty,
         PbsNodeId = equipment.PbsNodeId,
+        PbsNodeCode = equipment.PbsNode?.Code,
         PbsNodeName = equipment.PbsNode?.Name,
         PbsPath = equipment.PbsNodeId is Guid pbsNodeId && pbsPaths is not null &&
                   pbsPaths.TryGetValue(pbsNodeId, out var pbsPath)

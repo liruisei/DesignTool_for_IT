@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WinDesign.Api.Common;
 using WinDesign.Contracts.Common;
+using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Telecom;
 using WinDesign.Domain;
 using WinDesign.Domain.Entities;
@@ -40,7 +41,11 @@ public sealed class SwitchModelsController : ApiControllerBase
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Code)
             .ToListAsync(ct);
-        return Ok(models.Select(ToDto).ToList());
+
+        var typeNames = await GetEquipmentTypeNamesAsync(ct);
+        return Ok(models
+            .Select(x => ToDto(x, typeNames.GetValueOrDefault(x.TypeCode ?? string.Empty)))
+            .ToList());
     }
 
     [HttpPost]
@@ -50,16 +55,19 @@ public sealed class SwitchModelsController : ApiControllerBase
         CancellationToken ct)
     {
         var validation = await ValidateAsync(request, null, ct);
-        if (validation is ActionResult error)
+        if (validation.Error is not null)
         {
-            return error;
+            return validation.Error;
         }
 
+        var type = validation.Type!;
         var model = new SwitchModel
         {
             Code = request.Code.Trim(),
             Name = request.Name.Trim(),
-            SwitchType = Enum.Parse<SwitchType>(request.SwitchType, true),
+            Discipline = Enum.Parse<Discipline>(request.Discipline!, true).ToString(),
+            TypeCode = type.Code,
+            SwitchType = SwitchType.Other,
             ElectricalPorts = request.ElectricalPorts,
             UplinkPorts = request.UplinkPorts,
             IsActive = request.IsActive,
@@ -70,7 +78,7 @@ public sealed class SwitchModelsController : ApiControllerBase
         _db.AddAudit(CurrentUserId, CurrentUserName, "Create", "SwitchModel",
             model.Id.ToString(), model.Code);
         await _db.SaveChangesAsync(ct);
-        return Ok(ToDto(model));
+        return Ok(ToDto(model, type.Name));
     }
 
     [HttpPut("{id:guid}")]
@@ -87,14 +95,16 @@ public sealed class SwitchModelsController : ApiControllerBase
         }
 
         var validation = await ValidateAsync(request, id, ct);
-        if (validation is ActionResult error)
+        if (validation.Error is not null)
         {
-            return error;
+            return validation.Error;
         }
 
+        var type = validation.Type!;
         model.Code = request.Code.Trim();
         model.Name = request.Name.Trim();
-        model.SwitchType = Enum.Parse<SwitchType>(request.SwitchType, true);
+        model.Discipline = Enum.Parse<Discipline>(request.Discipline!, true).ToString();
+        model.TypeCode = type.Code;
         model.ElectricalPorts = request.ElectricalPorts;
         model.UplinkPorts = request.UplinkPorts;
         model.IsActive = request.IsActive;
@@ -105,7 +115,7 @@ public sealed class SwitchModelsController : ApiControllerBase
         _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "SwitchModel",
             model.Id.ToString(), model.Code);
         await _db.SaveChangesAsync(ct);
-        return Ok(ToDto(model));
+        return Ok(ToDto(model, type.Name));
     }
 
     /// <summary>列表勾选启用/停用后批量保存，逐行调用；与用户管理的启用逻辑一致。</summary>
@@ -124,7 +134,7 @@ public sealed class SwitchModelsController : ApiControllerBase
         _db.AddAudit(CurrentUserId, CurrentUserName, "Update", "SwitchModel",
             model.Id.ToString(), model.IsActive ? "启用 " + model.Code : "停用 " + model.Code);
         await _db.SaveChangesAsync(ct);
-        return Ok(ToDto(model));
+        return Ok(ToDto(model, await GetEquipmentTypeNameAsync(model.TypeCode, ct)));
     }
 
     [HttpDelete("{id:guid}")]
@@ -144,30 +154,55 @@ public sealed class SwitchModelsController : ApiControllerBase
         return NoContent();
     }
 
-    private async Task<ActionResult?> ValidateAsync(
+    private async Task<(DictionaryItem? Type, ActionResult? Error)> ValidateAsync(
         SwitchModelUpsertRequest request,
         Guid? excludeId,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
         {
-            return BadRequest(new ApiError("设备编码和名称不能为空"));
+            return (null, BadRequest(new ApiError("设备编码和名称不能为空")));
         }
-        if (!Enum.TryParse<SwitchType>(request.SwitchType, true, out var deviceType))
+        if (!Enum.TryParse<Discipline>(request.Discipline, true, out var discipline))
         {
-            return BadRequest(new ApiError("设备类型无效"));
+            return (null, BadRequest(new ApiError("请选择专业")));
         }
+        if (string.IsNullOrWhiteSpace(request.TypeCode))
+        {
+            return (null, BadRequest(new ApiError("请选择设备类型")));
+        }
+
+        var typeCode = request.TypeCode.Trim();
+        var type = await _db.DictionaryItems.AsNoTracking()
+            .Include(x => x.Type)
+            .FirstOrDefaultAsync(
+                x => x.Type.Code == "EQUIPMENT_TYPE" && x.Code == typeCode, ct);
+        if (type is null)
+        {
+            return (null, BadRequest(new ApiError("设备类型不存在")));
+        }
+
+        // 设备类型配置了专业时，样本必须与类型定义的专业一致。
+        var typeDiscipline = DictionaryItemExtras.GetDiscipline(type.ExtraJson);
+        if (typeDiscipline is not null &&
+            !string.Equals(typeDiscipline, discipline.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            return (null, BadRequest(new ApiError("所选设备类型不属于该专业")));
+        }
+
         if (request.ElectricalPorts < 0 || request.ElectricalPorts > 1000)
         {
-            return BadRequest(new ApiError("端口数量必须在 0 到 1000 之间"));
+            return (null, BadRequest(new ApiError("端口数量必须在 0 到 1000 之间")));
         }
-        if (deviceType is SwitchType.Access or SwitchType.PoE && request.ElectricalPorts <= 0)
+
+        // 交换机类设备必须有电口；机柜等其他样本允许 0 口。
+        if (type.Name.Contains("交换机", StringComparison.Ordinal) && request.ElectricalPorts <= 0)
         {
-            return BadRequest(new ApiError("交换机类型的端口数量必须大于 0"));
+            return (null, BadRequest(new ApiError("交换机类型的端口数量必须大于 0")));
         }
         if (request.UplinkPorts is < 0 or > 1000)
         {
-            return BadRequest(new ApiError("上联口数量无效"));
+            return (null, BadRequest(new ApiError("上联口数量无效")));
         }
 
         var code = request.Code.Trim();
@@ -175,17 +210,45 @@ public sealed class SwitchModelsController : ApiControllerBase
             x => x.Code == code && (excludeId == null || x.Id != excludeId), ct);
         if (exists)
         {
-            return Conflict(new ApiError("设备编码已存在"));
+            return (null, Conflict(new ApiError("设备编码已存在")));
         }
 
-        return null;
+        return (type, null);
     }
 
-    private static SwitchModelDto ToDto(SwitchModel model) => new(
+    /// <summary>设备类型编码 → 名称；样本只存编码，名称在读取时实时解析。</summary>
+    private async Task<Dictionary<string, string>> GetEquipmentTypeNamesAsync(CancellationToken ct)
+    {
+        var items = await _db.DictionaryItems.AsNoTracking()
+            .Where(x => x.Type.Code == "EQUIPMENT_TYPE")
+            .Select(x => new { x.Code, x.Name })
+            .ToListAsync(ct);
+
+        return items
+            .GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<string?> GetEquipmentTypeNameAsync(string? typeCode, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(typeCode))
+        {
+            return null;
+        }
+
+        return await _db.DictionaryItems.AsNoTracking()
+            .Where(x => x.Type.Code == "EQUIPMENT_TYPE" && x.Code == typeCode)
+            .Select(x => x.Name)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    private static SwitchModelDto ToDto(SwitchModel model, string? typeName) => new(
         model.Id,
         model.Code,
         model.Name,
-        model.SwitchType.ToString(),
+        model.Discipline,
+        model.TypeCode,
+        typeName,
         model.ElectricalPorts,
         model.UplinkPorts,
         model.IsActive,

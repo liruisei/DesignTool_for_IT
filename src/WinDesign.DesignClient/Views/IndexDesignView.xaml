@@ -85,22 +85,32 @@
 
                         <StackPanel>
                             <TextBlock Text="接入交换机合计" Style="{StaticResource MutedText}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                <TextBlock Text="{Binding AccessSwitchTotal}" FontSize="34"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource AccentBrush}" />
-                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
-                                           Foreground="{StaticResource TextSecondaryBrush}" />
-                                <TextBlock Text="剩余" VerticalAlignment="Bottom" Margin="18,0,6,7"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的接入交换机；负数为人为增加的冗余台数" />
-                                <TextBlock Text="{Binding AccessSwitchRemaining}" FontSize="34"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的接入交换机；负数为人为增加的冗余台数" />
-                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
-                                           Foreground="{StaticResource TextSecondaryBrush}" />
-                            </StackPanel>
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding AccessSwitchTotal}" FontSize="34"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentBrush}" />
+                                    <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                            HorizontalAlignment="Right">
+                                    <TextBlock Text="剩余" VerticalAlignment="Bottom" Margin="0,0,6,7"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               ToolTip="剩余台数 = 计算结果 − 索引表中已建的接入交换机；负数为人为增加的冗余台数" />
+                                    <TextBlock Text="{Binding AccessSwitchRemaining}" FontSize="34"
+                                               FontWeight="SemiBold"
+                                               Foreground="{Binding AccessSwitchRemaining, Converter={StaticResource RemainingBrush}}"
+                                               ToolTip="剩余台数 = 计算结果 − 索引表中已建的接入交换机；负数为人为增加的冗余台数" />
+                                    <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </Grid>
                             <TextBlock Style="{StaticResource MutedText}" TextWrapping="Wrap"
                                        Text="{Binding AccessSwitchText}" />
                         </StackPanel>
@@ -110,22 +120,32 @@
 
                         <StackPanel Grid.Column="2" Margin="14,0,0,0">
                             <TextBlock Text="PoE 交换机合计" Style="{StaticResource MutedText}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                <TextBlock Text="{Binding PoeSwitchTotal}" FontSize="34"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource AccentBrush}" />
-                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
-                                           Foreground="{StaticResource TextSecondaryBrush}" />
-                                <TextBlock Text="剩余" VerticalAlignment="Bottom" Margin="18,0,6,7"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的 PoE 交换机；负数为人为增加的冗余台数" />
-                                <TextBlock Text="{Binding PoeSwitchRemaining}" FontSize="34"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           ToolTip="剩余台数 = 计算结果 − 索引表中已建的 PoE 交换机；负数为人为增加的冗余台数" />
-                                <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
-                                           Foreground="{StaticResource TextSecondaryBrush}" />
-                            </StackPanel>
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding PoeSwitchTotal}" FontSize="34"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentBrush}" />
+                                    <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                            HorizontalAlignment="Right">
+                                    <TextBlock Text="剩余" VerticalAlignment="Bottom" Margin="0,0,6,7"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               ToolTip="剩余台数 = 计算结果 − 索引表中已建的 PoE 交换机；负数为人为增加的冗余台数" />
+                                    <TextBlock Text="{Binding PoeSwitchRemaining}" FontSize="34"
+                                               FontWeight="SemiBold"
+                                               Foreground="{Binding PoeSwitchRemaining, Converter={StaticResource RemainingBrush}}"
+                                               ToolTip="剩余台数 = 计算结果 − 索引表中已建的 PoE 交换机；负数为人为增加的冗余台数" />
+                                    <TextBlock Text="台" VerticalAlignment="Bottom" Margin="4,0,0,7"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </Grid>
                             <TextBlock Style="{StaticResource MutedText}" TextWrapping="Wrap"
                                        Text="{Binding PoeSwitchText}" />
                         </StackPanel>
@@ -133,29 +153,135 @@
 
                     <TextBlock Text="按建筑物分别计算" Style="{StaticResource SubSection}"
                                Margin="0,16,0,4" />
-                    <DataGrid ItemsSource="{Binding BuildingSwitchTotals}"
-                              AutoGenerateColumns="False" IsReadOnly="True"
-                              CanUserAddRows="False" CanUserDeleteRows="False"
-                              HeadersVisibility="Column" MaxHeight="180"
-                              BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="建筑物" Binding="{Binding Building}"
-                                                Width="110" MinWidth="100" />
-                            <DataGridTextColumn Header="信息点" Binding="{Binding DataPointCount}"
-                                                Width="85" MinWidth="85" />
-                            <DataGridTextColumn Header="无线 AP" Binding="{Binding ApCount}"
-                                                Width="105" MinWidth="105" />
-                            <DataGridTextColumn Header="接入交换机" Binding="{Binding AccessSwitchCount}"
-                                                Width="115" MinWidth="115" />
-                            <DataGridTextColumn Header="PoE 交换机" Binding="{Binding PoeSwitchCount}"
-                                                Width="115" MinWidth="115" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <!-- 两行分组表头：DataGrid 不支持合并表头，改用 Grid + ItemsControl；
+                         表头与数据行放在同一个 ScrollViewer 内，横向滚动时保持对齐。 -->
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" MaxHeight="260">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                            <!-- 底部留白：Windows 11 的悬浮横向滚动条会覆盖在内容上方，避免压住最后一行文字 -->
+                            <StackPanel Margin="0,0,0,14">
+                                <!-- 表头：第 1 行是分组标题，第 2 行是数量 / 剩余 -->
+                                <Grid Background="{StaticResource BgBrush}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="65" />
+                                        <ColumnDefinition Width="70" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.RowSpan="2" BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,6">
+                                        <TextBlock Text="建筑物" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <Border Grid.Column="1" Grid.ColumnSpan="2"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,4">
+                                        <TextBlock Text="接入交换机" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Grid.Row="1" Grid.Column="1"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,4">
+                                        <TextBlock Text="计算数量" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Grid.Row="1" Grid.Column="2"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,4">
+                                        <TextBlock Text="实际剩余" FontWeight="SemiBold" />
+                                    </Border>
+
+                                    <Border Grid.Column="3" Grid.ColumnSpan="2"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,4">
+                                        <TextBlock Text="POE交换机" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Grid.Row="1" Grid.Column="3"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,4">
+                                        <TextBlock Text="计算数量" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Grid.Row="1" Grid.Column="4"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,4">
+                                        <TextBlock Text="实际剩余" FontWeight="SemiBold" />
+                                    </Border>
+
+                                    <Border Grid.RowSpan="2" Grid.Column="5"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,6">
+                                        <TextBlock Text="信息点" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border Grid.RowSpan="2" Grid.Column="6"
+                                            BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                            BorderThickness="0,0,1,1" Padding="8,6">
+                                        <TextBlock Text="无线 AP" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding BuildingSwitchTotals}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="100" />
+                                                    <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="90" />
+                                                    <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="65" />
+                                                    <ColumnDefinition Width="70" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                                        BorderThickness="0,0,1,1" Padding="8,5">
+                                                    <TextBlock Text="{Binding Building}" VerticalAlignment="Center" />
+                                                </Border>
+                                                <Border Grid.Column="1" BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                                        BorderThickness="0,0,1,1" Padding="8,5">
+                                                    <TextBlock Text="{Binding AccessSwitchCount}" VerticalAlignment="Center" />
+                                                </Border>
+                                                <Border Grid.Column="2" BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                                        BorderThickness="0,0,1,1" Padding="8,5">
+                                                    <TextBlock Text="{Binding AccessSwitchRemaining}" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{Binding AccessSwitchRemaining, Converter={StaticResource RemainingBrush}}" />
+                                                </Border>
+                                                <Border Grid.Column="3" BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                                        BorderThickness="0,0,1,1" Padding="8,5">
+                                                    <TextBlock Text="{Binding PoeSwitchCount}" VerticalAlignment="Center" />
+                                                </Border>
+                                                <Border Grid.Column="4" BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                                        BorderThickness="0,0,1,1" Padding="8,5">
+                                                    <TextBlock Text="{Binding PoeSwitchRemaining}" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{Binding PoeSwitchRemaining, Converter={StaticResource RemainingBrush}}" />
+                                                </Border>
+                                                <Border Grid.Column="5" BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                                        BorderThickness="0,0,1,1" Padding="8,5">
+                                                    <TextBlock Text="{Binding DataPointCount}" VerticalAlignment="Center" />
+                                                </Border>
+                                                <Border Grid.Column="6" BorderBrush="{StaticResource GridLineVerticalBrush}"
+                                                        BorderThickness="0,0,1,1" Padding="8,5">
+                                                    <TextBlock Text="{Binding ApCount}" VerticalAlignment="Center" />
+                                                </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
 
                     <TextBlock Style="{StaticResource MutedText}" Margin="0,10,0,0" TextWrapping="Wrap"
                                Text="每栋建筑物先在楼内按「信息点（PoE 为无线 AP）÷（端口数 × 可用率）」向上取整，再把各楼台数相加；电话点不占用交换机电口。" />
                     <TextBlock Style="{StaticResource MutedText}" Margin="0,6,0,0" TextWrapping="Wrap"
-                               Text="「剩余」= 计算结果 − 索引表中已建的同类交换机。设备类型名称含 PoE 的算 PoE 交换机，其余名称含「交换机」的算接入交换机；负数表示人为增加的冗余台数。" />
+                               Text="「剩余」= 计算结果 − 索引表中已建的同类交换机；按建筑物分行时，只扣除归属于该建筑物的已建设备。设备类型名称含 PoE 的算 PoE 交换机，其余名称含「交换机」的算接入交换机；负数表示人为增加的冗余台数。" />
                 </StackPanel>
             </Border>
         </Grid>

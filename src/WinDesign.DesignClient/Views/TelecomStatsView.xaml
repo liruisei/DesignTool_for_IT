@@ -37,10 +37,15 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
-        <!-- 表头：标题 + 排序标记 + 本列筛选下拉。 -->
+        <!-- 表头：拖拽手柄 + 标题 + 排序标记 + 本列筛选下拉。 -->
         <DataTemplate x:Key="TelecomFilterHeaderTemplate">
             <StackPanel ToolTip="点击标题排序；可从下拉选择已有值，也可输入内容按本列筛选">
-                <StackPanel Orientation="Horizontal">
+                <!-- 标题行是列拖拽区域：按住左右拖动可调整列顺序；筛选下拉仍可正常使用 -->
+                <StackPanel Orientation="Horizontal" Cursor="SizeWE"
+                            ToolTip="按住表头左右拖动可调整列顺序">
+                    <TextBlock Text="≡" FontSize="10" Margin="0,0,4,0"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" />
                     <TextBlock Text="{Binding}" />
                     <TextBlock x:Name="SortGlyph" Margin="4,0,0,0" FontSize="9"
                                Foreground="{StaticResource TextSecondaryBrush}"
@@ -63,6 +68,25 @@
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+
+        <!-- 房间行样式：冻结区与滚动区共用，右键菜单在两块区域都可用。 -->
+        <Style x:Key="TelecomRoomRowStyle" TargetType="DataGridRow">
+            <Setter Property="Tag"
+                    Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                    <ContextMenu>
+                        <MenuItem Header="{Binding PlacementTarget.Tag.DeleteMenuHeader,
+                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding}"
+                                  Command="{Binding PlacementTarget.Tag.DeleteRowCommand,
+                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  IsEnabled="{Binding PlacementTarget.Tag.CanWrite,
+                                              RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    </ContextMenu>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="16">
@@ -157,121 +181,172 @@
                         </GridSplitter.Template>
                     </GridSplitter>
 
-                    <!-- 房间明细：内联编辑 -->
+                    <!-- 房间明细：内联编辑；勾选列与冻结列固定，其余列横向滚动 -->
                     <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                             CornerRadius="4">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="房间明细（信息点 / 电话点 / 无线 AP）" Style="{StaticResource SectionTitle}"
                                        Margin="10,8,10,6" />
-                            <DataGrid Grid.Row="1" ItemsSource="{Binding Rooms}"
-                                      SelectedItem="{Binding SelectedRoom}"
-                                      AutoGenerateColumns="False" CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
-                                      IsReadOnly="{Binding IsReadOnly}"
-                                      SelectionMode="Extended" SelectionUnit="FullRow"
-                                      SelectionChanged="OnRoomSelectionChanged"
-                                      PreviewMouseRightButtonDown="OnRoomRightButtonDown"
-                                      ColumnHeaderHeight="52" CanUserSortColumns="True"
-                                      HeadersVisibility="Column">
-                                <DataGrid.RowStyle>
-                                    <Style TargetType="DataGridRow">
-                                        <!-- 右键单行删除：命令通过 Tag 拿到页面 ViewModel，参数是被右键的行。 -->
-                                        <Setter Property="Tag"
-                                                Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
-                                        <Setter Property="ContextMenu">
-                                            <Setter.Value>
-                                                <ContextMenu>
-                                                    <MenuItem Header="{Binding PlacementTarget.Tag.DeleteMenuHeader,
-                                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                              CommandParameter="{Binding}"
-                                                              Command="{Binding PlacementTarget.Tag.DeleteRowCommand,
-                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                              IsEnabled="{Binding PlacementTarget.Tag.CanWrite,
-                                                                          RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                                </ContextMenu>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </DataGrid.RowStyle>
-                                <DataGrid.Columns>
-                                    <!-- 行首勾选框：与索引表一致，勾选即选中行，支持多选后右键批量删除。 -->
-                                    <DataGridTemplateColumn Width="30" CanUserSort="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <CheckBox Style="{StaticResource CompactRowCheckBox}"
-                                                          Focusable="False"
-                                                          PreviewMouseLeftButtonDown="OnRoomCheckBoxPreviewMouseLeftButtonDown"
-                                                          IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Mode=TwoWay}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
 
-                                    <!-- 先选装置，再在装置下的建筑物中选择；两列都只显示编码。
-                                         模板列必须显式指定 SortMemberPath，否则表头点击无法排序。 -->
-                                    <DataGridTemplateColumn Header="装置" Width="90" MinWidth="70"
-                                                            SortMemberPath="UnitCode"
-                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <ComboBox Style="{StaticResource TelecomCellComboBox}"
-                                                          ItemsSource="{Binding UnitOptions}"
-                                                          DisplayMemberPath="Display"
-                                                          SelectedValuePath="Id"
-                                                          SelectedValue="{Binding UnitId, UpdateSourceTrigger=PropertyChanged}"
-                                                          IsEnabled="{Binding DataContext.CanWrite,
-                                                            RelativeSource={RelativeSource AncestorType=DataGrid}}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="建筑物" Width="110" MinWidth="90"
-                                                            SortMemberPath="BuildingCode"
-                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <ComboBox Style="{StaticResource TelecomCellComboBox}"
-                                                          ItemsSource="{Binding BuildingOptions}"
-                                                          DisplayMemberPath="Display"
-                                                          SelectedValuePath="Id"
-                                                          SelectedValue="{Binding PbsNodeId, UpdateSourceTrigger=PropertyChanged}"
-                                                          IsEnabled="{Binding DataContext.CanWrite,
-                                                            RelativeSource={RelativeSource AncestorType=DataGrid}}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="楼层" Width="80" MinWidth="80"
-                                                        HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
-                                                        ElementStyle="{StaticResource TelecomCellText}"
-                                                        Binding="{Binding Floor, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="房间编码" Width="110" MinWidth="110"
-                                                        HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
-                                                        ElementStyle="{StaticResource TelecomCellText}"
-                                                        Binding="{Binding Code, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="房间名称" Width="220" MinWidth="180"
-                                                        HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
-                                                        ElementStyle="{StaticResource TelecomCellText}"
-                                                        Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="信息点" Width="85" MinWidth="85"
-                                                        HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
-                                                        ElementStyle="{StaticResource TelecomCellText}"
-                                                        Binding="{Binding DataPointCount, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="电话点" Width="85" MinWidth="85"
-                                                        HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
-                                                        ElementStyle="{StaticResource TelecomCellText}"
-                                                        Binding="{Binding PhonePointCount, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="无线 AP" Width="105" MinWidth="105"
-                                                        HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
-                                                        ElementStyle="{StaticResource TelecomCellText}"
-                                                        Binding="{Binding ApCount, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="备注" Width="160" MinWidth="160"
-                                                        HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
-                                                        ElementStyle="{StaticResource TelecomCellText}"
-                                                        Binding="{Binding Remark, UpdateSourceTrigger=PropertyChanged}" />
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <Grid Grid.Row="1" Loaded="OnRoomGridsLoaded">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 冻结区：勾选列 + 前 N 个数据列；纵向滚动与右侧表格同步 -->
+                                <DataGrid x:Name="FrozenRoomGrid" Grid.Column="0"
+                                          ItemsSource="{Binding Rooms}"
+                                          AutoGenerateColumns="False" CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          IsReadOnly="{Binding IsReadOnly}"
+                                          SelectionMode="Extended" SelectionUnit="FullRow"
+                                          SelectionChanged="OnFrozenRoomSelectionChanged"
+                                          PreviewMouseLeftButtonDown="OnRoomGridPreviewMouseLeftButtonDown"
+                                          PreviewMouseRightButtonDown="OnRoomRightButtonDown"
+                                          ColumnReordered="OnRoomColumnReordered"
+                                          ColumnReordering="OnRoomColumnReordering"
+                                          RowStyle="{StaticResource TelecomRoomRowStyle}"
+                                          ColumnHeaderHeight="52" CanUserSortColumns="True"
+                                          CanUserResizeColumns="True" CanUserReorderColumns="True"
+                                          HeadersVisibility="Column"
+                                          HorizontalAlignment="Left"
+                                          BorderBrush="{StaticResource BorderBrush}"
+                                          BorderThickness="0,0,1,0"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                                    <DataGrid.Columns>
+                                        <!-- 行首勾选框：与索引表一致，勾选即选中行，支持多选后右键批量删除。 -->
+                                        <DataGridTemplateColumn Width="30" CanUserSort="False">
+                                            <DataGridTemplateColumn.HeaderTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Style="{StaticResource CompactRowCheckBox}"
+                                                              Focusable="False"
+                                                              IsThreeState="True"
+                                                              ToolTip="全选 / 取消全选当前列表"
+                                                              Loaded="OnSelectAllCheckBoxLoaded"
+                                                              PreviewMouseLeftButtonDown="OnSelectAllCheckBoxPreviewMouseLeftButtonDown" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.HeaderTemplate>
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Style="{StaticResource CompactRowCheckBox}"
+                                                              Focusable="False"
+                                                              PreviewMouseLeftButtonDown="OnRoomCheckBoxPreviewMouseLeftButtonDown"
+                                                              IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Mode=TwoWay}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!-- 可横向滚动区：其余数据列 -->
+                                <DataGrid x:Name="RoomGrid" Grid.Column="1" ItemsSource="{Binding Rooms}"
+                                          SelectedItem="{Binding SelectedRoom}"
+                                          AutoGenerateColumns="False" CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          IsReadOnly="{Binding IsReadOnly}"
+                                          SelectionMode="Extended" SelectionUnit="FullRow"
+                                          SelectionChanged="OnRoomSelectionChanged"
+                                          PreviewMouseLeftButtonDown="OnRoomGridPreviewMouseLeftButtonDown"
+                                          PreviewMouseRightButtonDown="OnRoomRightButtonDown"
+                                          ColumnReordered="OnRoomColumnReordered"
+                                          ColumnReordering="OnRoomColumnReordering"
+                                          RowStyle="{StaticResource TelecomRoomRowStyle}"
+                                          ColumnHeaderHeight="52" CanUserSortColumns="True"
+                                          CanUserResizeColumns="True" CanUserReorderColumns="True"
+                                          HeadersVisibility="Column">
+                                    <DataGrid.Columns>
+                                        <!-- 先选装置，再在装置下的建筑物中选择；两列都只显示编码。
+                                             模板列必须显式指定 SortMemberPath，否则表头点击无法排序。 -->
+                                        <DataGridTemplateColumn Header="装置" Width="80" MinWidth="70"
+                                                                SortMemberPath="UnitCode"
+                                                                HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox Style="{StaticResource TelecomCellComboBox}"
+                                                              ItemsSource="{Binding UnitOptions}"
+                                                              DisplayMemberPath="Display"
+                                                              SelectedValuePath="Id"
+                                                              SelectedValue="{Binding UnitId, UpdateSourceTrigger=PropertyChanged}"
+                                                              IsEnabled="{Binding DataContext.CanWrite,
+                                                                RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="建筑物" Width="100" MinWidth="90"
+                                                                SortMemberPath="BuildingCode"
+                                                                HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox Style="{StaticResource TelecomCellComboBox}"
+                                                              ItemsSource="{Binding BuildingOptions}"
+                                                              DisplayMemberPath="Display"
+                                                              SelectedValuePath="Id"
+                                                              SelectedValue="{Binding PbsNodeId, UpdateSourceTrigger=PropertyChanged}"
+                                                              IsEnabled="{Binding DataContext.CanWrite,
+                                                                RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="楼层" Width="70" MinWidth="60"
+                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
+                                                            ElementStyle="{StaticResource TelecomCellText}"
+                                                            Binding="{Binding Floor, UpdateSourceTrigger=PropertyChanged}" />
+                                        <!-- 房间编码与房间名称合并为「房间号」：以编码作为唯一标识。 -->
+                                        <DataGridTextColumn Header="房间号" Width="90" MinWidth="70"
+                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
+                                                            ElementStyle="{StaticResource TelecomCellText}"
+                                                            Binding="{Binding Code, UpdateSourceTrigger=PropertyChanged}" />
+                                        <DataGridTextColumn Header="信息点" Width="80" MinWidth="70"
+                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
+                                                            ElementStyle="{StaticResource TelecomCellText}"
+                                                            Binding="{Binding DataPointCount, UpdateSourceTrigger=PropertyChanged}" />
+                                        <DataGridTextColumn Header="电话点" Width="80" MinWidth="70"
+                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
+                                                            ElementStyle="{StaticResource TelecomCellText}"
+                                                            Binding="{Binding PhonePointCount, UpdateSourceTrigger=PropertyChanged}" />
+                                        <DataGridTextColumn Header="无线 AP" Width="90" MinWidth="80"
+                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
+                                                            ElementStyle="{StaticResource TelecomCellText}"
+                                                            Binding="{Binding ApCount, UpdateSourceTrigger=PropertyChanged}" />
+                                        <DataGridTextColumn Header="备注" Width="130" MinWidth="100"
+                                                            HeaderTemplate="{StaticResource TelecomFilterHeaderTemplate}"
+                                                            ElementStyle="{StaticResource TelecomCellText}"
+                                                            Binding="{Binding Remark, UpdateSourceTrigger=PropertyChanged}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+
+                            <!-- 冻结列配置：默认收起，点按钮呼出；配置完可再次收起 -->
+                            <Grid Grid.Row="2" Margin="10,4,10,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="FreezeSettingsButton" Content="冻结列设置"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Padding="10,3" Click="OnFreezeSettingsClick" />
+                                    <StackPanel x:Name="FreezeSettingsPanel" Orientation="Horizontal"
+                                                Visibility="Collapsed" Margin="12,0,0,0"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="冻结前" Style="{StaticResource MutedText}"
+                                                   VerticalAlignment="Center" />
+                                        <ComboBox x:Name="FrozenColumnCountBox" Width="64" Margin="6,0"
+                                                  SelectedIndex="0" SelectionChanged="OnFrozenColumnCountChanged">
+                                            <ComboBoxItem Content="0" />
+                                            <ComboBoxItem Content="1" />
+                                            <ComboBoxItem Content="2" />
+                                            <ComboBoxItem Content="3" />
+                                            <ComboBoxItem Content="4" />
+                                        </ComboBox>
+                                        <TextBlock Text="列（勾选列始终固定）" Style="{StaticResource MutedText}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
                         </Grid>
                     </Border>
 

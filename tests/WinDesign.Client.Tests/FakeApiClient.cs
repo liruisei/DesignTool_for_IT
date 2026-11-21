@@ -535,6 +535,7 @@ public sealed class FakeApiClient : IApiClient
             Id = Guid.NewGuid(),
             ProjectId = projectId,
             PbsNodeId = request.PbsNodeId,
+            PbsNodeCode = PbsNodes.FirstOrDefault(x => x.Id == request.PbsNodeId)?.Code,
             PbsNodeName = PbsNodes.FirstOrDefault(x => x.Id == request.PbsNodeId)?.Name,
             TagNo = request.TagNo,
             LoopNo = request.LoopNo,
@@ -580,6 +581,7 @@ public sealed class FakeApiClient : IApiClient
         var dto = old with
         {
             PbsNodeId = request.PbsNodeId,
+            PbsNodeCode = PbsNodes.FirstOrDefault(x => x.Id == request.PbsNodeId)?.Code,
             PbsNodeName = PbsNodes.FirstOrDefault(x => x.Id == request.PbsNodeId)?.Name,
             TagNo = request.TagNo,
             LoopNo = request.LoopNo,
@@ -803,12 +805,20 @@ public sealed class FakeApiClient : IApiClient
         CancellationToken ct = default)
     {
         var dto = new SwitchModelDto(
-            Guid.NewGuid(), request.Code, request.Name, request.SwitchType,
+            Guid.NewGuid(), request.Code, request.Name, request.Discipline, request.TypeCode,
+            ResolveTypeName(request.TypeCode),
             request.ElectricalPorts, request.UplinkPorts, request.IsActive,
             request.SortOrder, request.Remark);
         SwitchModels.Add(dto);
         return Task.FromResult(dto);
     }
+
+    private string? ResolveTypeName(string? typeCode) =>
+        typeCode is { Length: > 0 }
+            ? EquipmentTypes.FirstOrDefault(x =>
+                x.TypeCode == "EQUIPMENT_TYPE" &&
+                string.Equals(x.Code, typeCode, StringComparison.OrdinalIgnoreCase))?.Name
+            : null;
 
     public Task<SwitchModelDto> UpdateSwitchModelAsync(
         Guid id,
@@ -825,7 +835,9 @@ public sealed class FakeApiClient : IApiClient
         {
             Code = request.Code,
             Name = request.Name,
-            SwitchType = request.SwitchType,
+            Discipline = request.Discipline,
+            TypeCode = request.TypeCode,
+            TypeName = ResolveTypeName(request.TypeCode),
             ElectricalPorts = request.ElectricalPorts,
             UplinkPorts = request.UplinkPorts,
             IsActive = request.IsActive,

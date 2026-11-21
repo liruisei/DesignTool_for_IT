@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Permissions;
 using WinDesign.Domain;
 using WinDesign.Domain.Entities;
@@ -425,41 +426,207 @@ public static class DatabaseSeeder
     }
 
     /// <summary>
+    /// 设备类型目录：为内置类型补齐「所属专业」，并补入设备样本库使用的电信类型。
+    /// 只补专业和缺失项，不覆盖管理员改过的名称。
+    /// </summary>
+    public static async Task EnsureEquipmentTypeCatalogAsync(
+        WinDesignDbContext db,
+        CancellationToken ct = default)
+    {
+        var type = await db.DictionaryTypes.SingleOrDefaultAsync(x => x.Code == "EQUIPMENT_TYPE", ct);
+        if (type is null)
+        {
+            return;
+        }
+
+        var items = await db.DictionaryItems.Where(x => x.TypeId == type.Id).ToListAsync(ct);
+        var byCode = items.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        var nextSort = items.Count == 0 ? 0 : items.Max(x => x.SortOrder);
+
+        // 内置仪表类型补专业；不动管理员改过的名称。
+        var instrumentDefs = new (string Code, string Name, string Discipline)[]
+        {
+            ("PT", "压力变送器", "Instrument"),
+            ("TT", "温度变送器", "Instrument"),
+            ("FT", "流量计", "Instrument"),
+            ("LV", "调节阀", "Instrument"),
+            ("LT", "液位计", "Instrument"),
+            ("AT", "分析仪", "Instrument")
+        };
+
+        foreach (var (code, name, discipline) in instrumentDefs)
+        {
+            if (byCode.TryGetValue(code, out var item))
+            {
+                if (DictionaryItemExtras.GetDiscipline(item.ExtraJson) is null)
+                {
+                    item.ExtraJson = DictionaryItemExtras.SetDiscipline(item.ExtraJson, discipline);
+                }
+                continue;
+            }
+
+            var added = new DictionaryItem
+            {
+                TypeId = type.Id,
+                Code = code,
+                Name = name,
+                SortOrder = ++nextSort,
+                ExtraJson = DictionaryItemExtras.SetDiscipline(null, discipline)
+            };
+            db.DictionaryItems.Add(added);
+            items.Add(added);
+            byCode[code] = added;
+        }
+
+        // 设备样本库需要「接入交换机 / PoE 交换机 / 机柜」三类角色类型。
+        // 目录里已有同类类型（例如管理员自建的 SW-ACC / SW-POE / ITC）时不重复补种。
+        var roleDefs = new (string Code, string Name, string Discipline, Func<DictionaryItem, bool> Match)[]
+        {
+            ("SW", "接入交换机", "Telecom",
+                x => x.Name.Contains("接入", StringComparison.Ordinal) &&
+                     x.Name.Contains("交换机", StringComparison.Ordinal)),
+            ("POE", "PoE 交换机", "Telecom",
+                x => x.Name.Contains("PoE", StringComparison.OrdinalIgnoreCase)),
+            ("CAB", "机柜", "Telecom",
+                x => x.Name.Contains("机柜", StringComparison.Ordinal))
+        };
+
+        foreach (var (code, name, discipline, match) in roleDefs)
+        {
+            if (items.Any(match) || byCode.ContainsKey(code))
+            {
+                continue;
+            }
+
+            var added = new DictionaryItem
+            {
+                TypeId = type.Id,
+                Code = code,
+                Name = name,
+                SortOrder = ++nextSort,
+                ExtraJson = DictionaryItemExtras.SetDiscipline(null, discipline)
+            };
+            db.DictionaryItems.Add(added);
+            items.Add(added);
+            byCode[code] = added;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
     /// 设备样本库按编码幂等补齐常用规格（交换机 + 机柜），
     /// 已有样本不会被覆盖，新增样本随版本升级自动补入。
+    /// 旧库的样本只有 SwitchType 枚举，这里按旧类别回填专业与设备类型编码。
     /// </summary>
     public static async Task EnsureSwitchModelsAsync(WinDesignDbContext db, CancellationToken ct = default)
     {
-        var existingCodes = await db.SwitchModels
-            .Select(x => x.Code)
+        var models = await db.SwitchModels.ToListAsync(ct);
+        var types = await db.DictionaryItems
+            .Where(x => x.Type.Code == "EQUIPMENT_TYPE")
             .ToListAsync(ct);
-        var known = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var byCode = types
+            .GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        // 旧版样本只有 SwitchType 枚举：按角色匹配目录中的类型（优先管理员自建的类型）。
+        DictionaryItem? BestFor(SwitchType legacy, string? excludeCode)
+        {
+            var candidates = types
+                .Where(x => !string.Equals(x.Code, excludeCode, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            return legacy switch
+            {
+                SwitchType.Access => candidates.FirstOrDefault(x =>
+                                         x.Name.Contains("接入", StringComparison.Ordinal) &&
+                                         x.Name.Contains("交换机", StringComparison.Ordinal))
+                                     ?? candidates.FirstOrDefault(x =>
+                                         x.Name.Contains("交换机", StringComparison.Ordinal) &&
+                                         !x.Name.Contains("PoE", StringComparison.OrdinalIgnoreCase))
+                                     ?? candidates.FirstOrDefault(x => x.Code == "SW"),
+                SwitchType.PoE => candidates.FirstOrDefault(x =>
+                                      x.Name.Contains("PoE", StringComparison.OrdinalIgnoreCase))
+                                  ?? candidates.FirstOrDefault(x => x.Code == "POE")
+                                  ?? candidates.FirstOrDefault(x => x.Code == "SW"),
+                SwitchType.Cabinet => candidates.FirstOrDefault(x =>
+                                          x.Name.Contains("机柜", StringComparison.Ordinal))
+                                      ?? candidates.FirstOrDefault(x => x.Code == "CAB"),
+                _ => null
+            };
+        }
+
+        // 本次迁移早期补种的通用编码；一旦目录里存在更贴切的角色类型就改绑过去。
+        var generatedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SW", "POE", "CAB"
+        };
+
+        var changed = false;
+        foreach (var model in models)
+        {
+            var current = string.IsNullOrWhiteSpace(model.TypeCode)
+                ? null
+                : byCode.GetValueOrDefault(model.TypeCode);
+
+            // 已手工选定的类型不动；只有未填或仍指向通用编码且有更贴切类型时才回填。
+            var needsBackfill = current is null ||
+                (generatedCodes.Contains(model.TypeCode!) && BestFor(model.SwitchType, model.TypeCode) is not null);
+            if (!needsBackfill)
+            {
+                continue;
+            }
+
+            var best = BestFor(model.SwitchType, model.TypeCode);
+            if (best is null || string.Equals(model.TypeCode, best.Code, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            model.TypeCode = best.Code;
+            model.Discipline = DictionaryItemExtras.GetDiscipline(best.ExtraJson)
+                               ?? model.Discipline
+                               ?? "Telecom";
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+
+        var known = models.Select(x => x.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var defaults = new[]
         {
             new SwitchModel
             {
-                Code = "SW-24A", Name = "24 口接入交换机", SwitchType = SwitchType.Access,
+                Code = "SW-24A", Name = "24 口接入交换机",
+                Discipline = "Telecom", TypeCode = "SW", SwitchType = SwitchType.Access,
                 ElectricalPorts = 24, UplinkPorts = 4, SortOrder = 1
             },
             new SwitchModel
             {
-                Code = "SW-48A", Name = "48 口接入交换机", SwitchType = SwitchType.Access,
+                Code = "SW-48A", Name = "48 口接入交换机",
+                Discipline = "Telecom", TypeCode = "SW", SwitchType = SwitchType.Access,
                 ElectricalPorts = 48, UplinkPorts = 4, SortOrder = 2
             },
             new SwitchModel
             {
-                Code = "SW-24P", Name = "24 口 PoE 交换机", SwitchType = SwitchType.PoE,
+                Code = "SW-24P", Name = "24 口 PoE 交换机",
+                Discipline = "Telecom", TypeCode = "POE", SwitchType = SwitchType.PoE,
                 ElectricalPorts = 24, UplinkPorts = 4, SortOrder = 3
             },
             new SwitchModel
             {
-                Code = "SW-48P", Name = "48 口 PoE 交换机", SwitchType = SwitchType.PoE,
+                Code = "SW-48P", Name = "48 口 PoE 交换机",
+                Discipline = "Telecom", TypeCode = "POE", SwitchType = SwitchType.PoE,
                 ElectricalPorts = 48, UplinkPorts = 4, SortOrder = 4
             },
             new SwitchModel
             {
-                Code = "CAB-42U", Name = "42U 标准机柜", SwitchType = SwitchType.Cabinet,
+                Code = "CAB-42U", Name = "42U 标准机柜",
+                Discipline = "Telecom", TypeCode = "CAB", SwitchType = SwitchType.Cabinet,
                 ElectricalPorts = 0, SortOrder = 5
             }
         };
