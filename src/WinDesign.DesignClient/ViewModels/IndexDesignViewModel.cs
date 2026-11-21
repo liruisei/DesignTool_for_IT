@@ -156,8 +156,8 @@ public partial class IndexDesignViewModel : ViewModelBase
 
     private void Recompute()
     {
-        var access = Resolve("Access", _switchSettings.AccessSwitchId);
-        var poe = Resolve("PoE", _switchSettings.PoeSwitchId);
+        var access = Resolve(isPoe: false, _switchSettings.AccessSwitchId);
+        var poe = Resolve(isPoe: true, _switchSettings.PoeSwitchId);
         var utilization = Math.Clamp(_switchSettings.UtilizationPercent, 1, 100);
 
         AccessSwitchText = Describe(access);
@@ -184,6 +184,7 @@ public partial class IndexDesignViewModel : ViewModelBase
     /// <summary>
     /// 已建设备按设备类型名称分类：名称含 PoE 的算 PoE 交换机，其余名称含「交换机」的算接入交换机。
     /// 剩余台数 = 计算结果 − 已建台数，允许负数表示人为增加冗余。
+    /// 按建筑物分行时，只扣除归属于该建筑物的已建交换机。
     /// </summary>
     private void UpdateSwitchUsage()
     {
@@ -193,6 +194,9 @@ public partial class IndexDesignViewModel : ViewModelBase
 
         var createdAccess = 0;
         var createdPoe = 0;
+        var accessByBuilding = new Dictionary<Guid, int>();
+        var poeByBuilding = new Dictionary<Guid, int>();
+
         foreach (var equipment in _projectEquipments)
         {
             if (equipment.TypeCode is not { Length: > 0 } code ||
@@ -201,18 +205,45 @@ public partial class IndexDesignViewModel : ViewModelBase
                 continue;
             }
 
-            if (typeName.Contains("PoE", StringComparison.OrdinalIgnoreCase))
+            var isPoe = typeName.Contains("PoE", StringComparison.OrdinalIgnoreCase);
+            if (!isPoe && !typeName.Contains("交换机", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (isPoe)
             {
                 createdPoe++;
             }
-            else if (typeName.Contains("交换机", StringComparison.Ordinal))
+            else
             {
                 createdAccess++;
             }
+
+            if (equipment.PbsNodeId is not Guid buildingId)
+            {
+                continue;
+            }
+
+            var counts = isPoe ? poeByBuilding : accessByBuilding;
+            counts[buildingId] = counts.GetValueOrDefault(buildingId) + 1;
         }
 
         AccessSwitchRemaining = AccessSwitchTotal - createdAccess;
         PoeSwitchRemaining = PoeSwitchTotal - createdPoe;
+
+        // 按建筑物刷新每行的剩余台数：已建设备归属到建筑物 PBS 节点。
+        for (var i = 0; i < BuildingSwitchTotals.Count; i++)
+        {
+            var row = BuildingSwitchTotals[i];
+            BuildingSwitchTotals[i] = row with
+            {
+                AccessSwitchRemaining = row.AccessSwitchCount -
+                    accessByBuilding.GetValueOrDefault(row.PbsNodeId),
+                PoeSwitchRemaining = row.PoeSwitchCount -
+                    poeByBuilding.GetValueOrDefault(row.PbsNodeId)
+            };
+        }
     }
 
     partial void OnAccessSwitchRemainingChanged(int value) =>
@@ -221,10 +252,10 @@ public partial class IndexDesignViewModel : ViewModelBase
     partial void OnPoeSwitchRemainingChanged(int value) =>
         OnPropertyChanged(nameof(PoeSwitchRemainingText));
 
-    private SwitchModelDto? Resolve(string switchType, Guid? id) =>
+    private SwitchModelDto? Resolve(bool isPoe, Guid? id) =>
         _models.FirstOrDefault(x => x.Id == id)
-        ?? _models.FirstOrDefault(x =>
-            string.Equals(x.SwitchType, switchType, StringComparison.OrdinalIgnoreCase));
+        ?? _models.FirstOrDefault(x => x.IsPoe == isPoe)
+        ?? _models.FirstOrDefault();
 
     private static string Describe(SwitchModelDto? model) =>
         model is null

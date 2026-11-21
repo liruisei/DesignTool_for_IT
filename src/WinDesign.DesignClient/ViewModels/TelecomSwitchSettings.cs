@@ -25,7 +25,17 @@ public sealed record BuildingSwitchRow(
     int DataPointCount,
     int ApCount,
     int AccessSwitchCount,
-    int PoeSwitchCount);
+    int PoeSwitchCount)
+{
+    /// <summary>建筑物 PBS 节点 Id；用于扣除归属于该建筑的已建交换机。</summary>
+    public Guid PbsNodeId { get; init; }
+
+    /// <summary>接入交换机剩余 = 该楼计算台数 − 该楼已建台数，可为负数（冗余）。</summary>
+    public int AccessSwitchRemaining { get; init; }
+
+    /// <summary>PoE 交换机剩余 = 该楼计算台数 − 该楼已建台数，可为负数（冗余）。</summary>
+    public int PoeSwitchRemaining { get; init; }
+}
 
 /// <summary>
 /// 交换机台数计算：按建筑物分组，先在楼内取整，再把各楼结果相加。
@@ -58,7 +68,10 @@ public static class TelecomSwitchCalculator
                 g.Sum(x => x.DataPointCount),
                 g.Sum(x => x.ApCount),
                 Count(g.Sum(x => x.DataPointCount), accessPorts, utilizationPercent),
-                Count(g.Sum(x => x.ApCount), poePorts, utilizationPercent)))
+                Count(g.Sum(x => x.ApCount), poePorts, utilizationPercent))
+            {
+                PbsNodeId = g.Key
+            })
             .OrderBy(x => x.Building, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

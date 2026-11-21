@@ -202,7 +202,7 @@ public sealed class TelecomController : ApiControllerBase
         if (string.IsNullOrWhiteSpace(request.Floor) ||
             string.IsNullOrWhiteSpace(request.Code))
         {
-            return BadRequest(new ApiError("楼层和房间编码不能为空"));
+            return BadRequest(new ApiError("楼层和房间号不能为空"));
         }
         if (request.DataPointCount < 0 || request.PhonePointCount < 0 || request.ApCount < 0)
         {

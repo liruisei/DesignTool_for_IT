@@ -126,12 +126,22 @@
                     <TextBlock Text="创建用户或重置密码时填写，至少 6 位。" Style="{StaticResource MutedText}" Margin="0,5,0,0" />
 
                     <TextBlock Text="用户类" Style="{StaticResource FieldLabel}" />
-                    <DataGrid ItemsSource="{Binding RoleOptions}" Height="132"
+                    <DataGrid x:Name="RoleGrid" ItemsSource="{Binding RoleOptions}" Height="132"
                               AutoGenerateColumns="False" IsReadOnly="True"
                               CanUserAddRows="False" HeadersVisibility="Column">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="用户类" Binding="{Binding Name}" Width="*" />
                             <DataGridTemplateColumn Header="勾选" Width="60">
+                                <DataGridTemplateColumn.HeaderTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Style="{StaticResource CompactRowCheckBox}"
+                                                  Focusable="False"
+                                                  IsThreeState="True"
+                                                  ToolTip="全选 / 取消全选用户类"
+                                                  Loaded="OnRoleSelectAllLoaded"
+                                                  PreviewMouseLeftButtonDown="OnRoleSelectAllPreviewMouseLeftButtonDown" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"

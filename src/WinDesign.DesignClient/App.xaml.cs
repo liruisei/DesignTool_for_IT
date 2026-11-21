@@ -33,6 +33,8 @@ public partial class App : Application
 
             settings = new AppSettings(session.Api.BaseUrl, session.User?.UserName ?? settings.UserName);
             SettingsService.Save("design", settings);
+            // 冻结列与列顺序按登录账号分别保存。
+            ViewPreferencesService.SetUser(session.User?.UserName);
 
             // 登录成功后必须先选择工作区：工厂（PBS 根节点）→ 项目。
             var workspaceSelected = false;

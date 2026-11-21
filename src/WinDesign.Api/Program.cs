@@ -118,6 +118,7 @@ using (var scope = app.Services.CreateScope())
     await DatabaseSchemaUpgrader.EnsureAsync(db);
     await DatabaseSeeder.SeedAsync(db);
     await DatabaseSeeder.EnsurePermissionCatalogAsync(db);
+    await DatabaseSeeder.EnsureEquipmentTypeCatalogAsync(db);
     await DatabaseSeeder.EnsureSwitchModelsAsync(db);
     app.Logger.LogInformation("数据库已就绪：{Provider}", provider);
 }

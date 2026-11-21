@@ -57,15 +57,16 @@ public class EquipmentIndexViewModelTests
 
         Assert.Single(viewModel.Equipments);
         Assert.Single(viewModel.EquipmentTypes);
-        Assert.Equal(2, viewModel.PbsEditorOptions.Count);
+        Assert.Single(viewModel.PbsEditorOptions);
     }
 
     [Fact]
-    public async Task PbsOptions_ExcludeNodesBelowUnit_AndSnapEquipmentToUnit()
+    public async Task PbsOptions_ListBuildingsOnly_AndKeepEquipmentBuilding()
     {
         var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
         var project = api.Project;
-        var area = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, null, "AREA-A", "A 区", "Area", 1, null, 0, 1);
+        var area = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "AREA-A", "A 区", "Area", 1, null, 0, 1);
         var unit = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, area.Id, "U1", "常减压装置", "Unit", 1, null, 0, 2);
         var building = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, unit.Id, "B1", "机柜室", "Building", 1, null, 0, 3);
         var loop = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, unit.Id, "L1", "回路一", "Loop", 2, null, 0, 3);
@@ -90,19 +91,56 @@ public class EquipmentIndexViewModelTests
         var viewModel = CreateViewModel(api, project, dialogs);
         await viewModel.RefreshAsync();
 
-        // 下拉只保留未分配、区域和装置；装置以下的建筑物与回路不出现。
+        // 属性页只列出建筑物；区域、装置和回路都不作为设备归属。
         Assert.Equal(
-            new Guid?[] { null, area.Id, unit.Id },
+            new Guid?[] { building.Id },
             viewModel.PbsEditorOptions.Select(x => x.Id).ToArray());
-        Assert.DoesNotContain(viewModel.PbsEditorOptions, x => x.Id == building.Id);
+        Assert.DoesNotContain(viewModel.PbsEditorOptions, x => x.Id == area.Id);
+        Assert.DoesNotContain(viewModel.PbsEditorOptions, x => x.Id == unit.Id);
         Assert.DoesNotContain(viewModel.PbsEditorOptions, x => x.Id == loop.Id);
 
-        // 设备原本挂在建筑物下，打开属性页时归到最近的上级装置。
+        // 设备原本挂在建筑物下，打开属性页时保留该建筑物，不再改挂到装置。
         viewModel.SelectedEquipment = viewModel.Equipments.Single();
         await viewModel.EditEquipmentCommand.ExecuteAsync(null);
 
         Assert.NotNull(dialogs.LastContext);
-        Assert.Equal(unit.Id, dialogs.LastContext!.Equipment!.PbsNodeId);
+        Assert.Equal(building.Id, dialogs.LastContext!.Equipment!.PbsNodeId);
+    }
+
+    [Fact]
+    public async Task EditEquipment_AtUnitLevel_ShowsCurrentNodePlaceholder()
+    {
+        var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
+        var project = api.Project;
+        var area = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "AREA-A", "A 区", "Area", 1, null, 0, 1);
+        var unit = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, area.Id, "U1", "常减压装置", "Unit", 1, null, 0, 2);
+        var building = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, unit.Id, "B1", "机柜室", "Building", 1, null, 0, 3);
+        api.PbsNodes.AddRange(new[] { area, unit, building });
+        api.Equipments.Add(new EquipmentDto
+        {
+            Id = Guid.NewGuid(),
+            PlantId = api.Plant.Id,
+            ProjectId = project.Id,
+            PbsNodeId = unit.Id,
+            TagNo = "PT-1001",
+            Name = "压力变送器",
+            Discipline = "Instrument",
+            Quantity = 1,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        var dialogs = new FakeEquipmentDialogService();
+        var viewModel = CreateViewModel(api, project, dialogs);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedEquipment = viewModel.Equipments.Single();
+
+        await viewModel.EditEquipmentCommand.ExecuteAsync(null);
+
+        // 历史设备挂在装置下：保留原值并追加回显项，避免下拉把归属清空。
+        Assert.NotNull(dialogs.LastContext);
+        Assert.Contains(dialogs.LastContext!.PbsOptions, x => x.Id == unit.Id);
+        Assert.Equal(unit.Id, dialogs.LastContext.Equipment!.PbsNodeId);
     }
 
     [Fact]
@@ -387,9 +425,12 @@ public class EquipmentIndexViewModelTests
     private static (FakeApiClient Api, ProjectDto Project, PbsNodeDto Root) CreateData()
     {
         var api = new FakeApiClient();
+        api.AddDefaultPbsRoot();
         var project = api.Project;
-        var root = new PbsNodeDto(Guid.NewGuid(), api.Plant.Id, null, "AREA-A", "A 区", "Area", 0, null, 0, 1);
-        api.PbsNodes.Add(root);
+        var root = api.PbsRoot;
+        var building = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, root.Id, "B1", "机柜室", "Building", 1, null, 0, 2);
+        api.PbsNodes.Add(building);
         api.EquipmentTypes.Add(new DictionaryItemDto(
             Guid.NewGuid(), Guid.NewGuid(), "EQUIPMENT_TYPE", "PT", "压力变送器", 1, true, null));
         api.Equipments.Add(new EquipmentDto

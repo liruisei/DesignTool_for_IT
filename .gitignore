@@ -9,3 +9,5 @@ obj/
 *.bak-*
 publish/
 TestResults/
+
+*_wpftmp.csproj

@@ -150,13 +150,15 @@ public class DesignMainViewModelTests
         api.AddDefaultPbsRoot();
         var unit = new PbsNodeDto(
             Guid.NewGuid(), api.Plant.Id, api.PbsRoot.Id, "CDU", "常减压装置", "Unit", 1, null, 0, 0);
-        api.PbsNodes.Add(unit);
+        var building = new PbsNodeDto(
+            Guid.NewGuid(), api.Plant.Id, unit.Id, "B1", "机柜室", "Building", 1, null, 0, 1);
+        api.PbsNodes.AddRange(new[] { unit, building });
 
         var dialogs = new FakeEquipmentDialogService
         {
             NextResult = new EquipmentUpsertRequest
             {
-                PbsNodeId = unit.Id,
+                PbsNodeId = building.Id,
                 TagNo = "PT-9001",
                 Name = "压力变送器",
                 Discipline = "Instrument",
@@ -174,7 +176,8 @@ public class DesignMainViewModelTests
         await viewModel.AddEquipmentCommand.ExecuteAsync(null);
 
         Assert.NotNull(dialogs.LastContext);
-        Assert.Equal(unit.Id, dialogs.LastContext!.DefaultPbsNodeId);
+        // 该装置下只有一栋建筑物时自动带出；多栋时要求用户明确选择。
+        Assert.Equal(building.Id, dialogs.LastContext!.DefaultPbsNodeId);
         Assert.Contains(api.Equipments, x => x.TagNo == "PT-9001");
 
         var refreshedUnit = Assert.Single(Assert.Single(

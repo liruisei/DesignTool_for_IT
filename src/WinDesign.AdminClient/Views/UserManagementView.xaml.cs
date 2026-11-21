@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,6 +18,7 @@ public partial class UserManagementView : UserControl
     private UserManagementViewModel? _userViewModel;
     private bool _syncingPassword;
     private bool _passwordVisible;
+    private CheckBox? _roleSelectAllCheckBox;
 
     public UserManagementView()
     {
@@ -87,7 +89,112 @@ public partial class UserManagementView : UserControl
             _userViewModel.PropertyChanged += OnUserViewModelPropertyChanged;
         }
 
+        HookRoleSelection();
         SyncPasswordBoxFromViewModel();
+    }
+
+    // ---------- 用户类多选：表头全选 ----------
+
+    private void OnRoleSelectAllLoaded(object sender, RoutedEventArgs e)
+    {
+        _roleSelectAllCheckBox = sender as CheckBox;
+        HookRoleSelection();
+        UpdateRoleSelectAllState();
+    }
+
+    private void HookRoleSelection()
+    {
+        if (_userViewModel is not null)
+        {
+            _userViewModel.RoleOptions.CollectionChanged -= OnRoleOptionsChanged;
+            foreach (var option in _userViewModel.RoleOptions)
+            {
+                option.PropertyChanged -= OnRoleOptionPropertyChanged;
+            }
+        }
+
+        if (_userViewModel is null)
+        {
+            return;
+        }
+
+        _userViewModel.RoleOptions.CollectionChanged += OnRoleOptionsChanged;
+        foreach (var option in _userViewModel.RoleOptions)
+        {
+            option.PropertyChanged += OnRoleOptionPropertyChanged;
+        }
+    }
+
+    private void OnRoleOptionsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (var option in e.OldItems.OfType<RoleOption>())
+            {
+                option.PropertyChanged -= OnRoleOptionPropertyChanged;
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (var option in e.NewItems.OfType<RoleOption>())
+            {
+                option.PropertyChanged += OnRoleOptionPropertyChanged;
+            }
+        }
+
+        UpdateRoleSelectAllState();
+    }
+
+    private void OnRoleOptionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RoleOption.IsSelected))
+        {
+            UpdateRoleSelectAllState();
+        }
+    }
+
+    private void OnRoleSelectAllPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+
+        var options = _userViewModel?.RoleOptions;
+        if (options is null || options.Count == 0)
+        {
+            return;
+        }
+
+        var selectAll = !options.All(x => x.IsSelected);
+        foreach (var option in options)
+        {
+            option.IsSelected = selectAll;
+        }
+
+        UpdateRoleSelectAllState();
+    }
+
+    private void UpdateRoleSelectAllState()
+    {
+        if (_roleSelectAllCheckBox is null)
+        {
+            return;
+        }
+
+        var options = _userViewModel?.RoleOptions;
+        if (options is null || options.Count == 0)
+        {
+            _roleSelectAllCheckBox.IsChecked = false;
+            _roleSelectAllCheckBox.IsEnabled = false;
+            return;
+        }
+
+        var selected = options.Count(x => x.IsSelected);
+        _roleSelectAllCheckBox.IsEnabled = true;
+        _roleSelectAllCheckBox.IsChecked = selected == 0
+            ? false
+            : selected >= options.Count
+                ? true
+                : null;
     }
 
     private void OnUserViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

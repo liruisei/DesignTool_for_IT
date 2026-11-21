@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using WinDesign.Contracts.Dictionaries;
 using WinDesign.Contracts.Equipment;
@@ -18,13 +20,16 @@ public sealed record EquipmentEditorContext(
     NumberingRuleDto? NumberingRule = null,
     IReadOnlyDictionary<Guid, string>? UnitCodeByPbsNodeId = null,
     IReadOnlyList<string>? UnitCodeOptions = null,
-    string? DefaultUnitCode = null);
+    string? DefaultUnitCode = null,
+    string PbsFieldLabel = "所属建筑物");
 
 public partial class EquipmentEditorViewModel : ObservableObject
 {
     private readonly NumberingRuleDto? _rule;
     private readonly IReadOnlyDictionary<Guid, string> _unitCodeByPbsNodeId;
     private readonly bool _useComposedTag;
+    /// <summary>新建或复制设备时必须明确所属建筑物。</summary>
+    private readonly bool _requiresBuilding;
     /// <summary>载入已有位号期间禁止重拼，避免字段尚未填好就把原值覆盖掉。</summary>
     private bool _suppressRebuild;
     /// <summary>
@@ -35,7 +40,13 @@ public partial class EquipmentEditorViewModel : ObservableObject
 
     public IReadOnlyList<CodeNameOption> DisciplineOptions => DisciplineCatalog.All;
 
+    /// <summary>PBS 归属字段的显示名：设计端为「所属建筑物」，管理端仍为「所属 PBS」。</summary>
+    public string PbsFieldLabel { get; }
+
     public ObservableCollection<PbsNodeOption> PbsOptions { get; } = new();
+
+    /// <summary>按位号前缀（装置编码）过滤后的建筑物下拉视图；前缀不是装置编码时不过滤。</summary>
+    public ICollectionView? PbsOptionsView { get; }
     public ObservableCollection<DictionaryItemDto> EquipmentTypes { get; } = new();
     /// <summary>编号规定前缀为装置编号时，可选的装置编号清单。</summary>
     public ObservableCollection<string> TagPrefixOptions { get; } = new();
@@ -163,8 +174,11 @@ public partial class EquipmentEditorViewModel : ObservableObject
     {
         _rule = context.NumberingRule;
         _unitCodeByPbsNodeId = context.UnitCodeByPbsNodeId ?? new Dictionary<Guid, string>();
+        PbsFieldLabel = context.PbsFieldLabel;
         // 有编号规定时，新建、复制和编辑都按同一格式分段拼装位号。
         _useComposedTag = _rule is not null;
+        // 新建与复制都要求明确所属建筑物；编辑旧设备保持原有归属即可。
+        _requiresBuilding = context.Equipment is null || context.IsCopy;
 
         foreach (var code in context.UnitCodeOptions ?? Array.Empty<string>())
         {
@@ -183,6 +197,10 @@ public partial class EquipmentEditorViewModel : ObservableObject
         {
             EquipmentTypes.Add(type);
         }
+
+        PbsOptionsView = CollectionViewSource.GetDefaultView(PbsOptions);
+        PbsOptionsView.Filter = FilterPbsOptions;
+        PbsOptionsView.Refresh();
 
         // 历史数据可能引用了已不存在的类型编码：补一个占位项，避免打开编辑时下拉框清空类型。
         if (context.Equipment?.TypeCode is { Length: > 0 } legacyTypeCode &&
@@ -339,7 +357,42 @@ public partial class EquipmentEditorViewModel : ObservableObject
         }
     }
 
-    partial void OnTagPrefixChanged(string value) => RebuildTag();
+    partial void OnTagPrefixChanged(string value)
+    {
+        // 前缀是装置编码时，所属建筑物下拉只显示该装置下的建筑物。
+        PbsOptionsView?.Refresh();
+        if (!_suppressRebuild &&
+            EditPbsNodeId is Guid selectedId &&
+            PbsOptionsView is not null &&
+            PbsOptionsView.Cast<PbsNodeOption>().All(x => x.Id != selectedId))
+        {
+            EditPbsNodeId = null;
+        }
+
+        RebuildTag();
+    }
+
+    /// <summary>
+    /// 位号前缀对应某个装置编码时，只保留该装置下的建筑物；
+    /// 手工前缀或没有装置映射时不过滤，历史值占位项始终保留。
+    /// </summary>
+    private bool FilterPbsOptions(object item)
+    {
+        if (item is not PbsNodeOption option || option.Id is not Guid id)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(TagPrefix) ||
+            _unitCodeByPbsNodeId.Count == 0 ||
+            !_unitCodeByPbsNodeId.Values.Contains(TagPrefix, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !_unitCodeByPbsNodeId.TryGetValue(id, out var unitCode) ||
+               string.Equals(unitCode, TagPrefix, StringComparison.OrdinalIgnoreCase);
+    }
 
     partial void OnTagTypePartChanged(string value) => RebuildTag();
 
@@ -417,13 +470,29 @@ public partial class EquipmentEditorViewModel : ObservableObject
         // 手动模式把段内容写入位号类型部分。
         if (!string.IsNullOrEmpty(_rule.TypeSeparator))
         {
-            var index = rest.IndexOf(_rule.TypeSeparator, StringComparison.Ordinal);
-            if (index < 0)
+            // 类型编码本身可能包含分隔符（如 SW-ACC）：优先按已知类型编码整体匹配，
+            // 避免被第一个分隔符截断后，把 ACC-0 之类的片段误当成顺序号。
+            var expectedTypeCode = (IsTypeAuto ? EditTypeCode : TagTypePart)?.Trim();
+            string typeSegment;
+            if (!string.IsNullOrEmpty(expectedTypeCode) &&
+                rest.StartsWith(expectedTypeCode + _rule.TypeSeparator, StringComparison.Ordinal))
             {
-                return false;
+                typeSegment = expectedTypeCode;
+                rest = rest[(expectedTypeCode.Length + _rule.TypeSeparator.Length)..];
+            }
+            else
+            {
+                // 类型编码已在管理端改名等情况下，退回最后一个分隔符切分。
+                var index = rest.LastIndexOf(_rule.TypeSeparator, StringComparison.Ordinal);
+                if (index < 0)
+                {
+                    return false;
+                }
+
+                typeSegment = rest[..index].Trim();
+                rest = rest[(index + _rule.TypeSeparator.Length)..];
             }
 
-            var typeSegment = rest[..index].Trim();
             if (IsTypeAuto)
             {
                 _tagTypePart = typeSegment.Length == 0 ? null : typeSegment;
@@ -432,8 +501,6 @@ public partial class EquipmentEditorViewModel : ObservableObject
             {
                 TagTypePart = typeSegment;
             }
-
-            rest = rest[(index + _rule.TypeSeparator.Length)..];
         }
         else
         {
@@ -458,9 +525,18 @@ public partial class EquipmentEditorViewModel : ObservableObject
 
         // 顺序号 + 后缀
         var sequenceLength = _rule.SequenceLength;
-        if (sequenceLength <= 0 || rest.Length < sequenceLength)
+        if (sequenceLength <= 0)
         {
             return false;
+        }
+
+        if (rest.Length < sequenceLength)
+        {
+            // 拼装时 Fit 不会补零，实际顺序号可能短于定义长度；
+            // 剩余整段作为顺序号，避免整条位号被判定为不符合规则而清空字段。
+            TagSequence = rest.Trim();
+            TagSuffix = string.Empty;
+            return TagSequence.Length > 0;
         }
 
         TagSequence = rest[..sequenceLength].Trim();
@@ -481,6 +557,11 @@ public partial class EquipmentEditorViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(EditTagNo) || string.IsNullOrWhiteSpace(EditName))
         {
             error = "设备位号和名称不能为空";
+            return false;
+        }
+        if (_requiresBuilding && EditPbsNodeId is null)
+        {
+            error = "请选择所属建筑物";
             return false;
         }
 

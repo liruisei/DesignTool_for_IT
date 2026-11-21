@@ -341,11 +341,11 @@ public class TelecomStatsViewModelTests
     private static void AddSwitchModels(FakeApiClient api)
     {
         api.SwitchModels.Add(new SwitchModelDto(
-            Guid.NewGuid(), "SW-24A", "24 口接入", "Access", 24, 4, true, 1, null));
+            Guid.NewGuid(), "SW-24A", "24 口接入", "Telecom", "SW", "交换机", 24, 4, true, 1, null));
         api.SwitchModels.Add(new SwitchModelDto(
-            Guid.NewGuid(), "SW-48A", "48 口接入", "Access", 48, 4, true, 2, null));
+            Guid.NewGuid(), "SW-48A", "48 口接入", "Telecom", "SW", "交换机", 48, 4, true, 2, null));
         api.SwitchModels.Add(new SwitchModelDto(
-            Guid.NewGuid(), "SW-24P", "24 口 PoE", "PoE", 24, 4, true, 3, null));
+            Guid.NewGuid(), "SW-24P", "24 口 PoE", "Telecom", "POE", "PoE 交换机", 24, 4, true, 3, null));
     }
 
     private static void AddRoom(

@@ -37,7 +37,7 @@
                 </Grid>
 
                 <TextBlock Grid.Row="1" Style="{StaticResource MutedText}" Margin="0,0,0,10" TextWrapping="Wrap"
-                           Text="交换机（接入 / PoE）只是设备样本的一种，机柜等其他设备同样在此维护；设计端电信统计按接入与 PoE 样本的端口规格计算台数。" />
+                           Text="样本的类型取自「编码定义 → 设备类型」，先选专业再选类型编码；设计端电信统计按所选样本的端口规格计算台数。" />
 
                 <DataGrid Grid.Row="2" ItemsSource="{Binding ModelRows}"
                           SelectedItem="{Binding SelectedRow}"
@@ -46,7 +46,8 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="编码" Binding="{Binding Code}" Width="110" />
                         <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" />
-                        <DataGridTextColumn Header="类型" Binding="{Binding SwitchTypeText}" Width="100" />
+                        <DataGridTextColumn Header="专业" Binding="{Binding DisciplineText}" Width="70" />
+                        <DataGridTextColumn Header="类型" Binding="{Binding TypeText}" Width="150" />
                         <DataGridTextColumn Header="端口" Binding="{Binding ElectricalPorts}" Width="60" />
                         <DataGridTextColumn Header="上联口" Binding="{Binding UplinkPorts}" Width="70" />
                         <DataGridTemplateColumn Header="启用" Width="70">
@@ -83,10 +84,15 @@
                     <TextBox Style="{StaticResource Input}" Margin="0,4,0,10"
                              Text="{Binding EditorName, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Text="类型" Style="{StaticResource FieldLabel}" />
-                    <ComboBox Margin="0,4,0,10" ItemsSource="{Binding DeviceTypeOptions}"
+                    <TextBlock Text="专业" Style="{StaticResource FieldLabel}" />
+                    <ComboBox Margin="0,4,0,10" ItemsSource="{Binding DisciplineOptions}"
                               DisplayMemberPath="Name" SelectedValuePath="Code"
-                              SelectedValue="{Binding EditorSwitchType}" />
+                              SelectedValue="{Binding EditorDiscipline}" />
+
+                    <TextBlock Text="类型（编码 + 名称）" Style="{StaticResource FieldLabel}" />
+                    <ComboBox Margin="0,4,0,10" ItemsSource="{Binding TypeOptions}"
+                              DisplayMemberPath="Name" SelectedValuePath="Code"
+                              SelectedValue="{Binding EditorTypeCode}" />
 
                     <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>

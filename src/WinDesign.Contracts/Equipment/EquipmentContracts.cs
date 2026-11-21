@@ -39,6 +39,7 @@ public sealed record EquipmentDto : EquipmentUpsertRequest
     public Guid PlantId { get; init; }
     /// <summary>当前项目范围（登录时选定的项目）；设备本身归工厂所有。</summary>
     public Guid ProjectId { get; init; }
+    public string? PbsNodeCode { get; init; }
     public string? PbsNodeName { get; init; }
     public string? PbsPath { get; init; }
     public DateTime CreatedAt { get; init; }

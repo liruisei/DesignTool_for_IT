@@ -149,7 +149,16 @@ public class SwitchModel : EntityBase
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public SwitchType SwitchType { get; set; } = SwitchType.Access;
+
+    /// <summary>所属专业（Instrument / Telecom / IT），用于按专业筛选设备类型。</summary>
+    public string? Discipline { get; set; }
+
+    /// <summary>设备类型编码（编码定义 → EQUIPMENT_TYPE）；名称在读取时从字典解析。</summary>
+    public string? TypeCode { get; set; }
+
+    /// <summary>旧版样本类别列：为兼容既有库保留，业务逻辑已改用专业 + 设备类型。</summary>
+    public SwitchType SwitchType { get; set; } = SwitchType.Other;
+
     public int ElectricalPorts { get; set; } = 24;
     public int? UplinkPorts { get; set; }
     public bool IsActive { get; set; } = true;

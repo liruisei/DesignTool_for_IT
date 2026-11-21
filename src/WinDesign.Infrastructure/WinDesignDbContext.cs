@@ -189,6 +189,8 @@ public class WinDesignDbContext : DbContext
             e.HasIndex(x => x.Code).IsUnique();
             e.Property(x => x.Code).HasMaxLength(64).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Discipline).HasMaxLength(32);
+            e.Property(x => x.TypeCode).HasMaxLength(64);
             e.Property(x => x.SwitchType).HasConversion<string>().HasMaxLength(32);
             e.Property(x => x.Remark).HasMaxLength(500);
         });

@@ -18,8 +18,6 @@ public partial class EquipmentIndexViewModel : ViewModelBase
     private NumberingRuleDto? _numberingRule;
     private IReadOnlyDictionary<Guid, string> _unitCodeByPbsNodeId =
         new Dictionary<Guid, string>();
-    private IReadOnlyDictionary<Guid, Guid> _unitIdByPbsNodeId =
-        new Dictionary<Guid, Guid>();
     private IReadOnlyList<string> _unitCodeOptions = Array.Empty<string>();
 
     public ObservableCollection<EquipmentDto> Equipments { get; } = new();
@@ -135,14 +133,13 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             EquipmentTypes.Clear();
             _numberingRule = null;
             _unitCodeByPbsNodeId = new Dictionary<Guid, string>();
-            _unitIdByPbsNodeId = new Dictionary<Guid, Guid>();
             _unitCodeOptions = Array.Empty<string>();
             SelectedEquipment = null;
             return;
         }
 
         var nodes = await _session.Api.GetPbsNodesAsync(plantId.Value);
-        BuildPbsOptions(nodes);
+        BuildPbsOptions(nodes, project.PbsRootNodeId);
         _unitCodeOptions = BuildUnitCodeOptions(nodes, project.PbsRootNodeId);
         await LoadNumberingRuleAsync(project.Id);
 
@@ -289,27 +286,31 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             return;
         }
 
-        EquipmentDto? saved = null;
-        // 登录时选择的装置作为新建设备的默认 PBS 与默认位号前缀。
-        var defaultPbsNodeId = _session.UnitId is Guid unitId &&
-                               PbsEditorOptions.Any(x => x.Id == unitId)
-            ? unitId
-            : (Guid?)null;
+        if (equipment is null && PbsEditorOptions.Count == 0)
+        {
+            ErrorMessage = "当前项目 PBS 范围内没有建筑物，请先在 PBS 中添加建筑物";
+            return;
+        }
 
-        // 属性页只列出装置及以上层级；已有设备若挂在装置以下（回路/建筑物），
-        // 打开时按最近的上级装置展示，保存后设备即归属该装置。
-        var editorEquipment = equipment is not null &&
-                              equipment.PbsNodeId is Guid currentPbsNodeId &&
-                              _unitIdByPbsNodeId.TryGetValue(currentPbsNodeId, out var nearestUnitId)
-            ? equipment with { PbsNodeId = nearestUnitId }
-            : equipment;
+        EquipmentDto? saved = null;
+
+        // 新建设备不预选建筑物，必须由用户明确选择所属建筑物。
+        // 历史设备可能挂在装置/区域下：补一个只用于回显的占位项，避免下拉把原值清空。
+        var pbsOptions = PbsEditorOptions.ToList();
+        if (equipment?.PbsNodeId is Guid currentPbsNodeId &&
+            pbsOptions.All(x => x.Id != currentPbsNodeId))
+        {
+            var display = PbsFilterOptions.FirstOrDefault(x => x.Id == currentPbsNodeId)?.Display
+                          ?? "未指定建筑物";
+            pbsOptions.Insert(0, new PbsNodeOption(currentPbsNodeId, $"（当前：{display}）"));
+        }
 
         var context = new EquipmentEditorContext(
-            editorEquipment,
+            equipment,
             isCopy,
-            PbsEditorOptions.ToList(),
+            pbsOptions,
             EquipmentTypes.ToList(),
-            DefaultPbsNodeId: defaultPbsNodeId,
+            DefaultPbsNodeId: null,
             NumberingRule: _numberingRule,
             UnitCodeByPbsNodeId: _unitCodeByPbsNodeId,
             UnitCodeOptions: _unitCodeOptions,
@@ -397,14 +398,14 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         EquipmentsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void BuildPbsOptions(IReadOnlyList<PbsNodeDto> nodes)
+    private void BuildPbsOptions(IReadOnlyList<PbsNodeDto> nodes, Guid? projectRootId)
     {
         BuildUnitCodeMap(nodes);
         PbsFilterOptions.Clear();
         PbsEditorOptions.Clear();
         PbsFilterOptions.Add(new PbsNodeOption(null, "全部 PBS"));
-        PbsEditorOptions.Add(new PbsNodeOption(null, "（未分配）"));
 
+        var byId = nodes.ToDictionary(x => x.Id);
         var children = new Dictionary<Guid, List<PbsNodeDto>>();
         foreach (var node in nodes)
         {
@@ -437,9 +438,9 @@ public partial class EquipmentIndexViewModel : ViewModelBase
                 var display = indent + node.Code + "  " + node.Name;
                 PbsFilterOptions.Add(new PbsNodeOption(node.Id, display));
 
-                // 设备属性页的「所属 PBS」只展示装置及以上层级；
-                // 装置以下的回路、建筑物等不在归属选择中出现。
-                if (IsUnitLevelOrAbove(node.NodeType))
+                // 设备属性页的「所属建筑物」只列出当前项目 PBS 范围内的建筑物。
+                if (string.Equals(node.NodeType, "Building", StringComparison.OrdinalIgnoreCase) &&
+                    IsInProjectPbsScope(node, byId, projectRootId))
                 {
                     PbsEditorOptions.Add(new PbsNodeOption(node.Id, display));
                 }
@@ -451,10 +452,38 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         Walk(null, 0);
     }
 
-    /// <summary>PBS 层级是否在装置（Unit）及以上：区域与装置可选，装置以下不参与设备归属。</summary>
-    private static bool IsUnitLevelOrAbove(string? nodeType) =>
-        string.Equals(nodeType, "Area", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(nodeType, "Unit", StringComparison.OrdinalIgnoreCase);
+    /// <summary>节点是否在当前项目的 PBS 范围内（项目未指定根节点时为全厂）。</summary>
+    private static bool IsInProjectPbsScope(
+        PbsNodeDto node,
+        IReadOnlyDictionary<Guid, PbsNodeDto> byId,
+        Guid? projectRootId)
+    {
+        if (projectRootId is not Guid rootId)
+        {
+            return true;
+        }
+
+        var current = node;
+        var visited = new HashSet<Guid>();
+        while (visited.Add(current.Id))
+        {
+            if (current.Id == rootId)
+            {
+                return true;
+            }
+
+            if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
+            {
+                current = parent;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>加载当前项目的编号规定，供新建/复制设备时按规则拼装位号。</summary>
     private async Task LoadNumberingRuleAsync(Guid projectId)
@@ -470,10 +499,7 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// PBS 节点 → 最近上级装置（编号与 Id），分别用于位号前缀自动带出，
-    /// 以及把挂在装置以下的既有设备归到所属装置。
-    /// </summary>
+    /// <summary>PBS 节点 → 最近上级装置编码，用于位号前缀自动带出。</summary>
     private void BuildUnitCodeMap(IReadOnlyList<PbsNodeDto> nodes)
     {
         var byId = nodes.ToDictionary(x => x.Id);
@@ -500,7 +526,6 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         }
 
         var codeMap = new Dictionary<Guid, string>();
-        var unitIdMap = new Dictionary<Guid, Guid>();
         foreach (var node in nodes)
         {
             if (FindUnit(node.Id) is not { } unit)
@@ -512,10 +537,8 @@ public partial class EquipmentIndexViewModel : ViewModelBase
             {
                 codeMap[node.Id] = unit.Code;
             }
-            unitIdMap[node.Id] = unit.Id;
         }
         _unitCodeByPbsNodeId = codeMap;
-        _unitIdByPbsNodeId = unitIdMap;
     }
 
     /// <summary>当前项目 PBS 范围内的装置编号清单，供位号前缀下拉选择。</summary>
@@ -524,36 +547,9 @@ public partial class EquipmentIndexViewModel : ViewModelBase
         Guid? projectRootId)
     {
         var byId = nodes.ToDictionary(x => x.Id);
-        bool InScope(PbsNodeDto node)
-        {
-            if (projectRootId is not Guid rootId)
-            {
-                return true;
-            }
-
-            var current = node;
-            var visited = new HashSet<Guid>();
-            while (visited.Add(current.Id))
-            {
-                if (current.Id == rootId)
-                {
-                    return true;
-                }
-                if (current.ParentId is Guid parentId && byId.TryGetValue(parentId, out var parent))
-                {
-                    current = parent;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            return false;
-        }
-
         return nodes
             .Where(x => string.Equals(x.NodeType, "Unit", StringComparison.OrdinalIgnoreCase))
-            .Where(InScope)
+            .Where(x => IsInProjectPbsScope(x, byId, projectRootId))
             .Select(x => x.Code)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
